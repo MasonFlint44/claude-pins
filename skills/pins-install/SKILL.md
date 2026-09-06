@@ -34,5 +34,21 @@ idempotent; run it again after a plugin update.
    and the doctor prints the one-line static-binary install), whether ccusage is installed
    (`npm i -g ccusage`; optional, only for the cost line), the pin store, and the Claude
    projects directory.
-5. Finish with the two-line usage reminder: `pin` opens the picker, `/pin` pins the current
+5. Bare `/pin` and `/unpin` (optional, recommended): Claude Code namespaces plugin commands as
+   `/pins:pin` and `/pins:unpin`. User-level commands are not namespaced, so copy the shims:
+
+   ```bash
+   mkdir -p ~/.claude/commands
+   for c in pin unpin; do
+     if [ -e ~/.claude/commands/$c.md ] && ! grep -q 'claude-pins shim' ~/.claude/commands/$c.md; then
+       echo "~/.claude/commands/$c.md exists and is not ours; leaving it alone"
+     else
+       cp "${CLAUDE_PLUGIN_ROOT}/shims/$c.md" ~/.claude/commands/$c.md
+     fi
+   done
+   ```
+
+   They call `pin` on PATH (the symlink from step 2), so step 2 must have succeeded. Tell the
+   user both spellings now work.
+6. Finish with the two-line usage reminder: `pin` opens the picker, `/pin` pins the current
    session. Do not run `pin` itself (it is interactive) and never run `claude`.

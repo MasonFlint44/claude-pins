@@ -14,8 +14,8 @@ $ pin rc-mower --fork # one-off fork (new session id, original untouched)
 
 Inside Claude: `/pins:pin` pins the current session (Claude drafts an alias and title from the
 conversation and confirms), `/pins:unpin` removes it. Claude Code namespaces plugin commands
-with the plugin name, so they show up as `/pins:pin` and `/pins:unpin` in the command list.
-Everything else is terminal-only.
+with the plugin name; `/pins:pins-install` also offers bare `/pin` and `/unpin` by copying two
+user-level command shims into `~/.claude/commands/`. Everything else is terminal-only.
 
 ## Install
 
