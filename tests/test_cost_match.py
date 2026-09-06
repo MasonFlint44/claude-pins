@@ -101,6 +101,37 @@ class CostTests(Sandbox):
         self.assertEqual((c.status, c.unpriced), ("partial", ["claude-x"]))
 
 
+class DoctorTests(CostTests):
+    def test_doctor_covers_all_sessions(self):
+        from claude_pins.cost import doctor_line
+        self.stub_ccusage([row("a", 1, 10, [("claude-opus-5", 1, 10)]), row("b", 0, 10, [("claude-fable-5-1", 0, 10)]),
+                           row("c", 0, 10, [("claude-fable-5-1", 0, 10)])],
+                          [row("a", 1, 10, [("claude-opus-5", 1, 10)]), row("b", 2, 10, [("claude-fable-5-1", 2, 10)]),
+                           row("c", 2, 10, [("claude-fable-5-1", 2, 10)])])
+        line = doctor_line()
+        self.assertIn("offline table has no price for fable-5-1 (2 sessions); the online fallback prices them", line)
+        self.stub_ccusage([row("a", 1, 10, [("claude-opus-5", 1, 10)])])
+        self.assertIn("covers all 1 models", doctor_line())
+        self.stub_ccusage([row("b", 0, 10, [("claude-fable-5-1", 0, 10)])], [row("b", 0, 10, [("claude-fable-5-1", 0, 10)])])
+        self.assertIn("no price for fable-5-1 even online", doctor_line())
+
+    def test_preview_streams_before_cost(self):
+        import io
+        from claude_pins.render import stream_preview, View
+        from claude_pins.model import Pin
+        from claude_pins.sessions import Expiry
+        from claude_pins.transcript import Summary
+        seen = []
+        buf = io.StringIO()
+        orig = buf.flush
+        buf.flush = lambda: seen.append(buf.getvalue())
+        view = View(Pin(alias="a", session_id=SID, title="T", cwd="/x"), Expiry("ok", 100, 29), summary=Summary(exists=True, ai_title="T", model="claude-fable-5-1", prompts=1, last_prompt="hi"))
+        stream_preview(view, lambda: Cost("ok", 1.5, 10), None, width=80, out=buf)
+        self.assertIn("context", seen[0]); self.assertNotIn("cost", seen[0])   # flushed before the lookup
+        self.assertIn("cost      est $1.50 (ccusage)\ncreated", buf.getvalue())
+        self.assertTrue(buf.getvalue().rstrip().endswith("you       hi"))
+
+
 class MatchTests(Sandbox):
     def test_loose_match(self):
         pins = [Pin(alias="standup-prep", session_id="1", title="Standup prep"),

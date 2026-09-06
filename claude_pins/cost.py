@@ -162,8 +162,28 @@ def format_tokens(n: int) -> str:
     return str(n)
 
 
-def doctor_line(timeout: float = 6.0) -> str:
-    """For ``pin doctor``: version, whether the offline table prices the newest session, online reachability."""
+def _coverage(rows: list[dict]) -> tuple[dict[str, int], dict[str, int]]:
+    """Per model across every session: (sessions using it, sessions where it came back at $0)."""
+    used: dict[str, int] = {}
+    unpriced: dict[str, int] = {}
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        for b in r.get("modelBreakdowns") or []:
+            if not isinstance(b, dict) or not b.get("modelName"):
+                continue
+            tokens = sum(int(b.get(k) or 0) for k in ("inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens"))
+            if not tokens:
+                continue
+            m = str(b["modelName"])
+            used[m] = used.get(m, 0) + 1
+            if float(b.get("cost") or 0) == 0:
+                unpriced[m] = unpriced.get(m, 0) + 1
+    return used, unpriced
+
+
+def doctor_line(timeout: float = 8.0) -> str:
+    """For ``pin doctor``: version, and which models across all sessions the offline/online tables cannot price."""
     binary = ccusage_bin()
     if not binary:
         return f"✗ ccusage: not installed ({UPDATE_HINT}) — cost lines will say so"
@@ -172,25 +192,19 @@ def doctor_line(timeout: float = 6.0) -> str:
         version = p.stdout.strip().replace("ccusage ", "") or "?"
     except (OSError, subprocess.SubprocessError):
         return "✗ ccusage: present but not runnable"
-    from .sessions import iter_transcripts
-    newest = iter_transcripts()[:1]
-    notes = []
-    if newest:
-        sid = newest[0].stem
-        offline = _listing(binary, offline=True, timeout=timeout)
-        orow = _row_for(offline, sid) if isinstance(offline, list) else None
-        missing = unpriced_models(orow) if orow else []
-        if missing:
-            online = _listing(binary, offline=False, timeout=timeout)
-            nrow = _row_for(online, sid) if isinstance(online, list) else None
-            still = unpriced_models(nrow) if nrow else None
-            if still is None:
-                notes.append(f"offline table has no price for {', '.join(_short(m) for m in missing)}; online fallback unreachable ({UPDATE_HINT})")
-            elif still:
-                notes.append(f"no price for {', '.join(_short(m) for m in still)} even online ({UPDATE_HINT})")
-            else:
-                notes.append(f"offline table has no price for {', '.join(_short(m) for m in missing)}; online fallback works ({UPDATE_HINT} to avoid it)")
-        else:
-            notes.append("offline price table covers the newest session")
-    mark = "·" if any("no price" in n for n in notes) else "✓"
-    return f"{mark} ccusage {version}: {'; '.join(notes) or 'ok'}"
+    rows = _listing(binary, offline=True, timeout=timeout)
+    if isinstance(rows, str):
+        return f"✗ ccusage {version}: offline listing failed ({rows})"
+    used, missing = _coverage(rows)
+    if not used:
+        return f"✓ ccusage {version}: no priced sessions yet"
+    if not missing:
+        return f"✓ ccusage {version}: offline price table covers all {len(used)} models in your sessions"
+    names = ", ".join(f"{_short(m)} ({n} sessions)" for m, n in sorted(missing.items()))
+    online = _listing(binary, offline=False, timeout=timeout)
+    if isinstance(online, str):
+        return f"· ccusage {version}: offline table has no price for {names}; online fallback unreachable ({online}) · {UPDATE_HINT}"
+    _, still = _coverage(online)
+    if still:
+        return f"· ccusage {version}: no price for {', '.join(_short(m) for m in sorted(still))} even online · {UPDATE_HINT}"
+    return f"· ccusage {version}: offline table has no price for {names}; the online fallback prices them · {UPDATE_HINT} to avoid the network"

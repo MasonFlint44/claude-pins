@@ -141,6 +141,31 @@ def rows(views: list[View], width: int | None = None, color: Palette | None = No
     return out
 
 
+PENDING = Cost("pending")            # sentinel: render a placeholder line, filled in by stream_preview
+COST_PLACEHOLDER = "\x00cost\x00"
+
+
+def stream_preview(view: View, compute_cost, current_branch: str | None = None, width: int | None = None,
+                   color: Palette | None = None, out=None) -> None:
+    """Print the preview with everything but the cost line first, then the cost once computed.
+
+    fzf renders preview output as it arrives, so the pane fills instantly even when the cost
+    lookup has to go online.
+    """
+    import sys as _sys
+    out = out or _sys.stdout
+    color = color or Palette(False)
+    text = preview(view, PENDING, current_branch, width, color)
+    before, _, after = text.partition(COST_PLACEHOLDER)
+    out.write(before)
+    out.flush()
+    cost = compute_cost()
+    s = view.summary or Summary(exists=False)
+    out.write(f"{color(pad('cost', 9), 'dim')} {cost.line(short_model(s.model), s.messages)}")
+    out.write(after + "\n")
+    out.flush()
+
+
 def _date(iso: str) -> str:
     return iso[:10] if iso else ""
 
@@ -187,7 +212,7 @@ def preview(view: View, cost: Cost | None = None, current_branch: str | None = N
         ctx.append(f"{format_tokens(cost.total_tokens)} tokens")
     row("context", " · ".join(ctx) or "(transcript gone)")
     if cost is not None:
-        row("cost", cost.line(short_model(s.model), s.messages))
+        lines.append(COST_PLACEHOLDER if cost is PENDING else f"{color(pad('cost', 9), 'dim')} {cost.line(short_model(s.model), s.messages)}")
     when = []
     if s.created:
         when.append(_date(s.created))

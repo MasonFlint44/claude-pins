@@ -14,7 +14,7 @@ from .listing import build_views
 from .match import loose_match
 from .model import Launch, Pin, PinError, is_session_id, validate_alias, PERMISSION_MODES, EFFORT_LEVELS
 from .opener import launch, plan_open, touch_kept, touch_pin
-from .render import palette, preview, rows, session_preview
+from .render import palette, preview, rows, session_preview, stream_preview
 from .sessions import find_transcript, iter_transcripts, session_id_from_env
 from .store import Store, load_store
 from .transcript import read_summary
@@ -367,8 +367,10 @@ def cmd_preview(opts) -> int:
     from .listing import view_for
     view = view_for(pin, set())
     branch = current_branch(pin.cwd) if pin.cwd and os.path.isdir(pin.cwd) and is_repo(pin.cwd) else None
-    cost = session_cost(pin.session_id, pin.transcript) if view.summary and view.summary.exists else None
-    print(preview(view, cost, branch, color=palette()))
+    if view.summary and view.summary.exists:
+        stream_preview(view, lambda: session_cost(pin.session_id, pin.transcript), branch, color=palette())
+    else:
+        print(preview(view, None, branch, color=palette()))
     return 0
 
 
