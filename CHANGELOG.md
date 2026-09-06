@@ -49,7 +49,7 @@ tag (`v0.2.1`) and a GitHub release with this section as its notes.
 
 ## 0.1.0 — 2026-09-06
 
-Initial release, built from `DESIGN.md`.
+Initial release.
 
 - `pin`: fzf picker with preview pane, status flashes, actions palette,
   help screen with rebinding, new-pin flow, prune and undo, sort cycling,

@@ -175,7 +175,4 @@ and `claude_pins/__init__.py` (a test keeps the three in step), commit `Version 
 `vX.Y.Z` with the section as its message, `gh release create` with the same notes. The
 marketplace needs no change: its entries carry no version.
 
-The design, including the verified facts about Claude Code's retention sweep, transcript
-records, and the `--resume`/`--fork-session`/`--worktree` spike, is in [DESIGN.md](DESIGN.md).
-
 MIT — see `LICENSE`. Version history in `CHANGELOG.md`.

@@ -2,9 +2,33 @@
 
 Pin Claude Code sessions and reopen them by alias. `bin/pin` is the terminal
 command (Python 3.10+, standard library only); `commands/` and `skills/` are the
-Claude Code plugin. `README.md` is the user manual, `DESIGN.md` the design plus
-the verification spike findings in §2.1 (what `--resume`, `--fork-session` and
-`--worktree` actually do, what fzf 0.44 supports).
+Claude Code plugin. `README.md` is the user manual.
+
+## Facts the code relies on
+
+Verified against Claude Code 2.1 and fzf 0.44 before the build; they are the
+reasons behind several design choices and are recorded nowhere else.
+
+- The retention sweep deletes any file under `~/.claude/projects/` whose mtime is
+  older than `cleanupPeriodDays`. Only the transcript's mtime matters: session
+  names do not protect it, and its sidecar files are swept on their own mtimes.
+  That is why opening a pin touches the transcript and `keep` pins are touched on
+  every run.
+- `--resume` finds a session in any project directory. `--fork-session` writes a
+  new transcript, with the copied records' `cwd` rewritten, and never touches the
+  original, so a fork alone would not extend the original's life.
+- `gitBranch` in a worktree session's records is stale (captured before the
+  worktree checkout), so the preview reads the branch from git.
+- Inside a session the Bash tool sees `CLAUDE_CODE_SESSION_ID`; command templates
+  get `${CLAUDE_SESSION_ID}` substituted. Nothing tails history files.
+- fzf cannot bind printable characters (they type into the query), which is why
+  the help screen's reset keys are ctrl-r and ctrl-alt-r rather than `r` and `R`.
+  Its own editing keys are left alone so the filter stays editable, and alt+enter
+  is avoided because Windows Terminal takes it. In `--layout=reverse` the header
+  renders on the line below the prompt, which is where the status flash goes.
+- Python's `input()` cannot see escape, so the inline prompts cancel with ctrl-c.
+- Terminal automation (opening a new tab for the resumed session) was dropped on
+  purpose: Ghostty's D-Bus surface offers new-window only.
 
 ## Verify before committing
 
