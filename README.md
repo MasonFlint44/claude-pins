@@ -85,10 +85,20 @@ completion link; the store and cache below can go too.
 | toggle keep | alt-k | | help / shortcuts | f1 |
 | unpin | alt-x | | multi-select | tab |
 
-Every key is remappable from the f1 screen (enter rebinds, ctrl-r resets a row, ctrl-alt-r
-resets all) or by editing `~/.config/claude-pins/keys.toml`. fzf's own query-editing keys and
-alt+enter (Windows Terminal) are avoided on purpose. Markers: ● open · ⚑ keep · ⑂ fork ·
-⌂ worktree · ⏳ expiring · ✗ expired.
+Esc always goes back exactly one level. Toggle fork mode and toggle worktree mode have no
+default key; both live in the palette. Every key is remappable from the f1 screen (enter rebinds,
+ctrl-r resets a row, ctrl-alt-r resets all) or by editing `~/.config/claude-pins/keys.toml`,
+whose action names are `open`, `open_fork`, `open_worktree`, `palette`, `edit`, `touch`,
+`keep`, `fork_mode`, `worktree_mode`, `unpin`, `new`, `expired`, `prune`, `undo`, `sort`,
+`preview`, `help`, `select`. fzf's own query-editing keys and alt+enter (Windows Terminal) are
+avoided on purpose. Markers: ● open · ⚑ keep · ⑂ fork · ⌂ worktree · ⏳ expiring · ✗ expired.
+
+In the editor: enter changes the highlighted field (booleans flip, text fields prompt with the
+current value, choices open a short list with `(clear)`), alt-s saves, esc goes back and asks
+`save changes? [Y/n/c]` when something changed. In the no-fzf menu a bare letter is a list
+action and letter+number a row action: `N` open, `oN` fork, `wN` worktree, `tN` touch, `eN`
+edit, `xN` unpin, `pN` preview, `n` new, `a` show expired, `p` prune, `z` undo, `s` sort,
+`?` legend, `q` quit.
 
 ## Command line
 

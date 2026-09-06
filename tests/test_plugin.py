@@ -105,3 +105,40 @@ class PluginFileTests(Sandbox):
                        "cleanupPeriodDays"):
             self.assertIn(phrase, skill, f"skill does not explain {phrase!r}")
             self.assertIn(phrase.split(" (")[0], src, f"doctor never prints {phrase[:30]!r}")
+
+
+class ReadmeTests(Sandbox):
+    def test_key_table_matches_defaults(self):
+        """The README's Keys table lists exactly the bound defaults from keymap.ACTIONS."""
+        from claude_pins.keymap import ACTIONS
+        readme = (REPO / "README.md").read_text()
+        section = readme.split("## Keys", 1)[1].split("## Command line", 1)[0]
+        documented = set()
+        for line in section.splitlines():
+            if not line.startswith("|") or "---" in line or "| key |" in line:
+                continue
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            documented |= {cells[i] for i in (1, 4) if i < len(cells) and cells[i]}
+        defaults = {a.key for a in ACTIONS if a.key}
+        self.assertEqual(documented, defaults)
+        for a in ACTIONS:
+            if not a.key:
+                self.assertIn(a.label.lower().replace("toggle ", ""), section.lower(), f"{a.id}: palette-only action not mentioned")
+        for name in [a.id for a in ACTIONS]:
+            self.assertIn(f"`{name}`", section, f"keys.toml action name {name} not documented")
+
+    def test_cli_reference_lists_every_subcommand(self):
+        from claude_pins.cli import SUBCOMMANDS
+        readme = (REPO / "README.md").read_text()
+        section = readme.split("## Command line", 1)[1].split("## Files", 1)[0]
+        for sub in SUBCOMMANDS:
+            if sub.startswith("_") or sub in ("help", "ls"):
+                continue
+            self.assertIn(f"pin {sub}", section, f"subcommand {sub} missing from the README")
+
+    def test_env_knobs_documented(self):
+        src = "".join(p.read_text() for p in (REPO / "claude_pins").glob("*.py"))
+        knobs = set(re.findall(r"CLAUDE_PINS_[A-Z_]+", src)) - {"CLAUDE_PINS_EXE"}  # EXE is internal plumbing
+        readme = (REPO / "README.md").read_text()
+        for k in sorted(knobs):
+            self.assertIn(k, readme, f"{k} undocumented")
