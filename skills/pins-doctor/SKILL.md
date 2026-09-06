@@ -26,7 +26,7 @@ skill runs it and turns each line into a fix.
    | `· ccusage …: no price for X even online` | no price table knows X yet | wait for ccusage; the cost line shows `≥` the priced part |
    | `· ccusage …: online fallback unreachable` | no network from this shell | the offline estimate stays; nothing to fix in pins |
    | `✗ store: … corrupt` | `pins.json` is not valid JSON; a copy was kept at `pins.json.bak` and the original untouched | fix the JSON by hand or move it aside; `pin undo` cannot help here |
-   | `✗ projects dir … not found` | Claude's transcripts live elsewhere | set `CLAUDE_CONFIG_DIR` to the directory that holds `projects/` |
+   | `✗ projects dir … not found (set CLAUDE_CONFIG_DIR?)` | Claude's transcripts live elsewhere | set `CLAUDE_CONFIG_DIR` to the directory that holds `projects/` |
    | `cleanupPeriodDays N` | Claude deletes transcripts untouched for N days; pins expire with them | expected; `pin edit <alias> --keep` protects a pin, `pin prune` clears expired ones |
 
    A pin marked ✗ in the picker means its transcript was already deleted by that sweep; nothing

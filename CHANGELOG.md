@@ -4,6 +4,18 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.2.0`) and a GitHub release with this section as its notes.
 
+## Unreleased
+
+- Tests for the plugin itself: `tests/test_plugin.py` (free: manifest and
+  changelog in step, frontmatter, the commands' dynamic-context snippets,
+  the install skill's shell steps in a sandbox, the doctor skill's table
+  against the doctor's real lines) and `tests/skills/run.sh` (paid, by hand:
+  seven headless `claude -p` cases with a stub `claude` on PATH).
+- README: updating and removing, a table of the plugin's commands and
+  skills, files and environment, the release procedure.
+- Marketplace entries no longer carry a `version`; `plugin.json` is the
+  single source (the docs warn against setting both).
+
 ## 0.2.0 — 2026-09-06
 
 - **Cost line that knows what it does not know.** ccusage's offline price

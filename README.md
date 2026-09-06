@@ -33,6 +33,20 @@ terminal-only.
 
 Python 3.10+ standard library only. Linux and macOS (WSL counts as Linux).
 
+**Updating:** `/plugin update pins` (or auto-update for the marketplace in `/plugin`), then
+`/pins:pins-install` again, because the plugin directory moves on each version and the symlink
+points into it. **Removing:** `/plugin uninstall pins`, delete `~/.local/bin/pin` and the
+completion link; the store and cache below can go too.
+
+### Plugin commands and skills
+
+| | |
+|---|---|
+| `/pins:pin [alias [title…]]` | pin this session; with no arguments Claude drafts an alias and title from the conversation and confirms |
+| `/pins:unpin` | unpin this session; says so if it is not pinned |
+| `/pins:pins-install` | symlink, completion, `pin doctor` |
+| `/pins:pins-doctor` | run `pin doctor` and explain each line with a fix |
+
 ## How it works
 
 - A pin stores an alias, title, session id, directory, note, and launch options. The store is
@@ -87,8 +101,20 @@ pin open <alias> [--fork] [--resume] [-w [name]]
 pin rm|unpin <alias> · pin undo · pin prune [-y] · pin touch <alias> · pin doctor
 ```
 
-Environment: `CLAUDE_PINS_FILE`, `CLAUDE_PINS_SORT`, `CLAUDE_PINS_NO_FZF`,
-`CLAUDE_PINS_EXPIRE_WARN`, `NO_COLOR`, `CLAUDE_CONFIG_DIR` (where Claude's `projects/` lives).
+## Files and environment
+
+| | |
+|---|---|
+| `~/.local/state/claude-pins/pins.json` | the store (`XDG_STATE_HOME`; `CLAUDE_PINS_FILE` overrides) |
+| `~/.config/claude-pins/keys.toml` | keymap, written by the f1 screen; one `action = "key"` line per action, an empty string unbinds (`XDG_CONFIG_HOME`; `CLAUDE_PINS_KEYMAP` overrides) |
+| `~/.cache/claude-pins/` | transcript summaries and cost answers, keyed on the transcript's mtime; safe to delete (`XDG_CACHE_HOME`) |
+| `CLAUDE_CONFIG_DIR` | where Claude's `projects/` and `settings.json` live (default `~/.claude`) |
+| `CLAUDE_PINS_SORT` | starting sort: `recency` (default), `alias`, `pinned` |
+| `CLAUDE_PINS_EXPIRE_WARN` | days before expiry at which ⏳ shows (default 7) |
+| `CLAUDE_PINS_NO_FZF` | force the numbered menu |
+| `NO_COLOR` / `CLAUDE_PINS_COLOR=1` | never / always color |
+| `CLAUDE_PINS_FZF`, `CLAUDE_PINS_CCUSAGE` | alternate binaries |
+| `CLAUDE_PINS_PS`, `CLAUDE_PINS_NOW` | test hooks: a fake process table file, a fake clock (epoch seconds) |
 
 ## Development
 
@@ -101,6 +127,23 @@ pip install pyte && python3 docs/preview.py       # regenerate the README previe
 
 Tests never run the real `claude`: a stub on `PATH` records the argv and cwd it was launched
 with, and a scripted stand-in for fzf drives the picker. Zero Claude usage in CI.
+`tests/test_plugin.py` checks the plugin files without a model: frontmatter, the commands'
+dynamic-context snippets against a real store, the install skill's shell steps in a sandbox,
+and that every line the doctor skill explains is one `pin doctor` prints.
+
+```
+tests/skills/run.sh [-m MODEL] [-n RUNS] [CASE...]   # headless skill runs through `claude -p`; paid, by hand
+```
+
+Each case under `tests/skills/cases/` is a prompt plus setup and check scripts, run with the
+plugin loaded against a throwaway HOME whose `claude` on PATH is a stub, so no case can start
+a real session. Seven cases (pin with and without arguments, already pinned, unpin, unpin
+when nothing is pinned, install, doctor) cost about $0.50 on sonnet.
+
+**Releasing:** add a `CHANGELOG.md` section, bump `version` in `.claude-plugin/plugin.json`
+and `claude_pins/__init__.py` (a test keeps the three in step), commit `Version X.Y.Z`, tag
+`vX.Y.Z` with the section as its message, `gh release create` with the same notes. The
+marketplace needs no change: its entries carry no version.
 
 The design, including the verified facts about Claude Code's retention sweep, transcript
 records, and the `--resume`/`--fork-session`/`--worktree` spike, is in [DESIGN.md](DESIGN.md).
