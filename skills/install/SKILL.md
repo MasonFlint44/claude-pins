@@ -29,7 +29,8 @@ idempotent; run it again after a plugin update.
    on the next shell). If bash-completion is not installed, append
    `source "${CLAUDE_PLUGIN_ROOT}/completions/pin.bash"` to `~/.bashrc` unless it is already there.
    On zsh, `autoload -U +X bashcompinit && bashcompinit` before sourcing it.
-4. Run `"${CLAUDE_PLUGIN_ROOT}/bin/pin" doctor` and show its output. It reports the fzf version
+4. Run `"${CLAUDE_PLUGIN_ROOT}/bin/pin" doctor` and quote its lines as printed, all of them,
+   rather than summarizing: each line is a check the user may need to act on later. It reports the fzf version
    (0.44 or newer is required for the picker; older or missing falls back to a numbered menu
    and the doctor prints the one-line static-binary install), whether ccusage is installed
    (`npm i -g ccusage`; optional, only for the cost line), the pin store, and the Claude

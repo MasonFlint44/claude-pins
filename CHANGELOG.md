@@ -2,7 +2,12 @@
 
 Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
-tag (`v0.3.0`) and a GitHub release with this section as its notes.
+tag (`v0.3.1`) and a GitHub release with this section as its notes.
+
+## 0.3.1 — 2026-09-06
+
+- Install skill quotes the doctor's lines as printed instead of summarizing
+  them. The headless install case accepts "Doctor" as well as "doctor".
 
 ## 0.3.0 — 2026-09-06
 
