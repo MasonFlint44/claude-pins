@@ -28,7 +28,8 @@ terminal-only.
 
 2. Run `/pins:pins-install` once. It symlinks `bin/pin` into `~/.local/bin`, installs bash
    completion, and runs `pin doctor`, which checks for **fzf ≥ 0.44** (older or missing falls
-   back to a numbered menu) and **ccusage** (optional; only for the cost line).
+   back to a numbered menu) and **ccusage** (optional; only for the cost line). `/pins:pins-doctor`
+   runs the same checks later and explains each line.
 
 Python 3.10+ standard library only. Linux and macOS (WSL counts as Linux).
 
@@ -93,7 +94,7 @@ Environment: `CLAUDE_PINS_FILE`, `CLAUDE_PINS_SORT`, `CLAUDE_PINS_NO_FZF`,
 
 ```
 python3 -m unittest            # store, reader, expiry, git worktrees, opener prompts, picker flows
-bash tests/completion_check.sh # bash completion (CI also runs it on bash 3.2 / 4.4 / 5.2 images)
+bash tests/completion_check.sh # bash completion (CI also runs it on bash 3.2 / 4.4 / 5.2 images, plus shellcheck)
 python3 tests/fzf_grammar_check.py [fzf-binary]   # every option the picker uses, against fzf 0.44.1 in CI
 pip install pyte && python3 docs/preview.py       # regenerate the README preview
 ```
@@ -104,4 +105,4 @@ with, and a scripted stand-in for fzf drives the picker. Zero Claude usage in CI
 The design, including the verified facts about Claude Code's retention sweep, transcript
 records, and the `--resume`/`--fork-session`/`--worktree` spike, is in [DESIGN.md](DESIGN.md).
 
-MIT.
+MIT — see `LICENSE`. Version history in `CHANGELOG.md`.

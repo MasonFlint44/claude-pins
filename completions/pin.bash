@@ -1,7 +1,8 @@
 # bash completion for `pin` (claude-pins). Works on bash 3.2+.
-#   source this file, or: pin doctor tells /pins-install where it was linked.
+#   /pins:pins-install links it into bash-completion's user directory.
+# shellcheck disable=SC2207  # compgen output is split on purpose; bash 3.2 has no mapfile
 _pin_complete() {
-    local cur prev words cword
+    local cur prev
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     local subs="add list edit rm unpin undo prune touch doctor open help"

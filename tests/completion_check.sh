@@ -13,7 +13,7 @@ PATH="$tmp:$PATH"
 source "$here/completions/pin.bash"
 
 check() {  # check "<command line>" "<expected space-separated>"
-    COMP_WORDS=($1); COMP_CWORD=$(( ${#COMP_WORDS[@]} - 1 ))
+    read -r -a COMP_WORDS <<< "$1"; COMP_CWORD=$(( ${#COMP_WORDS[@]} - 1 ))
     case "$1" in *" ") COMP_WORDS+=(""); COMP_CWORD=$(( ${#COMP_WORDS[@]} - 1 ));; esac
     COMPREPLY=()
     _pin_complete

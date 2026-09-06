@@ -24,6 +24,9 @@ jobs:
           git config --global init.defaultBranch main
       - name: Unit and end-to-end tests (stub claude, stub fzf — zero Claude usage)
         run: python -m unittest -v
+      - name: shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck completions/pin.bash tests/completion_check.sh
       - name: Real fzf 0.44 option grammar
         if: runner.os == 'Linux'
         run: |

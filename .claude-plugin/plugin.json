@@ -1,12 +1,19 @@
 {
   "name": "pins",
-  "version": "0.1.0",
-  "description": "Pin Claude Code sessions and resume them by name: /pin, /unpin, and the `pin` terminal picker.",
-  "author": { "name": "Mason Flint" },
+  "version": "0.2.0",
+  "description": "Pin Claude Code sessions and resume them by name: /pins:pin, /pins:unpin, and the `pin` terminal picker. Install with /pins:pins-install; diagnose with /pins:pins-doctor.",
+  "author": {
+    "name": "Mason Flint"
+  },
   "homepage": "https://github.com/MasonFlint44/claude-pins",
   "repository": "https://github.com/MasonFlint44/claude-pins",
   "license": "MIT",
-  "keywords": ["sessions", "resume", "fzf", "pins"],
+  "keywords": [
+    "sessions",
+    "resume",
+    "fzf",
+    "pins"
+  ],
   "commands": "./commands",
   "skills": "./skills"
 }
