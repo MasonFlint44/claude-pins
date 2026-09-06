@@ -2,9 +2,9 @@
 
 Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
-tag (`v0.2.0`) and a GitHub release with this section as its notes.
+tag (`v0.2.1`) and a GitHub release with this section as its notes.
 
-## Unreleased
+## 0.2.1 — 2026-09-06
 
 - Tests for the plugin itself: `tests/test_plugin.py` (free: manifest and
   changelog in step, frontmatter, the commands' dynamic-context snippets,
@@ -12,7 +12,10 @@ tag (`v0.2.0`) and a GitHub release with this section as its notes.
   against the doctor's real lines) and `tests/skills/run.sh` (paid, by hand:
   seven headless `claude -p` cases with a stub `claude` on PATH).
 - README: updating and removing, a table of the plugin's commands and
-  skills, files and environment, the release procedure.
+  skills, a command-line reference, files and environment, the palette-only
+  actions and `keys.toml` action names, editor and menu keys, the release
+  procedure. Tests keep the Keys table, the subcommand list and the
+  environment knobs in step with the code.
 - Marketplace entries no longer carry a `version`; `plugin.json` is the
   single source (the docs warn against setting both).
 
