@@ -14,8 +14,8 @@ $ pin rc-mower --fork # one-off fork (new session id, original untouched)
 
 Inside Claude: `/pins:pin` pins the current session (Claude drafts an alias and title from the
 conversation and confirms), `/pins:unpin` removes it. Claude Code namespaces plugin commands
-with the plugin name; `/pins:pins-install` also offers bare `/pin` and `/unpin` by copying two
-user-level command shims into `~/.claude/commands/`. Everything else is terminal-only.
+with the plugin name, so that is how they appear in the command list. Everything else is
+terminal-only.
 
 ## Install
 
@@ -46,6 +46,10 @@ Python 3.10+ standard library only. Linux and macOS (WSL counts as Linux).
   and ✗ once the transcript is gone. Opening touches the transcript; pins with **keep** (⚑) are
   touched on every `pin` run and never expire while you use the tool. `pin prune` unpins the
   expired ones; `pin undo` restores the last unpin or prune.
+- The cost line comes from [ccusage](https://github.com/ryoppippi/ccusage): offline first,
+  and when its bundled price table has no price for a model the session used, one online run
+  with a short timeout. If neither prices the model, the line says so and names the update
+  command. Results are cached per transcript change.
 - A session whose id appears in a running `claude` process is marked ● and asks before
   resuming a second copy.
 - If the pin's directory is gone: a Claude worktree (`<repo>/.claude/worktrees/<name>`) is

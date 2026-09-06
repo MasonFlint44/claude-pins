@@ -1,4 +1,9 @@
-"""Session cost via ccusage (offline), cached per transcript mtime."""
+"""Session cost via ccusage, cached per transcript mtime.
+
+Offline first (bundled price table, no network). When the offline table has no price for a model
+the session used (its entries come back at $0), fall back to one online run with a short timeout;
+online failures are remembered for a few minutes so a preview pane never stalls repeatedly.
+"""
 
 from __future__ import annotations
 
@@ -6,30 +11,41 @@ import json
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import config
 
+UPDATE_HINT = "npm i -g ccusage@latest"
+ONLINE_RETRY_SECONDS = 600
+
 
 @dataclass
 class Cost:
-    status: str            # "ok" | "zero" | "missing" | "unknown" | "error"
+    status: str                 # "ok" | "partial" | "missing" | "unknown" | "error"
     total_cost: float = 0.0
     total_tokens: int = 0
+    source: str = "offline"     # "offline" | "online"
+    unpriced: list[str] = field(default_factory=list)
 
     def line(self, model: str = "", messages: int = 0) -> str:
         if self.status == "missing":
-            return "install ccusage for session cost · npm i -g ccusage"
+            return f"install ccusage for session cost · {UPDATE_HINT}"
         if self.status == "ok":
-            return f"est ${self.total_cost:.2f} (ccusage)"
-        if self.status == "zero":
-            if messages:
-                return f"pricing unavailable for {model or 'this model'} · update ccusage"
-            return "est $0.00 (ccusage)"
+            via = "ccusage online" if self.source == "online" else "ccusage"
+            return f"est ${self.total_cost:.2f} ({via})"
+        if self.status == "partial":
+            models = ", ".join(_short(m) for m in self.unpriced) or model or "this model"
+            head = f"est ≥ ${self.total_cost:.2f} · " if self.total_cost > 0 else ""
+            return f"{head}no price for {models} · {UPDATE_HINT}"
         if self.status == "unknown":
             return "not indexed by ccusage yet"
         return "unavailable (ccusage error)"
+
+
+def _short(model: str) -> str:
+    return model[len("claude-"):] if model.startswith("claude-") else model
 
 
 def ccusage_bin() -> str | None:
@@ -43,7 +59,45 @@ def _cache_file(session_id: str) -> Path:
     return config.cache_dir() / "cost" / f"{session_id}.json"
 
 
-def session_cost(session_id: str, transcript: str | os.PathLike | None, *, timeout: float = 8.0) -> Cost:
+def _listing(binary: str, *, offline: bool, timeout: float) -> list[dict] | str:
+    """Every session row from ``ccusage session --json`` (rows carry ``modelBreakdowns``), or an error string."""
+    args = [binary, "session", "--json"] + (["--offline"] if offline else [])
+    try:
+        p = subprocess.run(args, capture_output=True, text=True, timeout=timeout, env={**os.environ, "NO_COLOR": "1"})
+        payload = json.loads(p.stdout) if p.stdout.strip() else {}
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except (OSError, subprocess.SubprocessError, ValueError) as e:
+        return str(e)
+    rows = payload.get("session") if isinstance(payload, dict) else None
+    if isinstance(payload, dict) and rows is None:
+        rows = payload.get("sessions")
+    return rows if isinstance(rows, list) else "bad json"
+
+
+def _row_for(rows: list[dict], session_id: str) -> dict | None:
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        if str(r.get("sessionId") or r.get("period") or "") == session_id:
+            return r
+    return None
+
+
+def unpriced_models(row: dict) -> list[str]:
+    """Models with tokens but $0 in the row's per-model breakdown — the price table does not know them."""
+    out = []
+    for b in row.get("modelBreakdowns") or []:
+        if not isinstance(b, dict):
+            continue
+        tokens = sum(int(b.get(k) or 0) for k in ("inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens"))
+        if tokens > 0 and float(b.get("cost") or 0) == 0 and b.get("modelName"):
+            out.append(str(b["modelName"]))
+    return sorted(out)
+
+
+def session_cost(session_id: str, transcript: str | os.PathLike | None, *, timeout: float = 8.0,
+                 online_timeout: float = 5.0, allow_online: bool = True) -> Cost:
     binary = ccusage_bin()
     if not binary:
         return Cost("missing")
@@ -52,31 +106,52 @@ def session_cost(session_id: str, transcript: str | os.PathLike | None, *, timeo
     except OSError:
         mtime = 0.0
     cache = _cache_file(session_id)
+    cached: dict = {}
     try:
-        data = json.loads(cache.read_text(encoding="utf-8"))
-        if data.get("mtime") == mtime and data.get("status") in ("ok", "zero"):
-            return Cost(data["status"], float(data.get("total_cost", 0)), int(data.get("total_tokens", 0)))
+        cached = json.loads(cache.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
-        pass
-    try:
-        p = subprocess.run([binary, "session", "--id", session_id, "--json", "--offline"],
-                           capture_output=True, text=True, timeout=timeout,
-                           env={**os.environ, "NO_COLOR": "1"})
-        payload = json.loads(p.stdout) if p.stdout.strip() else None
-    except (OSError, subprocess.SubprocessError, ValueError):
+        cached = {}
+    if cached.get("mtime") == mtime and cached.get("status") in ("ok", "partial"):
+        retry = cached.get("online_retry_at", 0)
+        if cached["status"] == "ok" or not allow_online or (retry and time.time() < retry):
+            return Cost(cached["status"], float(cached.get("total_cost", 0)), int(cached.get("total_tokens", 0)),
+                        cached.get("source", "offline"), list(cached.get("unpriced", [])))
+    rows = _listing(binary, offline=True, timeout=timeout)
+    if isinstance(rows, str):
         return Cost("error")
-    if not isinstance(payload, dict):
+    row = _row_for(rows, session_id)
+    if row is None:
         return Cost("unknown")
-    total = float(payload.get("totalCost") or 0.0)
-    tokens = int(payload.get("totalTokens") or 0)
-    cost = Cost("ok" if total > 0 else "zero", total, tokens)
+    cost = _from_row(row, "offline")
+    online_retry_at = 0.0
+    if cost.status == "partial" and allow_online:
+        online = _listing(binary, offline=False, timeout=online_timeout)
+        orow = _row_for(online, session_id) if isinstance(online, list) else None
+        if orow is not None:
+            better = _from_row(orow, "online")
+            if better.status == "ok" or better.total_cost > cost.total_cost:
+                cost = better
+        if cost.status != "ok":
+            online_retry_at = time.time() + ONLINE_RETRY_SECONDS
     try:
         cache.parent.mkdir(parents=True, exist_ok=True)
-        cache.write_text(json.dumps({"mtime": mtime, "status": cost.status, "total_cost": total,
-                                     "total_tokens": tokens}), encoding="utf-8")
+        cache.write_text(json.dumps({"mtime": mtime, "status": cost.status, "total_cost": cost.total_cost,
+                                     "total_tokens": cost.total_tokens, "source": cost.source,
+                                     "unpriced": cost.unpriced, "online_retry_at": online_retry_at}), encoding="utf-8")
     except OSError:
         pass
     return cost
+
+
+def _from_row(row: dict, source: str) -> Cost:
+    total = float(row.get("totalCost") or 0.0)
+    tokens = int(row.get("totalTokens") or 0)
+    unpriced = unpriced_models(row)
+    if not unpriced and (total > 0 or tokens == 0):
+        return Cost("ok", total, tokens, source)
+    if not unpriced and tokens > 0:  # no breakdown detail: $0 with tokens means unpriced
+        unpriced = sorted(str(m) for m in row.get("modelsUsed") or [])
+    return Cost("partial", total, tokens, source, unpriced)
 
 
 def format_tokens(n: int) -> str:
@@ -87,21 +162,35 @@ def format_tokens(n: int) -> str:
     return str(n)
 
 
-def price_check_online(timeout: float = 6.0) -> str:
-    """For ``pin doctor``: can ccusage price a known session online? Returns a one-line verdict."""
+def doctor_line(timeout: float = 6.0) -> str:
+    """For ``pin doctor``: version, whether the offline table prices the newest session, online reachability."""
     binary = ccusage_bin()
     if not binary:
-        return "ccusage: not installed (npm i -g ccusage) — cost lines will say so"
+        return f"✗ ccusage: not installed ({UPDATE_HINT}) — cost lines will say so"
     try:
         p = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=timeout)
         version = p.stdout.strip().replace("ccusage ", "") or "?"
     except (OSError, subprocess.SubprocessError):
-        return "ccusage: present but not runnable"
-    try:
-        p = subprocess.run([binary, "session", "--json"], capture_output=True, text=True, timeout=timeout)
-        ok = p.returncode == 0
-    except subprocess.TimeoutExpired:
-        return f"ccusage {version}: online price check timed out after {timeout:.0f}s (offline table still used)"
-    except (OSError, subprocess.SubprocessError):
-        ok = False
-    return f"ccusage {version}: {'online price table reachable' if ok else 'online check failed; offline table in use'}"
+        return "✗ ccusage: present but not runnable"
+    from .sessions import iter_transcripts
+    newest = iter_transcripts()[:1]
+    notes = []
+    if newest:
+        sid = newest[0].stem
+        offline = _listing(binary, offline=True, timeout=timeout)
+        orow = _row_for(offline, sid) if isinstance(offline, list) else None
+        missing = unpriced_models(orow) if orow else []
+        if missing:
+            online = _listing(binary, offline=False, timeout=timeout)
+            nrow = _row_for(online, sid) if isinstance(online, list) else None
+            still = unpriced_models(nrow) if nrow else None
+            if still is None:
+                notes.append(f"offline table has no price for {', '.join(_short(m) for m in missing)}; online fallback unreachable ({UPDATE_HINT})")
+            elif still:
+                notes.append(f"no price for {', '.join(_short(m) for m in still)} even online ({UPDATE_HINT})")
+            else:
+                notes.append(f"offline table has no price for {', '.join(_short(m) for m in missing)}; online fallback works ({UPDATE_HINT} to avoid it)")
+        else:
+            notes.append("offline price table covers the newest session")
+    mark = "·" if any("no price" in n for n in notes) else "✓"
+    return f"{mark} ccusage {version}: {'; '.join(notes) or 'ok'}"

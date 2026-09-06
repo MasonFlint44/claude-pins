@@ -8,7 +8,7 @@ import os
 import sys
 
 from . import __version__, config, fzf
-from .cost import price_check_online, session_cost
+from .cost import doctor_line, session_cost
 from .gitutil import current_branch, is_repo
 from .listing import build_views
 from .match import loose_match
@@ -338,8 +338,7 @@ def cmd_doctor(opts) -> int:
         print(f"✗ fzf {'.'.join(map(str, v))}: need ≥ 0.44 · {fzf.install_hint()}"); ok = False
     else:
         print(f"✓ fzf {'.'.join(map(str, v))}")
-    cc = price_check_online()
-    print(("✓ " if "reachable" in cc else "· ") + cc)
+    print(doctor_line())
     path = config.pins_file()
     try:
         store = load_store()

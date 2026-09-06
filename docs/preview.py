@@ -52,8 +52,9 @@ def capture(keys: list[bytes]) -> pyte.Screen:
     for args in (["init", "-q", "-b", "main"], ["-c", "user.email=p@p", "-c", "user.name=p", "commit", "-q", "--allow-empty", "-m", "init"]):
         subprocess.run(["git", *args], cwd=repo, check=True)
     # ccusage is stubbed so the cost line shows the real layout without a network or install.
-    fx.stub("ccusage", "#!/bin/sh\n[ \"$1\" = --version ] && { echo 'ccusage 20.0.18'; exit 0; }\n"
-                       "printf '{\"totalCost\": 0.07, \"totalTokens\": 4800000}'\n")
+    fx.stub("ccusage", "#!/bin/sh\n[ \"$1\" = --version ] && { echo 'ccusage 20.0.20'; exit 0; }\n"
+                       "printf '{\"session\": [{\"period\": \"" + s1 + "\", \"totalCost\": 0.07, \"totalTokens\": 4800000, "
+                       "\"modelBreakdowns\": [{\"modelName\": \"claude-fable-5-1\", \"cost\": 0.07, \"inputTokens\": 100}]}]}'\n")
     pin = str(REPO / "bin" / "pin")
     for sid, alias, extra in ((s1, "standup-prep", ["--keep", "--note", "Tuesday standup, uses jira-cards"]),
                               (s2, "cc-collector", []), (s3, "rc-mower", []), (s4, "insurance", ["--fork", "--worktree"])):
