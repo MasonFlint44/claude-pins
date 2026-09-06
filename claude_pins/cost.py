@@ -64,6 +64,8 @@ def _listing(binary: str, *, offline: bool, timeout: float) -> list[dict] | str:
     args = [binary, "session", "--json"] + (["--offline"] if offline else [])
     try:
         p = subprocess.run(args, capture_output=True, text=True, timeout=timeout, env={**os.environ, "NO_COLOR": "1"})
+        if p.returncode != 0:
+            return f"exit {p.returncode}"
         payload = json.loads(p.stdout) if p.stdout.strip() else {}
     except subprocess.TimeoutExpired:
         return "timeout"
@@ -204,7 +206,9 @@ def doctor_line(timeout: float = 8.0) -> str:
     online = _listing(binary, offline=False, timeout=timeout)
     if isinstance(online, str):
         return f"· ccusage {version}: offline table has no price for {names}; online fallback unreachable ({online}) · {UPDATE_HINT}"
-    _, still = _coverage(online)
+    online_used, still = _coverage(online)
+    if any(m not in online_used for m in missing):
+        return f"· ccusage {version}: offline table has no price for {names}; online listing incomplete · {UPDATE_HINT}"
     if still:
         return f"· ccusage {version}: no price for {', '.join(_short(m) for m in sorted(still))} even online · {UPDATE_HINT}"
     return f"· ccusage {version}: offline table has no price for {names}; the online fallback prices them · {UPDATE_HINT} to avoid the network"
