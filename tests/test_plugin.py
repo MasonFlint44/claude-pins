@@ -79,7 +79,7 @@ class PluginFileTests(Sandbox):
         self.assertIn("✓ unpinned standup-prep · pin undo", out)
 
     def test_install_skill_steps(self):
-        blocks = bash_blocks(REPO / "skills" / "pins-install" / "SKILL.md")
+        blocks = bash_blocks(REPO / "skills" / "install" / "SKILL.md")
         self.assertGreaterEqual(len(blocks), 1)
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(REPO)}
         for block in blocks:
@@ -99,7 +99,7 @@ class PluginFileTests(Sandbox):
         """Every doctor line the skill explains is a line pin doctor can actually print."""
         from claude_pins import cli, cost, fzf, store
         src = "".join(Path(m.__file__).read_text() for m in (cli, cost, fzf, store))
-        skill = (REPO / "skills" / "pins-doctor" / "SKILL.md").read_text()
+        skill = (REPO / "skills" / "doctor" / "SKILL.md").read_text()
         for phrase in ("fzf: not found", "need ≥ 0.44", "ccusage: not installed", "offline table has no price for",
                        "even online", "online fallback unreachable", "corrupt", "not found (set CLAUDE_CONFIG_DIR?)",
                        "cleanupPeriodDays"):

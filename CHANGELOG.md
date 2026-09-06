@@ -2,7 +2,21 @@
 
 Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
-tag (`v0.2.1`) and a GitHub release with this section as its notes.
+tag (`v0.3.0`) and a GitHub release with this section as its notes.
+
+## 0.3.0 — 2026-09-06
+
+- **Skills renamed** to `/pins:install` and `/pins:doctor` (were
+  `/pins:pins-install` and `/pins:pins-doctor`). Claude Code namespaces
+  plugin skills with the plugin name, so the prefix was said twice.
+- The install skill owns "`pin` is not found"; the doctor skill offers the
+  install steps when it finds the symlink missing instead of only pointing
+  at the other skill.
+- Skill trigger evals: `tests/skills/triggers.sh` scores each skill's
+  description over twenty queries in `tests/skills/triggers/` through the
+  skill-creator plugin's evaluator, and can run its optimizer. Paid, by hand.
+- `DESIGN.md` folded into `CLAUDE.md`; the verified facts the code relies on
+  live there now.
 
 ## 0.2.1 — 2026-09-06
 

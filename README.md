@@ -26,15 +26,15 @@ terminal-only.
    /plugin install pins@claude-toolbox
    ```
 
-2. Run `/pins:pins-install` once. It symlinks `bin/pin` into `~/.local/bin`, installs bash
+2. Run `/pins:install` once. It symlinks `bin/pin` into `~/.local/bin`, installs bash
    completion, and runs `pin doctor`, which checks for **fzf ≥ 0.44** (older or missing falls
-   back to a numbered menu) and **ccusage** (optional; only for the cost line). `/pins:pins-doctor`
+   back to a numbered menu) and **ccusage** (optional; only for the cost line). `/pins:doctor`
    runs the same checks later and explains each line.
 
 Python 3.10+ standard library only. Linux and macOS (WSL counts as Linux).
 
 **Updating:** `/plugin update pins` (or auto-update for the marketplace in `/plugin`), then
-`/pins:pins-install` again, because the plugin directory moves on each version and the symlink
+`/pins:install` again, because the plugin directory moves on each version and the symlink
 points into it. **Removing:** `/plugin uninstall pins`, delete `~/.local/bin/pin` and the
 completion link; the store and cache below can go too.
 
@@ -44,8 +44,8 @@ completion link; the store and cache below can go too.
 |---|---|
 | `/pins:pin [alias [title…]]` | pin this session; with no arguments Claude drafts an alias and title from the conversation and confirms |
 | `/pins:unpin` | unpin this session; says so if it is not pinned |
-| `/pins:pins-install` | symlink, completion, `pin doctor` |
-| `/pins:pins-doctor` | run `pin doctor` and explain each line with a fix |
+| `/pins:install` | symlink, completion, `pin doctor` |
+| `/pins:doctor` | run `pin doctor` and explain each line with a fix |
 
 ## How it works
 

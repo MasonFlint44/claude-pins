@@ -77,5 +77,5 @@ python3 tests/fzf_grammar_check.py     # after touching any fzf option in claude
    the message, push the tag, and `gh release create vX.Y.Z` with the same notes.
 4. The marketplace (`~/git/claude-toolbox`) carries no version for this plugin, so
    a release never touches it. Locally: `claude plugin update pins@claude-toolbox`,
-   then `/pins:pins-install` again because the symlink points into the versioned
+   then `/pins:install` again because the symlink points into the versioned
    plugin directory.

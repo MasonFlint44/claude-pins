@@ -1,10 +1,10 @@
 ---
-name: pins-install
-description: Install the `pin` terminal command from the pins plugin — symlink bin/pin into ~/.local/bin, install bash completion, and check fzf (≥ 0.44) and ccusage. Use when the user runs /pins:pins-install, asks to install or set up claude-pins, or says `pin` is not found in their terminal.
+name: install
+description: Install the `pin` terminal command from the pins plugin — symlink bin/pin into ~/.local/bin, install bash completion, and check fzf (≥ 0.44) and ccusage. Use when the user runs /pins:install, asks to install or set up claude-pins, or says `pin` is not found in their terminal.
 allowed-tools: Bash
 ---
 
-# pins-install
+# pins:install
 
 Make the plugin's `pin` command available in the user's terminal. Everything below is
 idempotent; run it again after a plugin update.
