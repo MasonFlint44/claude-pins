@@ -41,7 +41,9 @@ except Exception:
     print(hits[-1] if hits else "")
 PY
 )
-[ -n "$SC" ] && [ -f "$SC/scripts/run_loop.py" ] || { echo "skill-creator plugin not found: /plugin install skill-creator@claude-plugins-official" >&2; exit 1; }
+if [ -z "$SC" ] || [ ! -f "$SC/scripts/run_loop.py" ]; then
+    echo "skill-creator plugin not found: /plugin install skill-creator@claude-plugins-official" >&2; exit 1
+fi
 
 if [ $# -eq 0 ]; then set -- "$REPO"/tests/skills/triggers/*.json; fi
 STAMP=$(date +%Y%m%d-%H%M%S)
