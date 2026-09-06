@@ -90,3 +90,82 @@ class TranscriptTests(Sandbox):
         self.assertTrue(touch(p))
         self.assertGreater(p.stat().st_mtime, before + 86400 * 19)
         self.assertFalse(touch(self.projects / "gone.jsonl"))
+
+    def test_cache_write_is_atomic_and_leaves_no_temp_files(self):
+        p = self.make_session("11111111-1111-1111-1111-111111111111")
+        s = read_summary(p)
+        cache_dir = transcript._cache_path(p).parent
+        self.assertEqual(sorted(f.name for f in cache_dir.iterdir()), [f"{p.stem}.json"])
+        self.assertEqual(transcript._load_cache(transcript._cache_path(p), p.stat()).title, s.title)
+        # two writers: neither sees the other's half-written file (distinct temp names, os.replace)
+        names = []
+        real = transcript.tempfile.mkstemp
+
+        def spy(*a, **kw):
+            fd, name = real(*a, **kw)
+            names.append(name)
+            return fd, name
+        transcript.tempfile.mkstemp = spy
+        try:
+            transcript._save_cache(transcript._cache_path(p), s)
+            transcript._save_cache(transcript._cache_path(p), s)
+        finally:
+            transcript.tempfile.mkstemp = real
+        self.assertEqual(len(set(names)), 2)
+        self.assertTrue(all(os.path.basename(n).startswith(f".{p.stem}-") for n in names))
+        self.assertEqual(sorted(f.name for f in cache_dir.iterdir()), [f"{p.stem}.json"])
+
+    def test_cache_unwritable_is_silent(self):
+        p = self.make_session("11111111-1111-1111-1111-111111111111")
+        os.environ["XDG_CACHE_HOME"] = str(self.root / "not-a-dir-file")
+        (self.root / "not-a-dir-file").write_text("x")  # mkdir under a file fails
+        self.assertEqual(read_summary(p).title, "A session")
+        self.assertEqual(read_summary(p).title, "A session")  # and again, uncached
+
+    def test_cache_ignores_other_formats_and_stale_sizes(self):
+        p = self.make_session("11111111-1111-1111-1111-111111111111")
+        read_summary(p)
+        cf = transcript._cache_path(p)
+        data = json.loads(cf.read_text())
+        data["format"] = 1
+        cf.write_text(json.dumps(data))
+        self.assertIsNone(transcript._load_cache(cf, p.stat()))
+        data["format"] = transcript.CACHE_FORMAT; data["summary"]["size"] = 1
+        cf.write_text(json.dumps(data))
+        self.assertIsNone(transcript._load_cache(cf, p.stat()))
+        data["summary"]["size"] = p.stat().st_size; data["summary"]["bogus_field"] = 1
+        cf.write_text(json.dumps(data))
+        self.assertEqual(transcript._load_cache(cf, p.stat()).title, "A session")  # unknown keys dropped
+
+    def test_context_window_from_settings_and_size(self):
+        p = self.make_session("11111111-1111-1111-1111-111111111111")
+        s = read_summary(p, use_cache=False)
+        self.assertEqual(s.context_window, 200_000)
+        self.write_settings({"model": "claude-fable-5-1[1m]"})
+        self.assertEqual(s.context_window, 1_000_000)
+        self.assertEqual(s.context_pct, 12)
+        s.context_tokens = 400_000
+        self.write_settings({})
+        self.assertEqual(s.context_window, 1_000_000)  # more than 200k in context: must be a 1M session
+        s.context_tokens = 0
+        self.assertEqual(s.context_pct, 0)
+
+    def test_prompt_heuristics(self):
+        sid = "33333333-3333-3333-3333-333333333333"
+        recs = session_records(sid, "/x", prompt="real question")
+        common = {k: v for k, v in recs[2].items() if k not in ("message", "uuid", "parentUuid")}
+        recs.insert(-1, {**common, "type": "user", "message": {"role": "user", "content": "<system-reminder>injected</system-reminder>"}})
+        recs.insert(-1, {**common, "type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "content": "x"}]}})
+        recs.insert(-1, {**common, "type": "user", "message": {"role": "user", "content": [{"type": "image"}]}})
+        recs.insert(-1, {**common, "type": "user", "message": {"role": "user", "content": 42}})
+        p = write_jsonl(self.projects / "x" / f"{sid}.jsonl", recs)
+        s = read_summary(p, use_cache=False)
+        self.assertEqual(s.last_prompt, "real question")
+        self.assertEqual(s.prompts, 4)  # the byte scan only excludes tool_result lines: an approximation
+
+    def test_cache_replace_failure_cleans_up(self):
+        p = self.make_session("11111111-1111-1111-1111-111111111111")
+        cf = transcript._cache_path(p)
+        cf.mkdir(parents=True)  # a directory where the cache file goes: os.replace fails after the temp write
+        self.assertEqual(read_summary(p).title, "A session")
+        self.assertEqual([f.name for f in cf.parent.iterdir()], [cf.name])  # no .tmp left behind

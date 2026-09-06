@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
@@ -265,13 +266,23 @@ def _load_cache(cache_file: Path, st) -> Summary | None:
 
 
 def _save_cache(cache_file: Path, summary: Summary) -> None:
+    """Atomic write through a per-process temp file: fzf runs several previews at once, and two of
+    them summarizing the same transcript must not truncate each other's half-written file."""
+    text = json.dumps({"format": CACHE_FORMAT, "summary": summary.to_dict()})
     try:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp = cache_file.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"format": CACHE_FORMAT, "summary": summary.to_dict()}), encoding="utf-8")
+        fd, tmp = tempfile.mkstemp(prefix=f".{cache_file.stem}-", suffix=".tmp", dir=str(cache_file.parent))
+    except OSError:
+        return
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
         os.replace(tmp, cache_file)
     except OSError:
-        pass
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 def touch(path: str | os.PathLike) -> bool:

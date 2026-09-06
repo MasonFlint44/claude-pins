@@ -1,0 +1,34 @@
+# Dev tooling only. `pin` itself is stdlib Python and is never installed as a package.
+[project]
+name = "claude-pins"
+dynamic = ["version"]   # read from claude_pins/__init__.py, see [tool.setuptools.dynamic]
+requires-python = ">=3.10"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "coverage[toml]>=7",   # tests/coverage.sh
+    "pyte>=0.8",           # docs/preview.py
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["claude_pins"]
+
+[tool.setuptools.dynamic]
+version = {attr = "claude_pins.__version__"}
+
+[tool.uv]
+package = false   # never installed into the venv; bin/pin runs from the checkout
+
+[tool.coverage.run]
+branch = true
+parallel = true            # every bin/pin subprocess the tests spawn writes its own data file
+source = ["claude_pins"]
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true

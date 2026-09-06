@@ -1,4 +1,4 @@
-"""§6.5 editor: a sectioned field picker over one pin. Nothing is written until save."""
+"""Editor: a sectioned field picker over one pin. Nothing is written until save."""
 
 from __future__ import annotations
 

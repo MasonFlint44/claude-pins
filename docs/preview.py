@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate docs/preview.svg and docs/preview.txt: the real picker, real fzf, fixture pins.
 
-Needs python3, fzf ≥ 0.44 and the ``pyte`` terminal emulator (``pip install pyte``; dev only —
+Needs python3, fzf ≥ 0.44 and the ``pyte`` terminal emulator (``uv sync --group dev`` installs it; dev only —
 the tool itself is stdlib). Nothing touches your own pins: it runs in a throwaway HOME.
 """
 from __future__ import annotations

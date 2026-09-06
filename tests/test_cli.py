@@ -149,3 +149,143 @@ class CliTests(FzfSandbox):
         r = self.run_pin("list")
         self.assertEqual(r.returncode, 1)
         self.assertIn("corrupt", r.stderr); self.assertIn(".bak", r.stderr)
+
+    def test_rename(self):
+        self.run_pin("add", SID1, "a"); self.run_pin("add", SID2, "b")
+        r = self.run_pin("rename", "a", "standup")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("✓ renamed a → standup", r.stdout)
+        self.assertEqual(self.run_pin("_complete").stdout.split(), ["standup", "b"])
+        r = self.run_pin("rename", "standup", "b")
+        self.assertEqual(r.returncode, 1); self.assertIn("alias b is taken; try b-2", r.stderr)
+        r = self.run_pin("rename", "standup", "Bad Alias")
+        self.assertEqual(r.returncode, 1); self.assertIn("invalid alias", r.stderr)
+        r = self.run_pin("rename", "nope", "x")
+        self.assertEqual(r.returncode, 1); self.assertIn("no pin named nope", r.stderr)
+
+    def test_add_by_title_and_id_prefix(self):
+        self.make_session(SID3, cwd=str(self.home / "git" / "cc2"), age_days=1, title="Command center v2")
+        r = self.run_pin("add", "standup", "sp")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("✓ pinned as sp · Standup prep", r.stdout)
+        r = self.run_pin("add", "command center", "cc")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("2 sessions match 'command center'; give the id or more words:", r.stderr)
+        self.assertRegex(r.stderr, rf"  {SID3[:8]}  Command center v2\s+~/git/cc2")
+        self.assertRegex(r.stderr, rf"  {SID2[:8]}  Command center collector\s+~/git/cc")
+        r = self.run_pin("add", "center CC2", "cc2")  # words match the directory too, case-insensitively
+        self.assertEqual(r.returncode, 0, r.stderr); self.assertIn("✓ pinned as cc2 · Command center v2", r.stdout)
+        r = self.run_pin("add", SID2[:8], "cc")
+        self.assertEqual(r.returncode, 0, r.stderr); self.assertIn("✓ pinned as cc · Command center collector", r.stdout)
+        r = self.run_pin("add", "nothing like this", "x")
+        self.assertEqual(r.returncode, 1); self.assertIn("no recent session matches 'nothing like this' · pin sessions lists them", r.stderr)
+        r = self.run_pin("add", "1234567", "x")  # too short for a prefix, no title has it either
+        self.assertEqual(r.returncode, 1); self.assertIn("no recent session matches", r.stderr)
+        r = self.run_pin("add", SID2.upper(), "again")  # a full id is exact, even when already pinned
+        self.assertIn("already pinned as cc", r.stdout)
+
+    def test_sessions_listing(self):
+        self.run_pin("add", SID1, "sp")
+        r = self.run_pin("sessions")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        lines = r.stdout.splitlines()
+        self.assertRegex(lines[0], rf"^{SID1[:8]}  Standup prep\s+~/git/proj\s+2d\s+2 msgs\s+⚑ pinned$")
+        self.assertRegex(lines[1], rf"^{SID2[:8]}  Command center collector\s+~/git/cc\s+9d\s+2 msgs$")
+        r = self.run_pin("sessions", "collector")
+        self.assertEqual(len(r.stdout.splitlines()), 1); self.assertIn(SID2[:8], r.stdout)
+        r = self.run_pin("sessions", "--json", "standup")
+        data = json.loads(r.stdout)
+        self.assertEqual([(d["session_id"], d["alias"], d["messages"]) for d in data], [(SID1, "sp", 2)])
+        r = self.run_pin("sessions", "zzz")
+        self.assertEqual(r.returncode, 1); self.assertIn("no matching sessions", r.stderr)
+        self.assertEqual(json.loads(self.run_pin("sessions", "zzz", "--json").stdout), [])
+        self.t1.unlink(); self.t2.unlink()
+        r = self.run_pin("sessions")
+        self.assertEqual(r.returncode, 1); self.assertIn("no sessions found", r.stderr)
+
+    def test_help_and_bad_usage(self):
+        r = self.run_pin("--help")
+        self.assertEqual(r.returncode, 0); self.assertIn("pin sessions   recent sessions", r.stdout)
+        r = self.run_pin("help")
+        self.assertEqual(r.returncode, 0); self.assertIn("usage: pin", r.stdout)
+        r = self.run_pin("--version")
+        self.assertRegex(r.stdout, r"^pin \d+\.\d+\.\d+$")
+        r = self.run_pin("words", "--bogus")  # query parser errors exit 2 like argparse
+        self.assertEqual(r.returncode, 2); self.assertIn("unrecognized arguments", r.stderr)
+        r = self.run_pin("add")
+        self.assertEqual(r.returncode, 2)
+        r = self.run_pin("list", env={"CLAUDE_PINS_FZF": ""})  # non-tty and no words → plain list
+        self.assertEqual(r.returncode, 0); self.assertIn("No pins yet. Run /pins:pin inside a Claude session", r.stdout)
+        r = self.run_pin(env={"CLAUDE_PINS_FZF": ""})
+        self.assertEqual(r.returncode, 0); self.assertIn("No pins yet", r.stdout)
+        r = self.run_pin("nomatch", env={"CLAUDE_PINS_FZF": ""})
+        self.assertEqual(r.returncode, 1); self.assertIn("no pin matches 'nomatch'", r.stderr)
+
+    def test_edit_flags(self):
+        self.run_pin("add", SID1, "a", "--note", "n1")
+        r = self.run_pin("edit", "a", "--title", "T2", "--note", "", "--cwd", "~/git/cc", "--model", "sonnet",
+                         "--permission-mode", "plan", "--keep")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(self.run_pin("list", "--json").stdout)[0]
+        self.assertEqual((d["title"], d["note"], d["cwd"], d["launch"], d["keep"]),
+                         ("T2", "", str(self.home / "git" / "cc"), {"model": "sonnet", "permission_mode": "plan"}, True))
+        self.run_pin("edit", "a", "--model", "", "--permission-mode", "", "--no-keep")
+        d = json.loads(self.run_pin("list", "--json").stdout)[0]
+        self.assertEqual((d["launch"], d["keep"]), ({}, False))
+        r = self.run_pin("add", SID1, "a", "--note", "n2")
+        self.assertIn("note updated", r.stdout)
+
+    def test_prune_asks(self):
+        self.run_pin("add", SID1, "a"); self.t1.unlink()
+        r = self.run_pin("prune", input="n\n")
+        self.assertEqual(r.returncode, 1); self.assertIn("1 expired: a", r.stdout)
+        self.assertEqual(self.run_pin("_complete").stdout.split(), ["a"])
+        r = self.run_pin("prune", input="")
+        self.assertEqual(r.returncode, 130)  # ctrl-c / EOF at the question
+        r = self.run_pin("prune", input="\n")  # enter takes the default: yes
+        self.assertEqual(r.returncode, 0); self.assertIn("✓ pruned 1", r.stdout)
+        r = self.run_pin("touch", "a")
+        self.assertEqual(r.returncode, 1); self.assertIn("no pin named a", r.stderr)
+        self.run_pin("undo")
+        r = self.run_pin("touch", "a")
+        self.assertEqual(r.returncode, 1); self.assertIn("a: transcript is gone (expired)", r.stderr)
+
+    def test_doctor_failures(self):
+        self.store_path().parent.mkdir(parents=True); self.store_path().write_text("nope")
+        os.environ["CLAUDE_CONFIG_DIR"] = str(self.root / "missing")
+        r = self.run_pin("doctor", env={"CLAUDE_PINS_FZF": str(self.root / "no-such-fzf")})
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("✗ fzf: not found · install fzf ≥ 0.44", r.stdout)
+        self.assertIn("✗ store: pin store", r.stdout)
+        self.assertIn(f"✗ projects dir {self.root}/missing/projects not found (set CLAUDE_CONFIG_DIR?)", r.stdout)
+        self.assertIn("· keymap ~/.config/claude-pins/keys.toml (defaults)", r.stdout)
+        self.stub("fzf", "#!/bin/sh\necho '0.38.0 (old)'\n")
+        r = self.run_pin("doctor", env={"CLAUDE_PINS_FZF": str(self.bindir / "fzf")})
+        self.assertIn("✗ fzf 0.38.0: need ≥ 0.44", r.stdout)
+
+    def test_hidden_helpers_edge_cases(self):
+        self.run_pin("add", SID1, "a")
+        for args in (("_preview",), ("_preview", "-"), ("_preview", "nope"), ("_spreview",)):
+            r = self.run_pin(*args)
+            self.assertEqual((r.returncode, r.stdout), (0, ""), args)
+        r = self.run_pin("_spreview", str(self.t1))
+        self.assertIn("Standup prep", r.stdout); self.assertIn("dir       ~/git/proj", r.stdout)
+        r = self.run_pin("_spreview", str(self.root / "gone.jsonl"))
+        self.assertIn("(transcript gone)", r.stdout)
+        self.t1.unlink()
+        r = self.run_pin("_preview", "a")  # transcript gone: static preview, no cost line
+        self.assertIn("(transcript gone)", r.stdout); self.assertIn("expired", r.stdout)
+        self.assertNotIn("cost", r.stdout)
+
+    def test_undo_when_repinned_and_store_unwritable(self):
+        self.run_pin("add", SID1, "a"); self.run_pin("rm", "a"); self.run_pin("add", SID1, "b")
+        r = self.run_pin("undo")
+        self.assertEqual(r.returncode, 0); self.assertIn("✓ restored nothing (already re-pinned) (unpin)", r.stdout)
+        d = self.store_path().parent; d.chmod(0o500)
+        try:
+            r = self.run_pin("rm", "b")
+        finally:
+            d.chmod(0o700)
+        self.assertEqual(r.returncode, 1)
+        self.assertRegex(r.stderr, r"^pin: cannot write .*pins.json: \[Errno 13\]")  # one line, no traceback
+        self.assertEqual(self.run_pin("_complete").stdout.split(), ["b"])

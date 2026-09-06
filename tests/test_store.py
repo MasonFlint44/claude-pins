@@ -103,3 +103,62 @@ class StoreTests(Sandbox):
         s = Store().load()
         with self.assertRaisesRegex(PinError, "no pin named x"):
             s.unpin("x")
+
+    def test_hand_edited_undo_entries(self):
+        """Junk in the undo list is dropped on load; an entry with an empty pin restores nothing."""
+        s = Store().load()
+        s.add(pin("a")); s.unpin("a"); s.save()
+        data = json.loads(self.store_path().read_text())
+        data["undo"] = ["oops", {"kind": "unpin"}, {"kind": "unpin", "pins": "no"}, {"kind": "unpin", "pins": [1]},
+                        {"kind": "prune", "pins": [{}]}] + data["undo"]
+        self.store_path().write_text(json.dumps(data))
+        s = Store().load()
+        self.assertEqual(len(s.undo), 2)
+        kind, restored = s.restore_last()
+        self.assertEqual((kind, [p.alias for p in restored]), ("unpin", ["a"]))
+        kind, restored = s.restore_last()
+        self.assertEqual((kind, restored), ("prune", []))
+        s.undo = "nonsense"  # type: ignore[assignment]
+        s.save()
+        self.assertEqual(Store().load().undo, [])
+
+    def test_unreadable_store(self):
+        self.store_path().parent.mkdir(parents=True)
+        self.store_path().mkdir()  # a directory where the file should be: OSError, not corruption
+        with self.assertRaisesRegex(PinError, "cannot read"):
+            Store().load()
+        self.assertFalse(self.store_path().with_suffix(".json.bak").exists())
+
+    def test_rename_rules(self):
+        s = Store().load()
+        s.add(pin("a")); s.add(pin("b"))
+        with self.assertRaisesRegex(PinError, "alias b is taken; try b-2"):
+            s.rename("a", "b")
+        self.assertIs(s.rename("a", "a"), s.get("a"))
+        s.rename("a", "c")
+        self.assertEqual(s.aliases(), ["c", "b"])
+
+    def test_unwritable_store_directory(self):
+        d = self.store_path().parent
+        d.mkdir(parents=True); d.chmod(0o500)
+        try:
+            s = Store().load(); s.add(pin("a"))
+            with self.assertRaisesRegex(PinError, "cannot write .*pins.json"):
+                s.save()
+        finally:
+            d.chmod(0o700)
+        self.assertEqual(list(d.iterdir()), [])  # no temp file left behind
+        # the replace itself failing (a directory sits where the file goes) is the same one-liner
+        self.store_path().mkdir()
+        with self.assertRaisesRegex(PinError, "cannot write"):
+            s.save()
+        self.assertEqual([p.name for p in d.iterdir()], ["pins.json"])
+
+    def test_undo_skips_sessions_pinned_again(self):
+        s = Store().load()
+        s.add(pin("a", "11111111-1111-1111-1111-111111111111")); s.add(pin("b", "22222222-2222-2222-2222-222222222222"))
+        s.unpin_many(["a", "b"], kind="prune")
+        s.add(pin("a-again", "11111111-1111-1111-1111-111111111111"))  # re-pinned under another alias meanwhile
+        kind, restored = s.restore_last()
+        self.assertEqual((kind, [p.alias for p in restored]), ("prune", ["b"]))
+        self.assertEqual(s.aliases(), ["a-again", "b"])

@@ -157,3 +157,96 @@ class OpenerTests(FzfSandbox):
         before = t.stat().st_mtime
         self.run_pin("sp", "--fork")
         self.assertGreater(t.stat().st_mtime, before + 86400 * 19)
+
+    def test_branch_check_skipped_inside_claude_worktree(self):
+        # A session started with --worktree records gitBranch before the checkout, so it always
+        # says the base branch; reopening in the worktree must not offer to check that out.
+        repo = self.repo(self.home / "git" / "foo")
+        wt = repo / ".claude" / "worktrees" / "x"
+        git("worktree", "add", "-q", "-b", "worktree-x", str(wt), cwd=repo)
+        self.pin_in(str(wt), branch="main")
+        r = self.run_pin("sp", input="")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("session was on", r.stdout)
+        self.assertEqual(git("branch", "--show-current", cwd=wt), "worktree-x")
+        self.assertEqual(self.claude_calls()["cwd"], str(wt))
+
+    def test_missing_dir_other_choices(self):
+        repo = self.repo(self.home / "git" / "foo")
+        wt = repo / ".claude" / "worktrees" / "x"
+        git("worktree", "add", "-q", "-b", "worktree-x", str(wt), cwd=repo)
+        self.pin_in(str(wt), branch="main")  # what Claude records for a worktree session: the base branch
+        git("worktree", "remove", "--force", str(wt), cwd=repo)
+        # repo root, and decline the cwd update
+        r = self.run_pin("sp", input="2\nn\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("→ opening in the repo root ~/git/foo", r.stdout)
+        self.assertEqual(self.claude_calls()["cwd"], str(repo))
+        self.assertEqual(self.stored()["sp"]["cwd"], str(wt))
+        # ~, accepting the update
+        r = self.run_pin("sp", input="3\n\n")
+        self.assertIn("session context won't match", r.stdout)
+        self.assertEqual(self.stored()["sp"]["cwd"], str(self.home))
+
+    def test_choose_dir_cancel_and_not_a_dir(self):
+        gone = self.home / "Documents" / "old"
+        self.pin_in(str(gone)); shutil.rmtree(gone)
+        r = self.run_pin("sp", input="2\n")  # EOF at the directory prompt
+        self.assertEqual(r.returncode, 1); self.assertIsNone(self.claude_calls())
+        r = self.run_pin("sp", input="2\n/no/such/dir\n")
+        self.assertEqual(r.returncode, 1); self.assertIn("not a directory; cancelled", r.stdout)
+        r = self.run_pin("sp", input="2\n\n")  # empty answer
+        self.assertEqual(r.returncode, 1); self.assertIn("not a directory; cancelled", r.stdout)
+        r = self.run_pin("sp", input="9\n2\n")  # out-of-range choice is re-asked
+        self.assertIn("pick 1–3", r.stdout)
+
+    def test_recreate_worktree_failure(self):
+        repo = self.repo(self.home / "git" / "foo")
+        wt = repo / ".claude" / "worktrees" / "x"
+        git("worktree", "add", "-q", "-b", "worktree-x", str(wt), cwd=repo)
+        self.pin_in(str(wt), branch="worktree-x")
+        git("worktree", "remove", "--force", str(wt), cwd=repo)
+        git("checkout", "-q", "worktree-x", cwd=repo)  # the branch is now checked out in the main tree
+        r = self.run_pin("sp", input="\n")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("could not recreate worktree:", r.stdout)
+        self.assertIsNone(self.claude_calls())
+
+    def test_branch_mismatch_cancel_and_checkout_failure(self):
+        repo = self.repo(self.home / "git" / "foo")
+        git("branch", "feature", cwd=repo)
+        self.pin_in(str(repo), branch="feature")
+        r = self.run_pin("sp", input="3\n")
+        self.assertEqual(r.returncode, 1); self.assertIsNone(self.claude_calls())
+        r = self.run_pin("sp", input="")
+        self.assertEqual(r.returncode, 1)
+        # the recorded branch no longer exists: checkout fails, nothing launches
+        git("branch", "-D", "feature", cwd=repo)
+        r = self.run_pin("sp", input="2\n")
+        self.assertEqual(r.returncode, 1); self.assertIn("checkout failed:", r.stdout)
+        self.assertIsNone(self.claude_calls())
+        # detached HEAD in the session record: no check at all
+        self.make_session(SID, cwd=str(repo), branch="HEAD")
+        r = self.run_pin("sp")
+        self.assertEqual(r.returncode, 0, r.stdout); self.assertEqual(self.claude_calls()["argv"], ["--resume", SID])
+
+    def test_already_open_eof_cancels(self):
+        self.pin_in(str(self.home / "git" / "proj"))
+        ps = self.root / "ps.txt"; ps.write_text(f"/usr/bin/node /opt/claude --resume={SID}\n")
+        r = self.run_pin("sp", input="", env={"CLAUDE_PINS_PS": str(ps)})
+        self.assertEqual(r.returncode, 1); self.assertIsNone(self.claude_calls())
+
+    def test_transcript_moved_updates_pin(self):
+        self.pin_in(str(self.home / "git" / "proj"))
+        old = Path(self.stored()["sp"]["transcript"])
+        new_dir = self.projects / "-elsewhere"; new_dir.mkdir()
+        old.rename(new_dir / old.name)
+        r = self.run_pin("sp")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.stored()["sp"]["transcript"], str(new_dir / old.name))
+
+    def test_claude_missing_from_path(self):
+        self.pin_in(str(self.home / "git" / "proj"))
+        (self.bindir / "claude").unlink()
+        r = self.run_pin("sp")
+        self.assertEqual(r.returncode, 1); self.assertIn("claude is not on PATH", r.stderr)

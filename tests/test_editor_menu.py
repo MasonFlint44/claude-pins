@@ -150,3 +150,144 @@ class MenuTests(FzfSandbox):
         self.stub("fzf", "#!/bin/sh\necho '0.38.0 (old)'\n")
         r = self.run_pin(input="q\n", env={"CLAUDE_PINS_FZF": str(self.bindir / "fzf")})
         self.assertIn("(fzf 0.38.0 is too old)", r.stdout)
+
+    def test_menu_empty_query_and_missing_rows(self):
+        sid3 = "33333333-3333-3333-3333-333333333333"
+        self.make_session(sid3, age_days=0.1, title="Tax"); self.run_pin("add", sid3, "tax")
+        r = self.run_pin("e", input="q\n")  # several hits: the menu opens filtered
+        self.assertIn("pins › e", r.stdout)
+        self.assertRegex(r.stdout, r"1  standup-prep\s+Standup prep")
+        self.assertRegex(r.stdout, r"2  rc-mower\s+Navimow schedule debug")
+        self.assertNotIn("tax", r.stdout)
+        self.run_pin("rm", "tax")
+        self.run_pin("rm", "standup-prep"); self.run_pin("rm", "rc-mower")
+        r = self.run_pin(input="q\n")
+        self.assertIn("No pins yet. n pins a recent session, or run /pins:pin inside a Claude session.", r.stdout)
+
+    def test_menu_expired_open_and_errors(self):
+        self.t2.unlink()
+        r = self.run_pin(input="a\n2\nx9\nq\n")
+        self.assertIn("✗ rc-mower has expired", r.stdout)
+        self.assertIn("no row 9", r.stdout)
+        self.assertIsNone(self.claude_calls())
+        r = self.run_pin(input="z\nq\n")
+        self.assertIn("nothing to undo", r.stdout)
+        r = self.run_pin(input="y1\nq\n")
+        self.assertIn("unknown row action 'y'", r.stdout)
+        r = self.run_pin(input="p\nn\nq\n")  # decline the prune
+        self.assertNotIn("✓ pruned", r.stdout); self.assertEqual(self.run_pin("_complete").stdout.split(), ["standup-prep", "rc-mower"])
+        r = self.run_pin(input="p\n")  # EOF at the prune question, then at the menu
+        self.assertEqual(r.returncode, 0)
+
+    def test_menu_open_cancelled_and_gone(self):
+        import shutil
+        shutil.rmtree(self.home / "git" / "proj")
+        r = self.run_pin(input="1\n3\nq\n")  # missing dir → unpin
+        self.assertIn("✓ unpinned standup-prep", r.stdout); self.assertIn("cancelled", r.stdout)
+
+    def test_menu_new_pin_edge_cases(self):
+        r = self.run_pin(input="n\n\nq\n")  # enter cancels
+        self.assertNotIn("✓ pinned", r.stdout)
+        r = self.run_pin(input="n\n1\nq\n")  # row 1 is the newest session, already pinned
+        self.assertIn("already pinned as standup-prep", r.stdout)
+        sid3 = "33333333-3333-3333-3333-333333333333"
+        self.make_session(sid3, age_days=0.1, title="Fresh")
+        r = self.run_pin(input="n\n1\nrc-mower\nq\n")  # taken alias → error flash
+        self.assertIn("✗ alias rc-mower is taken", r.stdout)
+        r = self.run_pin(input="n\n1\n")  # EOF at the alias prompt
+        self.assertEqual(r.returncode, 0); self.assertNotIn("✓ pinned", r.stdout)
+        r = self.run_pin(input="n\n")  # EOF at the session number
+        self.assertEqual(r.returncode, 0)
+        self.t1.unlink(); self.t2.unlink(); (self.project_dir(str(self.home / "git" / "proj")) / f"{sid3}.jsonl").unlink()
+        r = self.run_pin(input="n\nq\n")
+        self.assertIn("no sessions found", r.stdout)
+
+    def test_plain_editor_fields(self):
+        # cwd (4), model as free text (6), effort by number (7 → 2), clear it again (7 → 0), keep (9), save
+        r = self.run_pin("edit", "standup-prep", input="4\n~/git/cc\n6\nclaude-opus-5\n7\n2\n7\n0\n9\ns\n")
+        self.assertIn("✓ saved standup-prep", r.stdout)
+        p = self.stored()["standup-prep"]
+        self.assertEqual(p["cwd"], str(self.home / "git" / "cc"))
+        self.assertEqual(p["launch"], {"model": "claude-opus-5"})
+        self.assertTrue(p["keep"])
+        r = self.run_pin("edit", "standup-prep", input="2\nBAD\ns\n3\n")  # invalid alias refused, EOF cancels
+        self.assertIn("✗ invalid alias 'BAD'", r.stdout); self.assertIn("standup-prep", self.stored())
+        r = self.run_pin("edit", "standup-prep", input="1\n\ns\nq\n")  # empty title refused
+        self.assertIn("✗ title is required", r.stdout)
+        r = self.run_pin("edit", "standup-prep", input="2\nrc-mower\ns\nq\n")
+        self.assertIn("✗ alias rc-mower is taken", r.stdout)
+        r = self.run_pin("edit", "standup-prep", input="99\nabc\nq\n")  # ignored inputs
+        self.assertIn("no changes", r.stdout)
+
+    def stored(self):
+        return {p["alias"]: p for p in json.loads(self.store_path().read_text())["pins"]}
+
+
+class EditorEdgeTests(EditorTests):
+    def test_dir_model_and_text_fields(self):
+        self.steps({"key": "", "select": ["cwd"]}, {"key": "", "select": ["model"]}, {"key": "", "select": ["(type a model name…)"]},
+                   {"key": "", "select": ["model"]}, {"key": "", "select": ["sonnet"]},
+                   {"key": "", "select": ["note"]}, {"key": "", "select": ["done"]})
+        r = self.run_pin("edit", "standup-prep", input="~/git/cc\nclaude-x\na note\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        p = self.stored()["standup-prep"]
+        self.assertEqual((p["cwd"], p["launch"], p["note"]), (str(self.home / "git" / "cc"), {"model": "sonnet"}, "a note"))
+        calls = self.fzf_calls()
+        self.assertEqual(self.arg(calls[2], "--prompt"), "pins › standup-prep › edit › model › ")
+        self.assertEqual([l.split("\t")[2] for l in calls[2]["lines"]][:2], ["fable", "opus"])
+
+    def test_cancel_paths(self):
+        # choice screen aborted, field prompt cancelled with EOF, then esc with nothing dirty
+        self.steps({"key": "", "select": ["effort"]}, {"abort": True}, {"key": "", "select": ["title"]}, {"abort": True})
+        r = self.run_pin("edit", "standup-prep", input="")
+        self.assertIn("no changes", r.stdout)
+        # dirty + esc: 'c' goes back to the form, then done with the change kept
+        self.steps({"key": "", "select": ["keep"]}, {"abort": True}, {"key": "", "select": ["done"]})
+        r = self.run_pin("edit", "standup-prep", input="c\n")
+        self.assertTrue(self.stored()["standup-prep"]["keep"])
+        # dirty + esc + EOF at the question: nothing saved
+        self.steps({"key": "", "select": ["fork"]}, {"abort": True})
+        r = self.run_pin("edit", "standup-prep", input="")
+        self.assertFalse(self.stored()["standup-prep"]["fork"])
+        # done with nothing dirty is a no-op; a header row selection is ignored; save failure keeps editing
+        self.steps({"key": "", "select": ["-"]}, {"key": "", "select": ["done"]})
+        r = self.run_pin("edit", "standup-prep")
+        self.assertIn("no changes", r.stdout)
+        self.steps({"key": "", "select": ["title"]}, {"key": "alt-s"}, {"key": "", "select": ["cancel"]})
+        r = self.run_pin("edit", "standup-prep", input="\n")
+        self.assertIn("✗ title is required", r.stdout); self.assertEqual(self.stored()["standup-prep"]["title"], "Standup prep")
+
+
+class MenuRaceTests(FzfSandbox):
+    def setUp(self):
+        super().setUp()
+        os.environ["CLAUDE_PINS_NO_FZF"] = "1"
+        self.t1 = self.make_session(SID1, age_days=2, title="Standup prep")
+        self.make_session(SID2, cwd=str(self.home), age_days=26, title="Navimow schedule debug")
+        self.run_pin("add", SID1, "standup-prep"); self.run_pin("add", SID2, "rc-mower")
+
+    def test_menu_transcript_swept_between_draw_and_open(self):
+        """The menu is drawn, Claude's retention sweep deletes the transcript, then the user opens the row."""
+        import subprocess, sys
+        from tests.helpers import PIN
+        proc = subprocess.Popen([sys.executable, str(PIN)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, env=dict(os.environ))
+
+        def read_until(marker):
+            buf = ""
+            while not buf.endswith(marker):
+                ch = proc.stdout.read(1)
+                self.assertTrue(ch, f"pin exited before {marker!r}; got {buf!r}")
+                buf += ch
+            return buf
+        first = read_until(" > ")
+        self.assertRegex(first, r"1  standup-prep\s+Standup prep")
+        self.t1.unlink()
+        proc.stdin.write("1\n"); proc.stdin.flush()
+        second = read_until(" > ")
+        self.assertIn("✗ standup-prep: transcript for session 11111111… is gone (expired) · pin unpin standup-prep", second)
+        self.assertRegex(second, r"1  rc-mower")  # the redraw drops the swept pin to the expired count
+        self.assertIn("1 expired · a show · p prune", second)
+        proc.stdin.write("q\n"); proc.stdin.flush()
+        self.assertEqual(proc.wait(timeout=10), 0)
+        self.assertIsNone(self.claude_calls())

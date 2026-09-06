@@ -49,7 +49,7 @@ def _maybe_update_cwd(store: Store, pin: Pin, new_cwd: str) -> None:
 
 
 def resolve_directory(store: Store, pin: Pin, color: Palette) -> str | None:
-    """Tiers 1–3 of §5. Returns the directory to launch in, or None if cancelled/unpinned."""
+    """Missing-directory menu. Returns the directory to launch in, or None if cancelled/unpinned."""
     cwd = pin.cwd or str(config.home())
     if os.path.isdir(cwd):
         return cwd
@@ -117,6 +117,8 @@ def check_branch(pin: Pin, cwd: str, recorded: str, color: Palette) -> bool:
     """Branch mismatch banner + optional checkout (clean tree only). False = cancel."""
     if not recorded or recorded == "HEAD" or not gitutil.is_repo(cwd):
         return True
+    if gitutil.split_worktree_path(cwd):
+        return True  # a worktree session records the branch before the checkout, so it is always stale
     current = gitutil.current_branch(cwd)
     if current is None or current == recorded:
         return True

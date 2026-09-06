@@ -48,6 +48,8 @@ class Store:
             undo = data.get("undo", [])
             if not isinstance(undo, list):
                 undo = []
+            undo = [u for u in undo if isinstance(u, dict) and isinstance(u.get("pins"), list)
+                    and all(isinstance(p, dict) for p in u["pins"])]
         except (ValueError, AttributeError, TypeError) as e:
             bak = self._quarantine()
             raise PinError(
@@ -74,9 +76,12 @@ class Store:
             "pins": [p.to_dict() for p in self.pins],
             "undo": self.undo[-UNDO_CAP:],
         }
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
-        fd, tmp = tempfile.mkstemp(prefix=".pins-", suffix=".tmp", dir=str(self.path.parent))
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(prefix=".pins-", suffix=".tmp", dir=str(self.path.parent))
+        except OSError as e:
+            raise PinError(f"cannot write {self.path}: {e}")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(text)
@@ -84,11 +89,13 @@ class Store:
                 os.fsync(fh.fileno())
             os.chmod(tmp, 0o600)
             os.replace(tmp, self.path)
-        except BaseException:
+        except BaseException as e:
             try:
                 os.unlink(tmp)
             except OSError:
                 pass
+            if isinstance(e, OSError):
+                raise PinError(f"cannot write {self.path}: {e}")
             raise
 
     # ---- lookup ------------------------------------------------------------
@@ -170,6 +177,8 @@ class Store:
         restored: list[Pin] = []
         for data in entry.get("pins", []):
             pin = Pin.from_dict(data)
+            if not pin.alias or not pin.session_id:
+                continue  # a hand-edited entry with nothing to restore
             if self.by_session(pin.session_id) is not None:
                 continue  # re-pinned meanwhile under another alias; skip silently
             if self.get(pin.alias) is not None:

@@ -34,8 +34,11 @@ reasons behind several design choices and are recorded nowhere else.
 
 ```
 python3 -m unittest -q                 # must exit 0; check the status, not the last line of output
-shellcheck completions/pin.bash tests/completion_check.sh tests/skills/run.sh tests/skills/triggers.sh
+shellcheck completions/pin.bash tests/completion_check.sh tests/coverage.sh tests/skills/run.sh tests/skills/triggers.sh
+bash tests/completion_check.sh         # after touching completions/pin.bash or the subcommand list
+docker run --rm -v "$PWD:/repo:ro" zshusers/zsh:5.9 zsh /repo/tests/zsh_completion_check.sh   # no zsh on this machine
 python3 tests/fzf_grammar_check.py     # after touching any fzf option in claude_pins/fzf.py or picker.py
+bash tests/coverage.sh                 # coverage report; needs uv (dev deps live in pyproject.toml)
 ```
 
 - Tests never launch the real `claude` or the real `fzf`: a stub on PATH records
@@ -51,14 +54,21 @@ python3 tests/fzf_grammar_check.py     # after touching any fzf option in claude
   defaults, every subcommand must appear in the command reference, and every
   `CLAUDE_PINS_*` variable except `CLAUDE_PINS_EXE` must be in the environment
   table. A new key, subcommand or knob needs its README row in the same change.
-- The picker's screenshot is generated: run `python3 docs/preview.py` (needs
-  `pyte`, the only dev dependency) after changing the picker's look, and commit
-  `docs/preview.svg` and `docs/preview.txt` with the change.
+- The picker's screenshot is generated: run `uv run docs/preview.py` after
+  changing the picker's look, and commit `docs/preview.svg` and
+  `docs/preview.txt` with the change.
+- Coverage only counts when the `bin/pin` subprocesses are traced, which is
+  what `tests/coverage.sh` sets up (plain `coverage run` reports about half).
+  Paths ending in `os.execv` are saved by the hook in `tests/coverage_hook/`.
 
 ## Conventions
 
 - No third-party runtime dependencies. Everything users run is stdlib plus
-  optional fzf and ccusage.
+  optional fzf and ccusage. `pyproject.toml` is dev tooling only (`uv sync
+  --group dev` for coverage and pyte); the version there is read from
+  `claude_pins/__init__.py`, so a release does not touch it.
+- A new subcommand needs a row in the README command table, the list in both
+  completion scripts, and their check scripts.
 - Plugin commands stay namespaced (`/pins:pin`); do not add bare `/pin` shims.
 - ccusage cost is read from `ccusage session --json`: try `--offline` first and
   go online only for models offline cannot price (see `claude_pins/cost.py`).

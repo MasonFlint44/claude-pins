@@ -11,15 +11,15 @@ from . import __version__, config, fzf
 from .cost import doctor_line, session_cost
 from .gitutil import current_branch, is_repo
 from .listing import build_views
-from .match import loose_match
+from .match import loose_match, match_sessions, recent_sessions
 from .model import Launch, Pin, PinError, is_session_id, validate_alias, PERMISSION_MODES, EFFORT_LEVELS
 from .opener import launch, plan_open, touch_kept, touch_pin
-from .render import palette, preview, rows, session_preview, stream_preview
+from .render import palette, preview, rows, session_preview, session_rows, stream_preview, terminal_width
 from .sessions import find_transcript, iter_transcripts, session_id_from_env
 from .store import Store, load_store
 from .transcript import read_summary
 
-SUBCOMMANDS = ("add", "list", "ls", "edit", "rm", "unpin", "undo", "prune", "touch", "doctor", "open",
+SUBCOMMANDS = ("add", "list", "ls", "sessions", "edit", "rename", "rm", "unpin", "undo", "prune", "touch", "doctor", "open",
                "_preview", "_spreview", "_status", "_complete", "help")
 
 
@@ -34,6 +34,7 @@ def _global_options(p: argparse.ArgumentParser) -> None:
 
 
 EPILOG = ("pin            open the picker\npin <words…>   open the one pin matching, else the picker pre-filtered\n"
+          "pin sessions   recent sessions with ids, for pin add <id-or-title-words> <alias>\n"
           "Env: CLAUDE_PINS_FILE, CLAUDE_PINS_SORT, CLAUDE_PINS_NO_FZF, CLAUDE_PINS_EXPIRE_WARN, NO_COLOR, CLAUDE_CONFIG_DIR")
 
 
@@ -51,8 +52,9 @@ def build_parser() -> argparse.ArgumentParser:
     _global_options(p)
     sub = p.add_subparsers(dest="cmd", metavar="command")
 
-    a = sub.add_parser("add", help="pin a session: pin add <session-id> <alias> [--title …]")
-    a.add_argument("session_id"); a.add_argument("alias")
+    a = sub.add_parser("add", help="pin a session: pin add <session> <alias> [--title …]")
+    a.add_argument("session", metavar="session", help="session id, unique id prefix, or words from its title")
+    a.add_argument("alias")
     a.add_argument("--title", default=""); a.add_argument("--note", default="")
     a.add_argument("--cwd", default=None, help="directory to resume in (default: the session's)")
     a.add_argument("--keep", action="store_true"); a.add_argument("--fork", action="store_true")
@@ -64,6 +66,10 @@ def build_parser() -> argparse.ArgumentParser:
     ls.add_argument("--sort", choices=config.SORT_ORDERS)
     ls.add_argument("--json", action="store_true")
 
+    ss = sub.add_parser("sessions", help="list recent sessions (what pin add and the picker's new-pin screen match)")
+    ss.add_argument("words", nargs="*", help="every word must appear in the title or directory")
+    ss.add_argument("--json", action="store_true")
+
     e = sub.add_parser("edit", help="edit a pin (no flags → interactive editor)")
     e.add_argument("alias")
     e.add_argument("--title"); e.add_argument("--note"); e.add_argument("--cwd"); e.add_argument("--rename", metavar="ALIAS")
@@ -72,6 +78,9 @@ def build_parser() -> argparse.ArgumentParser:
     for flag in ("keep", "fork", "worktree"):
         e.add_argument(f"--{flag}", dest=flag, action="store_true", default=None)
         e.add_argument(f"--no-{flag}", dest=flag, action="store_false")
+
+    rn = sub.add_parser("rename", help="rename a pin: pin rename <alias> <new-alias>")
+    rn.add_argument("alias"); rn.add_argument("new_alias")
 
     for name in ("rm", "unpin"):
         r = sub.add_parser(name, help="unpin (pin undo restores)")
@@ -133,7 +142,8 @@ def dispatch(opts, parser) -> int:
     if cmd == "help":
         parser.print_help(); return 0
     return {
-        "add": cmd_add, "list": cmd_list, "ls": cmd_list, "edit": cmd_edit, "rm": cmd_unpin, "unpin": cmd_unpin,
+        "add": cmd_add, "list": cmd_list, "ls": cmd_list, "sessions": cmd_sessions, "edit": cmd_edit,
+        "rename": cmd_rename, "rm": cmd_unpin, "unpin": cmd_unpin,
         "undo": cmd_undo, "prune": cmd_prune, "touch": cmd_touch, "doctor": cmd_doctor, "open": cmd_open,
         "_preview": cmd_preview, "_spreview": cmd_spreview, "_status": cmd_status, "_complete": cmd_complete,
     }[cmd](opts)
@@ -190,11 +200,28 @@ def cmd_open(opts) -> int:
 
 # ---- subcommands ---------------------------------------------------------------------------------
 
+def _short_id(sid: str) -> str:
+    return sid[:8]
+
+
+def resolve_session(text: str) -> str:
+    """The session id named by ``text`` (see ``match_sessions``). Ambiguity and no match are errors."""
+    if is_session_id(text.strip().lower()):
+        return text.strip().lower()
+    hits = match_sessions(text)
+    if len(hits) == 1:
+        return hits[0].session_id
+    if not hits:
+        raise PinError(f"no recent session matches {text!r} · pin sessions lists them")
+    lines = [f"{len(hits)} sessions match {text!r}; give the id or more words:"]
+    for s, line in zip(hits, session_rows([(s, False) for s in hits], width=terminal_width() - 10)):
+        lines.append(f"  {_short_id(s.session_id)}  {line}")
+    raise PinError("\n".join(lines))
+
+
 def cmd_add(opts) -> int:
     store = load_store()
-    sid = opts.session_id.lower()
-    if not is_session_id(sid):
-        raise PinError(f"{opts.session_id!r} is not a session id (expected a UUID)")
+    sid = resolve_session(opts.session)
     alias = validate_alias(opts.alias)
     existing = store.by_session(sid)
     if existing is not None:
@@ -243,11 +270,40 @@ def cmd_list(opts) -> int:
         return 0
     color = palette(sys.stdout)
     if not views:
-        print("No pins yet. Run /pin inside a Claude session, or: pin add <session-id> <alias>")
+        print("No pins yet. Run /pins:pin inside a Claude session, or: pin add <session-id> <alias>")
     for line in rows(views, color=color):
         print(line)
     if expired and not opts.all:
         print(color(f"{expired} expired · pin list --all · pin prune", "dim"))
+    return 0
+
+
+def cmd_sessions(opts) -> int:
+    store = load_store()
+    pinned = {p.session_id: p.alias for p in store.pins}
+    sessions = recent_sessions()
+    if opts.words:
+        sessions = match_sessions(" ".join(opts.words), sessions)
+    if opts.json:
+        print(json.dumps([{"session_id": s.session_id, "title": s.title, "cwd": s.cwd, "mtime": s.mtime,
+                           "messages": s.messages, "alias": pinned.get(s.session_id)} for s in sessions], indent=2))
+        return 0
+    if not sessions:
+        print("no matching sessions" if opts.words else "no sessions found", file=sys.stderr)
+        return 1
+    color = palette(sys.stdout)
+    pairs = [(s, s.session_id in pinned) for s in sessions]
+    for s, line in zip(sessions, session_rows(pairs, width=terminal_width() - 10, color=color)):
+        print(f"{color(_short_id(s.session_id), 'dim')}  {line}")
+    return 0
+
+
+def cmd_rename(opts) -> int:
+    store = load_store()
+    old = store.require(opts.alias).alias
+    pin = store.rename(old, validate_alias(opts.new_alias))
+    store.save()
+    print(f"✓ renamed {old} → {pin.alias}")
     return 0
 
 

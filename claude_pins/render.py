@@ -172,7 +172,7 @@ def _date(iso: str) -> str:
 
 def preview(view: View, cost: Cost | None = None, current_branch: str | None = None,
             width: int | None = None, color: Palette | None = None, *, pinned_line: bool = True) -> str:
-    """The §6.2 preview pane. ``current_branch`` is the branch checked out now (None = not a repo)."""
+    """The preview pane. ``current_branch`` is the branch checked out now (None = not a repo)."""
     width = width or terminal_width(80)
     color = color or Palette(False)
     p, s, e = view.pin, view.summary or Summary(exists=False), view.expiry
@@ -242,7 +242,7 @@ def preview(view: View, cost: Cost | None = None, current_branch: str | None = N
 
 
 def session_rows(items: list[tuple[Summary, bool]], width: int | None = None, color: Palette | None = None) -> list[str]:
-    """§6.6 rows: title · dir · age · msgs · pinned marker."""
+    """Session rows for the new-pin screen: title · dir · age · msgs · pinned marker."""
     width = width or terminal_width()
     color = color or Palette(False)
     if not items:

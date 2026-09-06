@@ -1,4 +1,4 @@
-"""Plain-text prompts (§6.7): numbered choices, yes/no, free text. ctrl-c cancels."""
+"""Plain-text prompts: numbered choices, yes/no, free text. ctrl-c cancels."""
 
 from __future__ import annotations
 
@@ -69,25 +69,27 @@ def text(label: str, default: str = "") -> str:
     return value.strip()
 
 
+def directory_completions(txt: str) -> list[str]:
+    """Directories completing ``txt`` (``~`` expanded for the lookup, kept as typed in the result)."""
+    base = os.path.expanduser(txt)
+    d, prefix = os.path.split(base)
+    d = d or "."
+    try:
+        names = [n for n in os.listdir(d) if n.startswith(prefix)]
+    except OSError:
+        return []
+    typed_dir = os.path.dirname(txt)
+    return [os.path.join(typed_dir, n) + "/" if typed_dir else n + "/"
+            for n in sorted(names) if os.path.isdir(os.path.join(d, n))]
+
+
 def pick_directory() -> str | None:
     """Ask for a directory path; tab completion over paths when readline is available."""
     try:
         import readline
 
         def complete(txt, state):
-            base = os.path.expanduser(txt)
-            d, prefix = os.path.split(base)
-            d = d or "."
-            try:
-                names = [n for n in os.listdir(d) if n.startswith(prefix)]
-            except OSError:
-                names = []
-            paths = []
-            for n in sorted(names):
-                full = os.path.join(d, n)
-                if os.path.isdir(full):
-                    shown = os.path.join(os.path.dirname(txt), n) if os.path.dirname(txt) else n
-                    paths.append(shown + "/")
+            paths = directory_completions(txt)
             return paths[state] if state < len(paths) else None
 
         readline.set_completer_delims(" \t\n")

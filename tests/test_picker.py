@@ -122,7 +122,7 @@ class PickerTests(FzfSandbox):
         self.run_pin()
         lines = [plain(l) for l in self.fzf_calls()[0]["lines"]]
         self.assertEqual(len(lines), 1)
-        self.assertIn("No pins yet. alt-n pins a recent session, or run /pin inside a Claude session.", lines[0])
+        self.assertIn("No pins yet. alt-n pins a recent session, or run /pins:pin inside a Claude session.", lines[0])
         self.assertTrue(lines[0].startswith("-\t"))
 
     def test_palette_grouped_and_context(self):
@@ -214,7 +214,6 @@ class PickerTests(FzfSandbox):
         self.assertEqual(self.stored()["tax-prep-questions"]["title"], "Tax prep questions")
         self.assertIn("✓ pinned as tax-prep-questions", plain(self.arg(calls[2], "--header")))
         self.assertTrue(plain(calls[2]["lines"][0]).startswith("tax-prep-questions\t"))
-        self.assertIn("start:pos(1)", " ".join(calls[2]["argv"])) if False else None
 
     def test_new_pin_already_pinned(self):
         self.steps({"key": "alt-n"}, {"key": "", "select": [SID1]}, {"abort": True})
@@ -244,3 +243,90 @@ class PickerTests(FzfSandbox):
         r = self.run_pin(input="Standup prep (Tue)\n")
         self.assertEqual(self.stored()["standup-prep"]["title"], "Standup prep (Tue)")
         self.assertIn("✓ saved standup-prep", plain(self.arg(self.fzf_calls()[-1], "--header")))
+
+    def header_after(self, index=-1):
+        return plain(self.arg(self.fzf_calls()[index], "--header"))
+
+    def test_open_expired_and_no_selection(self):
+        self.t3.unlink()
+        self.steps({"key": "alt-a"}, {"key": "", "select": ["rc-mower"]}, {"key": "", "select": []},
+                   {"key": "alt-t", "select": []}, {"key": "ctrl-space", "select": []}, {"abort": True})
+        r = self.run_pin()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("✗ rc-mower has expired · unpin it or pin prune", self.header_after(2))
+        self.assertEqual(len(self.fzf_calls()), 6)  # every empty selection just redraws
+        self.assertIsNone(self.claude_calls())
+
+    def test_open_cancelled_and_gone_flash(self):
+        ps = self.root / "ps.txt"; ps.write_text(f"claude --resume {SID1}\n")
+        self.steps({"key": "", "select": ["standup-prep"]}, {"abort": True})
+        self.run_pin(input="2\n", env={"CLAUDE_PINS_PS": str(ps)})
+        self.assertIn("cancelled", self.header_after())
+        self.assertIsNone(self.claude_calls())
+
+    def test_preview_toggle_and_sort_flash(self):
+        self.steps({"key": "alt-v"}, {"key": "alt-v"}, {"abort": True})
+        self.run_pin()
+        calls = self.fzf_calls()
+        self.assertIn("--preview", calls[0]["argv"]); self.assertNotIn("--preview", calls[1]["argv"])
+        self.assertIn("--preview", calls[2]["argv"])
+
+    def test_help_screen_cancel_paths(self):
+        self.steps({"key": "f1"}, {"key": "", "select": ["-"]}, {"key": "ctrl-r"}, {"key": "", "select": ["touch"]},
+                   {"key": "", "select": ["touch"]}, {"key": "", "select": ["touch"]}, {"abort": True}, {"abort": True})
+        # 1: header row (ignored)  2: reset without a target (ignored)  3: rebind cancelled with EOF…
+        r = self.run_pin(input="ctrl-a\nn\nalt-enter\n\n")
+        # …4: an editing key, declined  5: alt-enter, accepted on bare enter (default is no → stays)
+        self.assertIn("ctrl-a is one of fzf's query-editing keys", r.stdout)
+        self.assertIn("Windows Terminal uses alt+enter", r.stdout)
+        keymap = (self.home / ".config" / "claude-pins" / "keys.toml")
+        self.assertFalse(keymap.exists())  # nothing was ever bound
+
+    def test_rebind_eof_at_confirmation_and_unbind(self):
+        self.steps({"key": "f1"}, {"key": "", "select": ["touch"]}, {"key": "", "select": ["touch"]}, {"abort": True}, {"abort": True})
+        r = self.run_pin(input="alt-x\n")  # conflict question gets EOF → back to help; then unbind with an empty key
+        self.assertIn("conflicts: Unpin", r.stdout)
+        self.fzf_log.unlink()
+        self.steps({"key": "f1"}, {"key": "", "select": ["touch"]}, {"abort": True}, {"abort": True})
+        r = self.run_pin(input="\n")
+        self.assertIn('touch = ""', (self.home / ".config" / "claude-pins" / "keys.toml").read_text())
+        self.assertIn("✓ Touch transcript: (unbound)", self.header_after(2))
+
+    def test_new_pin_cancel_taken_and_empty(self):
+        self.steps({"key": "alt-n"}, {"abort": True}, {"abort": True})
+        self.run_pin()
+        self.assertEqual(len(self.fzf_calls()), 3)
+        sid4 = "44444444-4444-4444-4444-444444444444"
+        self.make_session(sid4, age_days=0.1, title="Fresh")
+        self.steps({"key": "alt-n"}, {"key": "", "select": [sid4]}, {"abort": True})
+        r = self.run_pin(input="rc-mower\n")  # taken alias, then EOF cancels
+        self.assertIn("✗ alias rc-mower is taken", r.stdout)
+        self.assertNotIn("fresh", self.stored())
+        for t in (self.t1, self.t2, self.t3, self.project_dir(str(self.home / "git" / "proj")) / f"{sid4}.jsonl"):
+            t.unlink()
+        self.steps({"key": "alt-n"}, {"abort": True})
+        self.run_pin()
+        self.assertIn("no sessions found under ~/.claude/projects", self.header_after())
+
+    def test_prune_cancel_and_undo_nothing(self):
+        self.steps({"key": "alt-z"}, {"key": "alt-p"}, {"key": "alt-p"}, {"abort": True})
+        r = self.run_pin(input="n\n")
+        self.assertIn("nothing to undo", self.header_after(1))
+        self.assertIn("nothing to prune", self.header_after(2))
+        self.t3.unlink(); self.fzf_log.unlink()
+        self.steps({"key": "alt-p"}, {"key": "alt-p"}, {"abort": True})
+        r = self.run_pin(input="n\n")  # declined, then EOF
+        self.assertIn("prune cancelled", self.header_after(1))
+        self.assertIn("prune cancelled", self.header_after(2))
+        self.assertIn("rc-mower", self.stored())
+
+    def test_transcript_swept_while_picker_open(self):
+        """Claude's retention sweep can delete a transcript while the picker sits open: enter then flashes."""
+        self.steps({"key": "", "select": ["standup-prep"], "unlink": str(self.t1)}, {"abort": True})
+        r = self.run_pin()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("✗ standup-prep: transcript for session 11111111… is gone (expired) · pin unpin standup-prep",
+                      self.header_after())
+        self.assertIsNone(self.claude_calls())
+        rows = [plain(l) for l in self.fzf_calls()[-1]["lines"]]
+        self.assertFalse(any(r.startswith("standup-prep\t") for r in rows))  # the redraw already hides it

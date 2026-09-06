@@ -1,6 +1,6 @@
 ---
 name: install
-description: Install the `pin` terminal command from the pins plugin — symlink bin/pin into ~/.local/bin, install bash completion, and check fzf (≥ 0.44) and ccusage. Use when the user runs /pins:install, asks to install or set up claude-pins, or says `pin` is not found in their terminal.
+description: Install the `pin` terminal command from the pins plugin — symlink bin/pin into ~/.local/bin, install bash or zsh completion, and check fzf (≥ 0.44) and ccusage. Use when the user runs /pins:install, asks to install or set up claude-pins, or says `pin` is not found in their terminal.
 allowed-tools: Bash
 ---
 
@@ -24,11 +24,19 @@ idempotent; run it again after a plugin update.
 
    If `~/.local/bin` is not on `PATH` (`case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) echo missing;; esac`),
    tell the user to add `export PATH="$HOME/.local/bin:$PATH"` to their shell rc.
-3. Bash completion: symlink `completions/pin.bash` to
-   `${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/pin` (bash-completion picks it up
-   on the next shell). If bash-completion is not installed, append
-   `source "${CLAUDE_PLUGIN_ROOT}/completions/pin.bash"` to `~/.bashrc` unless it is already there.
-   On zsh, `autoload -U +X bashcompinit && bashcompinit` before sourcing it.
+3. Completion for the user's shell (`basename "$SHELL"`):
+   - bash: symlink `completions/pin.bash` to
+     `${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/pin` (bash-completion picks it
+     up on the next shell). If bash-completion is not installed, append
+     `source "${CLAUDE_PLUGIN_ROOT}/completions/pin.bash"` to `~/.bashrc` unless it is already there.
+   - zsh: symlink `completions/pin.zsh` to `~/.zsh/completions/_pin`, and unless `~/.zshrc`
+     already puts that directory on `fpath` before `compinit`, tell the user to add
+     `fpath=(~/.zsh/completions $fpath)` above their `compinit` line. Do not edit `.zshrc`.
+
+     ```bash
+     mkdir -p ~/.zsh/completions
+     ln -sfn "${CLAUDE_PLUGIN_ROOT}/completions/pin.zsh" ~/.zsh/completions/_pin
+     ```
 4. Run `"${CLAUDE_PLUGIN_ROOT}/bin/pin" doctor` and quote its lines as printed, all of them,
    rather than summarizing: each line is a check the user may need to act on later. It reports the fzf version
    (0.44 or newer is required for the picker; older or missing falls back to a numbered menu

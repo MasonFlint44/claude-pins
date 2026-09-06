@@ -1,4 +1,4 @@
-"""§6.8 fallback when fzf is missing or too old: numbered rows, letter-prefixed actions."""
+"""Fallback when fzf is missing or too old: numbered rows, letter-prefixed actions."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def run_menu(store: Store, *, query: str = "", sort: str | None = None, reason: 
             for line in rows(views, color=color, numbered=True):
                 print(f" {line}")
         else:
-            print(color("  No pins yet. n pins a recent session, or run /pin inside a Claude session.", "dim"))
+            print(color("  No pins yet. n pins a recent session, or run /pins:pin inside a Claude session.", "dim"))
         if expired and not state["expired"]:
             print(color(f"  {expired} expired · a show · p prune", "dim"))
         print()

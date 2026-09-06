@@ -103,7 +103,7 @@ def expiry_for(transcript: str | os.PathLike | None, *, cleanup_days: int | None
 
 
 def format_age(seconds: float) -> str:
-    """``2h`` under a day, then ``2d`` (the design's age column)."""
+    """``2h`` under a day, then ``2d``."""
     if seconds < 3600:
         return f"{max(0, int(seconds // 60))}m"
     if seconds < 86400:

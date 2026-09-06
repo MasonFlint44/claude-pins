@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -135,14 +136,28 @@ def session_cost(session_id: str, transcript: str | os.PathLike | None, *, timeo
                 cost = better
         if cost.status != "ok":
             online_retry_at = time.time() + ONLINE_RETRY_SECONDS
+    _write_cache(cache, {"mtime": mtime, "status": cost.status, "total_cost": cost.total_cost,
+                         "total_tokens": cost.total_tokens, "source": cost.source,
+                         "unpriced": cost.unpriced, "online_retry_at": online_retry_at})
+    return cost
+
+
+def _write_cache(cache: Path, data: dict) -> None:
+    """Atomic, per-process temp file: concurrent fzf previews may price the same session at once."""
     try:
         cache.parent.mkdir(parents=True, exist_ok=True)
-        cache.write_text(json.dumps({"mtime": mtime, "status": cost.status, "total_cost": cost.total_cost,
-                                     "total_tokens": cost.total_tokens, "source": cost.source,
-                                     "unpriced": cost.unpriced, "online_retry_at": online_retry_at}), encoding="utf-8")
+        fd, tmp = tempfile.mkstemp(prefix=f".{cache.stem}-", suffix=".tmp", dir=str(cache.parent))
     except OSError:
-        pass
-    return cost
+        return
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(data))
+        os.replace(tmp, cache)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 def _from_row(row: dict, source: str) -> Cost:

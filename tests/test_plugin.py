@@ -89,6 +89,9 @@ class PluginFileTests(Sandbox):
         self.assertEqual(os.path.realpath(link), str(REPO / "bin" / "pin"))
         out = subprocess.run([str(link), "--version"], capture_output=True, text=True, env=env).stdout
         self.assertIn("pin ", out)
+        zsh_link = self.home / ".zsh" / "completions" / "_pin"
+        self.assertEqual(os.path.realpath(zsh_link), str(REPO / "completions" / "pin.zsh"))
+        self.assertTrue((REPO / "completions" / "pin.zsh").read_text().startswith("#compdef pin\n"))
         # a real file in the way is left alone
         link.unlink(); link.write_text("#!/bin/sh\necho mine\n")
         r = subprocess.run(["bash", "-eu", "-c", blocks[0]], capture_output=True, text=True, env=env)

@@ -49,7 +49,7 @@ def validate_alias(alias: str) -> str:
 
 
 def next_free_alias(alias: str, taken) -> str:
-    """``alias`` if free, else ``alias-2``, ``alias-3``… (the design's suggestion rule)."""
+    """``alias`` if free, else ``alias-2``, ``alias-3``…."""
     if alias not in taken:
         return alias
     base = re.sub(r"-\d+$", "", alias) or alias
@@ -74,14 +74,6 @@ class Launch:
         if self.permission_mode:
             out += ["--permission-mode", self.permission_mode]
         return out
-
-    def summary(self) -> str:
-        parts = [self.model or "default model"]
-        if self.effort:
-            parts.append(f"effort {self.effort}")
-        if self.permission_mode:
-            parts.append(f"mode {self.permission_mode}")
-        return " · ".join(parts)
 
     @classmethod
     def from_dict(cls, data: dict | None) -> "Launch":

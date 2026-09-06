@@ -4,6 +4,7 @@
 Reads the next step from ``$CLAUDE_PINS_FZF_SCRIPT`` (JSON lines). Each step:
   {"key": "alt-t", "query": "", "select": ["substring", ...]}   → prints like fzf would
   {"abort": true}                                             → exit 130 (esc)
+  {"unlink": "/path", ...}                                    → delete that file first (a race)
 Every invocation appends {"argv": [...], "lines": [...]} to ``$CLAUDE_PINS_FZF_LOG``.
 """
 import json
@@ -32,6 +33,8 @@ def main():
     step = json.loads(steps[0])
     with open(script, "w") as fh:
         fh.write("\n".join(steps[1:]) + ("\n" if len(steps) > 1 else ""))
+    if step.get("unlink"):
+        os.unlink(step["unlink"])
     if step.get("abort"):
         return 130
     expect = "--expect" in argv

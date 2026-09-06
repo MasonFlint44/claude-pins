@@ -1,3 +1,4 @@
+import os
 """Rendering goldens: rows at several widths, preview, menu, NO_COLOR."""
 import re
 
@@ -127,3 +128,60 @@ class PreviewTests(Sandbox):
         self.assertEqual(format_tokens(950), "950")
         self.assertEqual(format_tokens(121_002), "121k")
         self.assertEqual(format_tokens(4_800_000), "4.8M")
+
+
+class FzfWrapperTests(Sandbox):
+    def test_version_and_availability(self):
+        from claude_pins import fzf
+        os.environ["PATH"] = str(self.bindir)  # the real fzf, if installed, is out of reach
+        self.assertIsNone(fzf.fzf_version())
+        self.stub("fzf", "#!/bin/sh\necho 'no digits here'\n")
+        self.assertIsNone(fzf.fzf_version())
+        self.assertFalse(fzf.available())
+        self.stub("fzf", "#!/bin/sh\necho '0.44.1 (brew)'\n")
+        self.assertEqual(fzf.fzf_version(), (0, 44, 1))
+        self.assertTrue(fzf.available())
+        os.environ["CLAUDE_PINS_NO_FZF"] = "1"
+        self.assertFalse(fzf.available())
+        os.environ.pop("CLAUDE_PINS_NO_FZF")
+        os.environ["CLAUDE_PINS_FZF"] = str(self.root / "missing")
+        self.assertIsNone(fzf.fzf_bin())
+        self.assertIsNone(fzf.run([fzf.Item("a", "A")], prompt="> "))
+        os.environ["CLAUDE_PINS_FZF"] = "fzf"  # a PATH lookup works too
+        self.assertEqual(fzf.fzf_version(), (0, 44, 1))
+        self.assertIn("install fzf ≥ 0.44", fzf.install_hint())
+
+    def test_run_output_parsing(self):
+        from claude_pins import fzf
+        # a stand-in that echoes what fzf would print: query, key, selected lines
+        self.stub("fzf", "#!/bin/sh\ncat > /dev/null\nprintf 'que\\nalt-t\\nb\\tB\\tB\\n'\n")
+        r = fzf.run([fzf.Item("a", "A"), fzf.Item("b", "B", search="bee")], prompt="> ", expect=["alt-t"],
+                    query="que", multi=True, disabled=True, header="h", extra=["--extra"])
+        self.assertEqual((r.key, r.query, r.ids), ("alt-t", "que", ["b"]))
+        self.stub("fzf", "#!/bin/sh\ncat > /dev/null\nprintf 'q\\n'\n")  # no --expect: line 2 is a selection
+        r = fzf.run([fzf.Item("a", "A")], prompt="> ")
+        self.assertEqual((r.key, r.query, r.ids), ("", "q", []))
+        self.stub("fzf", "#!/bin/sh\nexit 2\n")  # bad option
+        self.assertIsNone(fzf.run([fzf.Item("a", "A")], prompt="> "))
+        self.stub("fzf", "#!/bin/sh\ncat > /dev/null\nexit 1\n")  # no match: still a result
+        self.assertEqual(fzf.run([], prompt="> ").ids, [])
+        (self.bindir / "fzf").write_text("not executable")
+        self.assertIsNone(fzf.run([fzf.Item("a", "A")], prompt="> "))  # OSError
+
+
+class KeymapFileTests(Sandbox):
+    def test_parse_and_bad_entries(self):
+        from claude_pins.keymap import Keymap, parse
+        text = '# comment\n[section]\nopen = "enter" # trailing\n"quoted" = x\nnoequals\nnew = \'alt-n\'\nunknown = "f9"\n'
+        self.assertEqual(parse(text), {"open": "enter", '"quoted"': "x", "new": "alt-n", "unknown": "f9"})
+        km = Keymap(parse(text))
+        self.assertEqual(km.key("new"), "alt-n"); self.assertEqual(km.key("unknown"), "")
+        self.assertEqual(km.label("new"), "New pin…")
+        with self.assertRaises(KeyError):
+            km.set("unknown", "f9")
+        self.assertTrue(km.is_default())
+        km.set("touch", "f5")
+        self.assertFalse(km.is_default())
+        self.assertEqual(km.conflicts("edit", "f5"), ["touch"])
+        self.assertEqual(km.conflicts("edit", ""), [])
+        self.assertEqual(Keymap.load(self.root / "nope.toml").key("touch"), "alt-t")

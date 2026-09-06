@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -126,3 +127,91 @@ class GitTests(Sandbox):
         git("branch", "feature", cwd=r)
         ok, _ = gitutil.checkout(r, "feature")
         self.assertTrue(ok); self.assertEqual(gitutil.current_branch(r), "feature")
+
+
+class EdgeTests(Sandbox):
+    def test_bad_fake_clock_and_unreadable_dirs(self):
+        from claude_pins.sessions import now, process_table
+        import time
+        os.environ["CLAUDE_PINS_NOW"] = "not-a-number"
+        self.assertAlmostEqual(now(), time.time(), delta=5)
+        os.environ["CLAUDE_CONFIG_DIR"] = str(self.root / "nowhere")
+        self.assertEqual(iter_transcripts(), [])
+        self.assertIsNone(find_transcript("11111111-1111-1111-1111-111111111111"))
+        os.environ.pop("CLAUDE_CONFIG_DIR")
+        (self.projects / "-p").mkdir()
+        (self.projects / "-p" / "22222222-2222-2222-2222-222222222222.jsonl").symlink_to(self.root / "dangling")
+        self.assertEqual(iter_transcripts(), [])  # a dangling symlink cannot be stat'ed and is skipped
+        os.environ["CLAUDE_PINS_PS"] = str(self.root / "no-such-table")
+        self.assertEqual(process_table(), [])
+        os.environ.pop("CLAUDE_PINS_PS")
+        self.assertIsInstance(process_table(), list)  # the real ps
+
+    def test_open_ids_odd_lines(self):
+        self.assertEqual(open_session_ids(["", "   ", "vim x", "claude --resume", "claude -r nope",
+                                           "node /opt/claude --session-id=BAD"]), set())
+
+    def test_expiry_edge(self):
+        e = expiry_for(None)
+        self.assertTrue(e.expired); self.assertFalse(e.expiring)
+
+    def test_git_failures(self):
+        self.assertIsNone(gitutil.current_branch(self.root))  # not a repo
+        os.environ["PATH"] = str(self.bindir)  # no git at all
+        self.assertFalse(gitutil.is_repo(self.root))
+        self.assertEqual(gitutil.checkout(self.root, "x")[0], False)
+
+
+class ConfigTests(Sandbox):
+    def test_settings_parsing(self):
+        from claude_pins import config
+        self.write_settings({"cleanupPeriodDays": "12"})  # wrong type → default
+        self.assertEqual(config.cleanup_period_days(), 30)
+        (self.claude_dir / "settings.json").write_text("{not json")
+        (self.claude_dir / "settings.local.json").write_text(json.dumps({"cleanupPeriodDays": 12.7}))
+        self.assertEqual(config.cleanup_period_days(), 12)
+        self.assertEqual(config.configured_model(), "")
+        self.write_settings({"model": "claude-fable-5-1[1m]"})
+        self.assertEqual(config.configured_model(), "claude-fable-5-1[1m]")
+        self.assertEqual(config.context_window_for("claude-fable-5-1"), 1_000_000)
+        self.assertIsNone(config.context_window_for("claude-opus-5"))
+        self.write_settings({"model": 7})
+        self.assertEqual(config.configured_model(), "7")
+        self.write_settings([])
+        self.assertEqual(config.configured_model(), "")
+        os.environ["CLAUDE_PINS_EXPIRE_WARN"] = "x"
+        self.assertEqual(config.expire_warn_days(), 7)
+        os.environ["CLAUDE_PINS_EXPIRE_WARN"] = "-3"
+        self.assertEqual(config.expire_warn_days(), 0)
+        os.environ["CLAUDE_PINS_SORT"] = "bogus"
+        self.assertEqual(config.default_sort(), "recency")
+        self.assertEqual(config.tilde(None), "")
+        self.assertEqual(config.tilde(str(self.home)), "~")
+        self.assertEqual(config.tilde("/elsewhere"), "/elsewhere")
+
+    def test_color_decisions(self):
+        from claude_pins import config
+        import io
+        os.environ.pop("NO_COLOR")
+        self.assertTrue(config.color_enabled())            # no stream to inspect: assume a terminal
+        self.assertFalse(config.color_enabled(io.StringIO()))
+        os.environ["CLAUDE_PINS_COLOR"] = "1"
+        self.assertTrue(config.color_enabled(io.StringIO()))
+        os.environ["NO_COLOR"] = "1"
+        self.assertFalse(config.color_enabled(io.StringIO()))
+
+    def test_ps_missing(self):
+        from claude_pins.sessions import process_table
+        os.environ["PATH"] = str(self.bindir)
+        self.assertEqual(process_table(), [])
+        self.assertEqual(open_session_ids(), set())
+
+    def test_fresh_worktree_add_failure(self):
+        r = GitTests.repo(self, "repo")
+        (r / ".claude" / "worktrees").mkdir(parents=True)
+        (r / ".claude" / "worktrees" / "y").write_text("in the way")
+        ok, path, msg = gitutil.recreate_worktree(str(r), "y", None)
+        self.assertFalse(ok); self.assertIn("already exists", msg)
+        git("branch", "worktree-z", cwd=r)  # the fresh branch name is taken: pick the next free one
+        ok, _, used = gitutil.recreate_worktree(str(r), "z", None)
+        self.assertTrue(ok); self.assertEqual(used, "worktree-z-2")

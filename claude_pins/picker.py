@@ -18,7 +18,7 @@ from .sessions import iter_transcripts
 from .store import Store
 from .transcript import read_summary
 
-EMPTY_MESSAGE = "No pins yet. {new} pins a recent session, or run /pin inside a Claude session."
+EMPTY_MESSAGE = "No pins yet. {new} pins a recent session, or run /pins:pin inside a Claude session."
 
 
 def pin_exe() -> str:
