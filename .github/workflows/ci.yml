@@ -26,7 +26,7 @@ jobs:
         run: python -m unittest -v
       - name: shellcheck
         if: runner.os == 'Linux'
-        run: shellcheck completions/pin.bash tests/completion_check.sh tests/skills/run.sh
+        run: shellcheck completions/pin.bash tests/completion_check.sh tests/skills/run.sh tests/skills/triggers.sh
       - name: Real fzf 0.44 option grammar
         if: runner.os == 'Linux'
         run: |

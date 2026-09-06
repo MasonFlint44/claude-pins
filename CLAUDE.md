@@ -34,7 +34,7 @@ reasons behind several design choices and are recorded nowhere else.
 
 ```
 python3 -m unittest -q                 # must exit 0; check the status, not the last line of output
-shellcheck completions/pin.bash tests/completion_check.sh tests/skills/run.sh
+shellcheck completions/pin.bash tests/completion_check.sh tests/skills/run.sh tests/skills/triggers.sh
 python3 tests/fzf_grammar_check.py     # after touching any fzf option in claude_pins/fzf.py or picker.py
 ```
 
