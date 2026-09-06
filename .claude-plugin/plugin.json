@@ -1,6 +1,6 @@
 {
   "name": "pins",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Pin Claude Code sessions and resume them by name: /pins:pin, /pins:unpin, and the `pin` terminal picker. Install with /pins:install; diagnose with /pins:doctor.",
   "author": {
     "name": "Mason Flint"

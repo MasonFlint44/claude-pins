@@ -4,6 +4,36 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
+## 0.4.0 — 2026-09-06
+
+- **Fixed:** a session started with `claude --worktree`, pinned from inside
+  and reopened in place, got a "branch differs" prompt on every open that
+  offered to check out the base branch inside the worktree. Claude records
+  the branch before the worktree checkout, so the branch check now skips
+  Claude worktree directories.
+- `pin rename <alias> <new-alias>`.
+- `pin add` takes a session id, a unique id prefix, or words from the title
+  or directory of one of the 200 most recent sessions; `pin sessions
+  [words…]` lists them with their ids, so a session can be pinned by title
+  from the terminal.
+- zsh completion (`completions/pin.zsh`); the install skill installs the one
+  for your shell.
+- Transcript and cost caches write through per-process temp files, so two
+  fzf previews summarizing the same session cannot clobber each other.
+- A store directory that cannot be written (read-only, or a directory where
+  `pins.json` should be) is a one-line `cannot write` error instead of a
+  traceback.
+- A store whose `undo` list was hand-edited into something other than
+  objects with a `pins` list no longer crashes `pin undo`; such entries are
+  dropped on load.
+- Empty-state messages and the completion header say `/pins:pin` and
+  `/pins:install` (the namespaced names).
+- README preview regenerated; the committed one predated the streaming
+  preview and still showed the token count on the context line.
+- Dev tooling: `pyproject.toml` with a uv dev group (`coverage`, `pyte`) and
+  `tests/coverage.sh`, which traces the `bin/pin` subprocesses the tests
+  spawn, exec included.
+
 ## 0.3.1 — 2026-09-06
 
 - Install skill quotes the doctor's lines as printed instead of summarizing
