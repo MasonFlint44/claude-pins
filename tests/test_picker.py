@@ -172,7 +172,7 @@ class PickerTests(FzfSandbox):
         self.assertEqual(self.arg(help_call, "--prompt"), "pins › help › ")
         rows = [plain(l).split("\t")[2] for l in help_call["lines"]]
         self.assertTrue(rows[0].startswith("● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⏳ expiring  ✗ expired"))
-        self.assertIn("keymap: ~/.config/claude-pins/keys.toml", rows[0])
+        self.assertIn("keymap: ~/.config/claude-pins/keys.toml", rows[1])
         self.assertIn("Touch transcript              alt-t", rows)
         self.assertIn('new key for "Touch transcript"', r.stdout)
         self.assertIn("✓ Touch transcript: f5", plain(self.arg(calls[2], "--header")))

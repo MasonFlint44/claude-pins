@@ -130,7 +130,7 @@ def rows(views: list[View], width: int | None = None, color: Palette | None = No
         age = pad(v.age, age_w, ">")
         marks = ("  " + pad(v.markers, mark_w)) if mark_w else ""
         if v.expiry.expired:
-            line = color(f"{alias}  {title}  {d}  {age}", "dim", "strike") + color(marks, "dim")
+            line = color(f"{alias}  {title}  {d}  {age}", "dim", "strike") + color(marks.rstrip(), "dim")
         else:
             age_c = color(age, "yellow") if v.expiry.expiring else color(age, "dim")
             marks_c = marks
@@ -225,7 +225,8 @@ def session_rows(items: list[tuple[Summary, bool]], width: int | None = None, co
     now = time.time()
     dir_w = min(24, max(len(display_dir(s.cwd)) for s, _ in items))
     msgs_w = max(len(f"{s.messages} msgs") for s, _ in items)
-    title_w = max(10, width - dir_w - 4 - msgs_w - 3 - 10)
+    tag_w = 10 if any(p for _, p in items) else 0
+    title_w = max(10, width - dir_w - 4 - msgs_w - 3 - 4 - tag_w)
     out = []
     for s, pinned in items:
         age = pad(format_age(max(0.0, now - s.mtime)), 3, ">")
@@ -237,5 +238,6 @@ def session_rows(items: list[tuple[Summary, bool]], width: int | None = None, co
 
 
 def session_preview(s: Summary, width: int | None = None, color: Palette | None = None) -> str:
-    view = View(Pin(alias="", session_id=s.session_id, cwd=s.cwd), Expiry("ok", max(0.0, time.time() - s.mtime), 0), summary=s)
+    from .sessions import expiry_for
+    view = View(Pin(alias="", session_id=s.session_id, cwd=s.cwd), expiry_for(s.path if s.exists else None), summary=s)
     return preview(view, None, None, width, color)

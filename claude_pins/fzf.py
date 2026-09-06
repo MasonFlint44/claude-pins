@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 
 from . import config
@@ -65,7 +66,7 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
         query: str = "", multi: bool = False, preview: str | None = None,
         preview_window: str = "down,55%,border-rounded,wrap", preview_label_cmd: str | None = None,
         pos: int | None = None, border_label: str = "", extra: list[str] | None = None,
-        disabled: bool = False, ansi: bool = True) -> Result | None:
+        disabled: bool = False, ansi: bool = True, info: str = "inline-right") -> Result | None:
     """Run fzf over ``items``; None when the user pressed esc/ctrl-c."""
     binary = fzf_bin()
     if not binary:
@@ -75,7 +76,7 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
         search = (it.search or _ANSI.sub("", it.display)).replace("\t", " ")
         lines.append(f"{it.id}\t{search}\t{it.display}")
     args = [binary, "--layout=reverse", "--delimiter=\t", "--with-nth=3..", "--nth=2", "--tiebreak=index",
-            "--no-sort", "--print-query", "--info=inline-right", "--no-separator",
+            "--no-sort", "--print-query", f"--info={info}", "--no-separator",
             "--pointer", ">", "--marker", "▌", "--prompt", prompt, "--cycle", "--ellipsis", "…"]
     if ansi:
         args.append("--ansi")
@@ -101,11 +102,13 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
         args += ["--border", "bottom", "--border-label", border_label, "--border-label-pos", "2:bottom"]
     if extra:
         args += extra
+    # stderr is inherited on purpose: fzf ≤ 0.4x draws its UI there (newer builds use /dev/tty),
+    # and option errors should reach the user either way.
     try:
-        p = subprocess.run(args, input="\n".join(lines) + ("\n" if lines else ""), capture_output=True, text=True)
+        p = subprocess.run(args, input="\n".join(lines) + ("\n" if lines else ""), stdout=subprocess.PIPE, text=True)
     except OSError:
         return None
-    if p.returncode not in (0, 1):   # 130 = esc/ctrl-c, 2 = error
+    if p.returncode not in (0, 1):   # 130 = esc/ctrl-c, 2 = bad option
         return None
     out = p.stdout.split("\n")
     q = out[0] if out else ""

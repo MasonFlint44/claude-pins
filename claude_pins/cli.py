@@ -30,6 +30,7 @@ def _global_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--resume", action="store_true", help="plain resume, ignoring the pin's fork/worktree modes")
     p.add_argument("-w", "--worktree", nargs="?", const="", metavar="NAME", help="open in a new worktree (one-off)")
     p.add_argument("--no-fzf", action="store_true", help="use the numbered menu instead of fzf")
+    p.add_argument("--all", action="store_true", help="start with expired pins shown")
 
 
 EPILOG = ("pin            open the picker\npin <words…>   open the one pin matching, else the picker pre-filtered\n"
@@ -161,11 +162,11 @@ def run_query(opts) -> int:
                 for h in hits:
                     print(f"  {h.alias:<18} {h.title}", file=sys.stderr)
             return 1
-        opts.all, opts.json = False, False
+        opts.json = False
         return cmd_list(opts)
     if _use_fzf(opts):
         from .picker import Picker
-        return Picker(store, query=query if words else "", sort=opts.sort).run()
+        return Picker(store, query=query if words else "", sort=opts.sort, show_expired=opts.all).run()
     from .menu import run_menu
     reason = "" if fzf.fzf_version() else "fzf not found"
     if fzf.fzf_version() and fzf.fzf_version() < config.MIN_FZF:

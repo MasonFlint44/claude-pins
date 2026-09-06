@@ -1,0 +1,42 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Configure git for worktree tests
+        run: |
+          git config --global user.email ci@example.com
+          git config --global user.name ci
+          git config --global init.defaultBranch main
+      - name: Unit and end-to-end tests (stub claude, stub fzf — zero Claude usage)
+        run: python -m unittest -v
+      - name: Real fzf 0.44 option grammar
+        if: runner.os == 'Linux'
+        run: |
+          curl -sSL https://github.com/junegunn/fzf/releases/download/0.44.1/fzf-0.44.1-linux_amd64.tar.gz | tar xz
+          python tests/fzf_grammar_check.py ./fzf
+
+  completion:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ["bash:3.2", "bash:4.4", "bash:5.2"]
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Completion script parses and completes on ${{ matrix.image }}
+        run: bash tests/completion_check.sh

@@ -100,7 +100,7 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
         crumb = f"pins › {original.alias} › edit{' (unsaved)' if dirty else ''} › "
         hints = color("enter change · alt-s save · esc back", "dim")
         header = " " * max(0, terminal_width() - len("enter change · alt-s save · esc back") - 3) + hints
-        res = run(items, prompt=crumb, header=header, expect=["alt-s"], pos=cursor, disabled=False)
+        res = run(items, prompt=crumb, header=header, expect=["alt-s"], pos=cursor, info="hidden")
         if res is None:
             if not dirty:
                 return None
@@ -164,7 +164,7 @@ def choose(run, crumb: str, options: list[str], current: str | None) -> str | No
     """Short fzf list with ``(clear)``. Returns "" for clear, None when cancelled."""
     items = [fzf.Item(o, o) for o in options] + [fzf.Item("", "(clear)")]
     pos = (options.index(current) + 1) if current in options else None
-    res = run(items, prompt=crumb, header="", expect=[], pos=pos)
+    res = run(items, prompt=crumb, header="", expect=[], pos=pos, info="hidden")
     if res is None or not res.ids:
         return None
     return res.ids[0]
