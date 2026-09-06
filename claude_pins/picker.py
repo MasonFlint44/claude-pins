@@ -82,9 +82,9 @@ class Picker:
             items = []
             if views:
                 for v, line in zip(views, rows(views, width=terminal_width() - 4, color=self.color)):
-                    items.append(fzf.Item(v.pin.alias, line, f"{v.pin.alias} {v.title}"))
+                    items.append(fzf.Item(v.pin.alias, line))
             else:
-                items.append(fzf.Item("-", self.color(EMPTY_MESSAGE.format(new=self.km.key("new") or "pin add"), "dim"), " "))
+                items.append(fzf.Item("-", self.color(EMPTY_MESSAGE.format(new=self.km.key("new") or "pin add"), "dim")))
             main_actions = ["open_fork", "open_worktree", "palette", "edit", "touch", "keep", "fork_mode",
                             "worktree_mode", "unpin", "new", "expired", "prune", "undo", "sort", "preview", "help"]
             expect, mapping = self.expect_keys(*main_actions)
@@ -233,9 +233,9 @@ class Picker:
                 elif a.id == "sort":
                     label = f"Sort: {self.state.sort}"
                 key = self.km.key(a.id)
-                group_items.append(fzf.Item(a.id, f"{label:<30}{self.color(key, 'dim')}", f"{label} {key}"))
+                group_items.append(fzf.Item(a.id, f"{label:<30}{self.color(key, 'dim')}"))
             if group_items:
-                items.append(fzf.Item("-", self.color(f"── {group} ──", "dim"), " "))
+                items.append(fzf.Item("-", self.color(f"── {group} ──", "dim")))
                 items.extend(group_items)
         hints = self.color("enter run · esc back", "dim")
         res = fzf.run(items, prompt=crumb, header=self.header(hints), expect=[], pos=2, info="hidden")
@@ -247,14 +247,14 @@ class Picker:
 
     def help_screen(self) -> None:
         while True:
-            items = [fzf.Item("-", LEGEND, " "),
-                     fzf.Item("-", self.color("keymap: " + config.tilde(config.keymap_file()), "dim"), " ")]
+            items = [fzf.Item("-", LEGEND),
+                     fzf.Item("-", self.color("keymap: " + config.tilde(config.keymap_file()), "dim"))]
             for group in GROUPS:
-                items.append(fzf.Item("-", self.color(f"── {group} ──", "dim"), " "))
+                items.append(fzf.Item("-", self.color(f"── {group} ──", "dim")))
                 for a in ACTIONS:
                     if a.group == group:
                         key = self.km.key(a.id) or self.color("(unbound)", "dim")
-                        items.append(fzf.Item(a.id, f"{a.title:<30}{key}", f"{a.title} {self.km.key(a.id)}"))
+                        items.append(fzf.Item(a.id, f"{a.title:<30}{key}"))
             hints = self.color("enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back", "dim")
             res = fzf.run(items, prompt="pins › help › ", header=self.header(hints), expect=["ctrl-r", "ctrl-alt-r"], pos=4, info="hidden")
             self.state.flash = ""
@@ -315,7 +315,7 @@ class Picker:
         if not pairs:
             self.state.flash = "no sessions found under " + config.tilde(config.projects_dir())
             return
-        items = [fzf.Item(s.path, line, f"{s.title} {s.cwd}")
+        items = [fzf.Item(s.path, line)
                  for (s, _), line in zip(pairs, session_rows(pairs, width=terminal_width() - 4, color=self.color))]
         hints = self.color("enter pin · esc back", "dim")
         res = fzf.run(items, prompt="pins › new › ", header=self.header(hints), expect=[],

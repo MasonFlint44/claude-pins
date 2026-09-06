@@ -4,6 +4,17 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
+## 0.4.1 — 2026-09-06
+
+- **Fixed:** typing in the picker's query hid every pin. The rows carried a
+  hidden search field that fzf's `--nth` was meant to match, but fzf applies
+  `--nth` to the line after `--with-nth` has trimmed it, so the field was
+  never there to match (on every supported fzf version). The query now
+  matches the visible row: alias, title, directory, age and flags. The same
+  applied to the editor, the action palette, the help screen and the session
+  chooser. The CI check against fzf 0.44 now feeds it the picker's rows and
+  asserts a query matches, so this cannot regress silently.
+
 ## 0.4.0 — 2026-09-06
 
 - **Fixed:** a session started with `claude --worktree`, pinned from inside

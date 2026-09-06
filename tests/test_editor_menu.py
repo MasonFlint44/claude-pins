@@ -18,7 +18,7 @@ class EditorTests(FzfSandbox):
 
     def fields(self, call):
         import re
-        return [re.sub(r"\x1b\[[0-9;]*m", "", l).split("\t")[2] for l in call["lines"]]
+        return [re.sub(r"\x1b\[[0-9;]*m", "", l).split("\t")[1] for l in call["lines"]]
 
     def test_layout_and_dirty_marks(self):
         self.steps({"key": "", "select": ["keep"]}, {"abort": True})
@@ -54,7 +54,7 @@ class EditorTests(FzfSandbox):
         r = self.run_pin("edit", "standup-prep")
         calls = self.fzf_calls()
         self.assertEqual(self.arg(calls[1], "--prompt"), "pins › standup-prep › edit › permission › ")
-        self.assertEqual([l.split("\t")[2] for l in calls[1]["lines"]], ["default", "acceptEdits", "plan", "auto", "bypassPermissions", "(clear)"])
+        self.assertEqual([l.split("\t")[1] for l in calls[1]["lines"]], ["default", "acceptEdits", "plan", "auto", "bypassPermissions", "(clear)"])
         self.assertEqual(self.stored()["standup-prep"]["launch"], {"permission_mode": "plan"})
 
     def test_rename_and_alias_taken(self):
@@ -234,7 +234,7 @@ class EditorEdgeTests(EditorTests):
         self.assertEqual((p["cwd"], p["launch"], p["note"]), (str(self.home / "git" / "cc"), {"model": "sonnet"}, "a note"))
         calls = self.fzf_calls()
         self.assertEqual(self.arg(calls[2], "--prompt"), "pins › standup-prep › edit › model › ")
-        self.assertEqual([l.split("\t")[2] for l in calls[2]["lines"]][:2], ["fable", "opus"])
+        self.assertEqual([l.split("\t")[1] for l in calls[2]["lines"]][:2], ["fable", "opus"])
 
     def test_cancel_paths(self):
         # choice screen aborted, field prompt cancelled with EOF, then esc with nothing dirty

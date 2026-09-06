@@ -155,7 +155,7 @@ class FzfWrapperTests(Sandbox):
         from claude_pins import fzf
         # a stand-in that echoes what fzf would print: query, key, selected lines
         self.stub("fzf", "#!/bin/sh\ncat > /dev/null\nprintf 'que\\nalt-t\\nb\\tB\\tB\\n'\n")
-        r = fzf.run([fzf.Item("a", "A"), fzf.Item("b", "B", search="bee")], prompt="> ", expect=["alt-t"],
+        r = fzf.run([fzf.Item("a", "A"), fzf.Item("b", "B")], prompt="> ", expect=["alt-t"],
                     query="que", multi=True, disabled=True, header="h", extra=["--extra"])
         self.assertEqual((r.key, r.query, r.ids), ("alt-t", "que", ["b"]))
         self.stub("fzf", "#!/bin/sh\ncat > /dev/null\nprintf 'q\\n'\n")  # no --expect: line 2 is a selection

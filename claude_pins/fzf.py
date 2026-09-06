@@ -22,8 +22,52 @@ class Result:
 @dataclass
 class Item:
     id: str
-    display: str
-    search: str = ""    # what the query matches against (defaults to display)
+    display: str    # what fzf shows and, minus colour codes, what the query matches
+
+
+def lines_for(items: list[Item]) -> list[str]:
+    """One ``id<tab>display`` line per item. The id is hidden with --with-nth and comes back in the output.
+
+    There is no hidden search field: fzf applies --nth to the line *after* --with-nth has cut it down, so
+    a field that is not displayed cannot be matched either (true since at least 0.44). Matching therefore
+    runs over the displayed text, which --ansi strips of colour first.
+    """
+    return [f"{it.id}\t{it.display.replace(chr(9), ' ')}" for it in items]
+
+
+def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] | None = None,
+               query: str = "", multi: bool = False, preview: str | None = None,
+               preview_window: str = "down,55%,border-rounded,wrap", preview_label_cmd: str | None = None,
+               pos: int | None = None, border_label: str = "", extra: list[str] | None = None,
+               disabled: bool = False, ansi: bool = True, info: str = "inline-right") -> list[str]:
+    args = [binary, "--layout=reverse", "--delimiter=\t", "--with-nth=2..", "--tiebreak=index",
+            "--no-sort", "--print-query", f"--info={info}", "--no-separator",
+            "--pointer", ">", "--marker", "▌", "--prompt", prompt, "--cycle", "--ellipsis", "…"]
+    if ansi:
+        args.append("--ansi")
+    if not config.color_enabled():
+        args.append("--color=bw")
+    if header:
+        args += ["--header", header]
+    if expect:
+        args += ["--expect", ",".join(expect)]
+    if query:
+        args += ["--query", query]
+    if multi:
+        args.append("--multi")
+    if disabled:
+        args.append("--disabled")
+    if preview:
+        args += ["--preview", preview, "--preview-window", preview_window]
+        if preview_label_cmd:
+            args += ["--bind", f"focus:transform-preview-label({preview_label_cmd})"]
+    if pos and pos > 1:
+        args += ["--bind", f"start:pos({pos})"]
+    if border_label:
+        args += ["--border", "bottom", "--border-label", border_label, "--border-label-pos", "2:bottom"]
+    if extra:
+        args += extra
+    return args
 
 
 def fzf_bin() -> str | None:
@@ -59,8 +103,6 @@ def install_hint() -> str:
             "fzf-0.67.0-linux_amd64.tar.gz | tar xz -C ~/.local/bin  (or: brew install fzf)")
 
 
-_ANSI = re.compile(r"\x1b\[[0-9;]*m")
-
 
 def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] | None = None,
         query: str = "", multi: bool = False, preview: str | None = None,
@@ -71,37 +113,10 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
     binary = fzf_bin()
     if not binary:
         return None
-    lines = []
-    for it in items:
-        search = (it.search or _ANSI.sub("", it.display)).replace("\t", " ")
-        lines.append(f"{it.id}\t{search}\t{it.display}")
-    args = [binary, "--layout=reverse", "--delimiter=\t", "--with-nth=3..", "--nth=2", "--tiebreak=index",
-            "--no-sort", "--print-query", f"--info={info}", "--no-separator",
-            "--pointer", ">", "--marker", "▌", "--prompt", prompt, "--cycle", "--ellipsis", "…"]
-    if ansi:
-        args.append("--ansi")
-    if not config.color_enabled():
-        args.append("--color=bw")
-    if header:
-        args += ["--header", header]
-    if expect:
-        args += ["--expect", ",".join(expect)]
-    if query:
-        args += ["--query", query]
-    if multi:
-        args.append("--multi")
-    if disabled:
-        args.append("--disabled")
-    if preview:
-        args += ["--preview", preview, "--preview-window", preview_window]
-        if preview_label_cmd:
-            args += ["--bind", f"focus:transform-preview-label({preview_label_cmd})"]
-    if pos and pos > 1:
-        args += ["--bind", f"start:pos({pos})"]
-    if border_label:
-        args += ["--border", "bottom", "--border-label", border_label, "--border-label-pos", "2:bottom"]
-    if extra:
-        args += extra
+    lines = lines_for(items)
+    args = build_args(binary, prompt=prompt, header=header, expect=expect, query=query, multi=multi,
+                      preview=preview, preview_window=preview_window, preview_label_cmd=preview_label_cmd,
+                      pos=pos, border_label=border_label, extra=extra, disabled=disabled, ansi=ansi, info=info)
     # stderr is inherited on purpose: fzf ≤ 0.4x draws its UI there (newer builds use /dev/tty),
     # and option errors should reach the user either way.
     try:

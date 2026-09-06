@@ -21,6 +21,11 @@ reasons behind several design choices and are recorded nowhere else.
   worktree checkout), so the preview reads the branch from git.
 - Inside a session the Bash tool sees `CLAUDE_CODE_SESSION_ID`; command templates
   get `${CLAUDE_SESSION_ID}` substituted. Nothing tails history files.
+- fzf applies `--nth` to the line *after* `--with-nth` has trimmed it, so a
+  hidden field cannot be the search target (this hid every pin from the query
+  until 0.4.1). Rows are `id<tab>display` and the query matches the display.
+  `--filter` with `--no-sort` prints the trimmed line instead of the whole one,
+  which only the grammar check has to work around.
 - fzf cannot bind printable characters (they type into the query), which is why
   the help screen's reset keys are ctrl-r and ctrl-alt-r rather than `r` and `R`.
   Its own editing keys are left alone so the filter stays editable, and alt+enter

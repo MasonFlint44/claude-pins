@@ -90,15 +90,15 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
         for sec, field, kind, hint in FIELDS:
             if sec != section:
                 section = sec
-                items.append(fzf.Item("-", color(f"── {sec} ──", "dim"), " "))
+                items.append(fzf.Item("-", color(f"── {sec} ──", "dim")))
             star = "*" if field in dirty else " "
             req = " *" if field == "title" else ""
             label = f"{field}{req}"
             value = _shown(draft, field, kind)
-            items.append(fzf.Item(field, f"{label:<11} {star}{value:<26} {color(hint, 'dim')}", f"{field} {value}"))
-        items.append(fzf.Item("-", color("──", "dim"), " "))
-        items.append(fzf.Item("done", "Done", "done"))
-        items.append(fzf.Item("cancel", "Cancel", "cancel"))
+            items.append(fzf.Item(field, f"{label:<11} {star}{value:<26} {color(hint, 'dim')}"))
+        items.append(fzf.Item("-", color("──", "dim")))
+        items.append(fzf.Item("done", "Done"))
+        items.append(fzf.Item("cancel", "Cancel"))
         crumb = f"pins › {original.alias} › edit{' (unsaved)' if dirty else ''} › "
         hints = color("enter change · alt-s save · esc back", "dim")
         header = " " * max(0, terminal_width() - len("enter change · alt-s save · esc back") - 3) + hints

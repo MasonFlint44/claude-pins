@@ -131,7 +131,7 @@ class PickerTests(FzfSandbox):
         calls = self.fzf_calls()
         pal = calls[1]
         self.assertEqual(self.arg(pal, "--prompt"), "pins › standup-prep › actions › ")
-        rows = [plain(l).split("\t")[2] for l in pal["lines"]]
+        rows = [plain(l).split("\t")[1] for l in pal["lines"]]
         self.assertEqual(rows[0], "── open ──")
         self.assertRegex(rows[1], r"^Open\s+enter$")
         self.assertIn("Toggle keep (off)             alt-k", rows)
@@ -145,14 +145,14 @@ class PickerTests(FzfSandbox):
         self.t3.unlink()
         self.steps({"key": "alt-a"}, {"key": "ctrl-space", "select": ["rc-mower"]}, {"abort": True}, {"abort": True})
         self.run_pin()
-        rows = [plain(l).split("\t")[2] for l in self.fzf_calls()[2]["lines"]]
+        rows = [plain(l).split("\t")[1] for l in self.fzf_calls()[2]["lines"]]
         self.assertFalse(any(r.startswith(("Open", "Touch")) for r in rows))
         self.assertTrue(any(r.startswith("Unpin") for r in rows))
         self.steps({"key": "ctrl-space", "select": ["standup-prep", "cc-collector"]}, {"key": "", "select": ["unpin"]}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
         self.assertEqual(self.arg(calls[-2], "--prompt"), "pins › 2 selected › actions › ")
-        rows = [plain(l).split("\t")[2] for l in calls[-2]["lines"]]
+        rows = [plain(l).split("\t")[1] for l in calls[-2]["lines"]]
         self.assertFalse(any(r.startswith(("Open", "Edit")) for r in rows))
         self.assertEqual(set(self.stored()), {"rc-mower"})
 
@@ -160,7 +160,7 @@ class PickerTests(FzfSandbox):
         ps = self.root / "ps.txt"; ps.write_text(f"claude --resume {SID1}\n")
         self.steps({"key": "ctrl-space", "select": ["standup-prep"]}, {"abort": True}, {"abort": True})
         self.run_pin(env={"CLAUDE_PINS_PS": str(ps)})
-        rows = [plain(l).split("\t")[2] for l in self.fzf_calls()[1]["lines"]]
+        rows = [plain(l).split("\t")[1] for l in self.fzf_calls()[1]["lines"]]
         self.assertTrue(any(r.startswith("Resume anyway (open in another tab)") for r in rows))
 
     def test_help_screen_rebind_reset(self):
@@ -170,13 +170,13 @@ class PickerTests(FzfSandbox):
         calls = self.fzf_calls()
         help_call = calls[1]
         self.assertEqual(self.arg(help_call, "--prompt"), "pins › help › ")
-        rows = [plain(l).split("\t")[2] for l in help_call["lines"]]
+        rows = [plain(l).split("\t")[1] for l in help_call["lines"]]
         self.assertTrue(rows[0].startswith("● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⏳ expiring  ✗ expired"))
         self.assertIn("keymap: ~/.config/claude-pins/keys.toml", rows[1])
         self.assertIn("Touch transcript              alt-t", rows)
         self.assertIn('new key for "Touch transcript"', r.stdout)
         self.assertIn("✓ Touch transcript: f5", plain(self.arg(calls[2], "--header")))
-        self.assertIn("Touch transcript              f5", [plain(l).split("\t")[2] for l in calls[2]["lines"]])
+        self.assertIn("Touch transcript              f5", [plain(l).split("\t")[1] for l in calls[2]["lines"]])
         self.assertIn("✓ Touch transcript: reset to alt-t", plain(self.arg(calls[3], "--header")))
         self.assertIn("✓ keymap reset to defaults", plain(self.arg(calls[4], "--header")))
         keymap = self.home / ".config" / "claude-pins" / "keys.toml"
