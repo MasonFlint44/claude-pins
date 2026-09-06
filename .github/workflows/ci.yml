@@ -24,8 +24,10 @@ jobs:
           git config --global init.defaultBranch main
       - name: Unit and end-to-end tests (stub claude, stub fzf — zero Claude usage)
         run: python -m unittest -v
-      - name: zsh completion
-        run: zsh tests/zsh_completion_check.sh
+      - name: zsh completion (the Linux runners do not ship zsh)
+        run: |
+          command -v zsh >/dev/null || sudo apt-get install -y -qq zsh >/dev/null
+          zsh tests/zsh_completion_check.sh
       - name: shellcheck
         if: runner.os == 'Linux'
         run: shellcheck completions/pin.bash tests/completion_check.sh tests/coverage.sh tests/skills/run.sh tests/skills/triggers.sh
