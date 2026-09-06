@@ -1,0 +1,82 @@
+[
+  {
+    "query": "the pin picker's cost line says 'no price for claude-fable-5-1', is that a ccusage thing?",
+    "should_trigger": true
+  },
+  {
+    "query": "pin is giving me a numbered menu instead of the fzf picker, why",
+    "should_trigger": true
+  },
+  {
+    "query": "run pin doctor and tell me what the dot next to ccusage means",
+    "should_trigger": true
+  },
+  {
+    "query": "a pin I made last month shows an X now. what happened and can I get it back",
+    "should_trigger": true
+  },
+  {
+    "query": "pins are working but the preview pane takes ages to show the cost, is something off?",
+    "should_trigger": true
+  },
+  {
+    "query": "is my pins setup healthy? check the store and whatever else it needs",
+    "should_trigger": true
+  },
+  {
+    "query": "pin doctor says the store is corrupt and mentions a .bak file. what do I do",
+    "should_trigger": true
+  },
+  {
+    "query": "the picker says 'install ccusage for session cost' but I have ccusage 20 installed globally",
+    "should_trigger": true
+  },
+  {
+    "query": "pin says projects dir not found and something about CLAUDE_CONFIG_DIR",
+    "should_trigger": true
+  },
+  {
+    "query": "I lost a pin somehow, it's just gone from the list. can you check what's going on with pins",
+    "should_trigger": true
+  },
+  {
+    "query": "set up the pin command in my terminal, I just installed the plugin",
+    "should_trigger": false
+  },
+  {
+    "query": "pin this session so I can find it later, call it fluante-auth",
+    "should_trigger": false
+  },
+  {
+    "query": "unpin the current session",
+    "should_trigger": false
+  },
+  {
+    "query": "my budget statusline bars are blank this morning, what's wrong",
+    "should_trigger": false
+  },
+  {
+    "query": "ccusage's daily table shows a different total than the /usage page, why",
+    "should_trigger": false
+  },
+  {
+    "query": "how do I pin a tab in vscode so it doesn't get replaced",
+    "should_trigger": false
+  },
+  {
+    "query": "fzf is really slow inside vim with a big repo, any ideas",
+    "should_trigger": false
+  },
+  {
+    "query": "how much has this claude session cost so far",
+    "should_trigger": false
+  },
+  {
+    "query": "why does claude code delete old transcripts after 30 days and can I change that",
+    "should_trigger": false
+  },
+  {
+    "query": "pin: command not found in a fresh terminal",
+    "should_trigger": false
+  }
+]

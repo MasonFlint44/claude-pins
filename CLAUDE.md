@@ -41,7 +41,9 @@ python3 tests/fzf_grammar_check.py     # after touching any fzf option in claude
 - Tests never launch the real `claude` or the real `fzf`: a stub on PATH records
   argv and cwd, and `tests/fzf_stub.py` plays a scripted picker. Keep it that
   way, so CI spends nothing. `tests/skills/run.sh` runs the skills through
-  `claude -p` for real money (about $0.50 on sonnet); only run it by hand.
+  `claude -p` for real money (about $0.50 on sonnet); only run it by hand. So does
+  `tests/skills/triggers.sh`, which scores the skill descriptions' triggering with
+  the skill-creator plugin's evaluator; run it after changing a description.
 - fzf support floors at 0.44.1, which lacks `transform`, `--footer`, `print`,
   `exclude` and the `result` event. The grammar check runs the picker's option
   set against that binary in CI; run it locally when you add an option.

@@ -1,0 +1,82 @@
+[
+  {
+    "query": "I just added the pins plugin from the claude-toolbox marketplace. Set up the pin command so I can use it in my terminal.",
+    "should_trigger": true
+  },
+  {
+    "query": "bash says `pin: command not found` even though the plugin shows as installed in /plugin. fix it",
+    "should_trigger": true
+  },
+  {
+    "query": "install claude-pins for me, symlink and all",
+    "should_trigger": true
+  },
+  {
+    "query": "I updated the pins plugin to 0.2.1 and now `pin` in my terminal says no such file. I think the symlink points at the old version dir.",
+    "should_trigger": true
+  },
+  {
+    "query": "get bash completion working for the pin command, tab does nothing after `pin `",
+    "should_trigger": true
+  },
+  {
+    "query": "i use zsh on my mac, how do i get the pin command from the pins plugin working there",
+    "should_trigger": true
+  },
+  {
+    "query": "first time setup for claude-pins on this laptop please. I already have fzf.",
+    "should_trigger": true
+  },
+  {
+    "query": "put the pin picker on my PATH and check fzf and ccusage while you're at it",
+    "should_trigger": true
+  },
+  {
+    "query": "the pins plugin is installed but there's no pin binary in ~/.local/bin, can you wire it up",
+    "should_trigger": true
+  },
+  {
+    "query": "set up pins so I can type pin in a new terminal tab and get the picker",
+    "should_trigger": true
+  },
+  {
+    "query": "pin this session as standup-prep, title 'Monday standup notes'",
+    "should_trigger": false
+  },
+  {
+    "query": "install fzf on ubuntu 24.04, the apt one is too old for something I'm using",
+    "should_trigger": false
+  },
+  {
+    "query": "npm install ccusage globally and make sure it's on PATH",
+    "should_trigger": false
+  },
+  {
+    "query": "set up the budget statusline plugin so I get the spend bars",
+    "should_trigger": false
+  },
+  {
+    "query": "the pin picker shows no cost for this session even though ccusage is installed, what's wrong",
+    "should_trigger": false
+  },
+  {
+    "query": "add ~/.local/bin to my PATH in .bashrc",
+    "should_trigger": false
+  },
+  {
+    "query": "how do I add a marketplace and install a plugin in claude code",
+    "should_trigger": false
+  },
+  {
+    "query": "resume my claude session from yesterday in ~/git/lawncare, I don't remember the id",
+    "should_trigger": false
+  },
+  {
+    "query": "write a bash completion script for my tasks-cli tool",
+    "should_trigger": false
+  },
+  {
+    "query": "one of my pins shows an X in the picker, did the transcript get deleted?",
+    "should_trigger": false
+  }
+]

@@ -170,6 +170,19 @@ plugin loaded against a throwaway HOME whose `claude` on PATH is a stub, so no c
 a real session. Seven cases (pin with and without arguments, already pinned, unpin, unpin
 when nothing is pinned, install, doctor) cost about $0.50 on sonnet.
 
+Whether the skills *trigger* on the right requests is a separate question, checked with the
+[skill-creator](https://github.com/anthropics/claude-plugins-official) plugin's description
+evaluator over twenty queries per skill in `tests/skills/triggers/` (ten that should trigger,
+ten near-misses that should not):
+
+```
+tests/skills/triggers.sh -e [-m MODEL] [-r RUNS] [SKILL...]   # score the current descriptions
+tests/skills/triggers.sh [-m MODEL] [SKILL...]                # optimizer: proposes a better description
+```
+
+The optimizer never edits `SKILL.md`; it prints the best description it found, scored on a
+held-out split, for you to paste in. `-e -m haiku -r 1` is a two-minute smoke test per skill.
+
 **Releasing:** add a `CHANGELOG.md` section, bump `version` in `.claude-plugin/plugin.json`
 and `claude_pins/__init__.py` (a test keeps the three in step), commit `Version X.Y.Z`, tag
 `vX.Y.Z` with the section as its message, `gh release create` with the same notes. The
