@@ -115,6 +115,27 @@ class DoctorTests(CostTests):
         self.stub_ccusage([row("b", 0, 10, [("claude-fable-5-1", 0, 10)])], [row("b", 0, 10, [("claude-fable-5-1", 0, 10)])])
         self.assertIn("no price for fable-5-1 even online", doctor_line())
 
+    def test_doctor_edge_outcomes(self):
+        from claude_pins.cost import doctor_line
+        self.stub_ccusage([])
+        self.assertIn("no priced sessions yet", doctor_line())
+        self.stub_ccusage([row("b", 0, 10, [("claude-fable-5-1", 0, 10)])], [], online_exit=1)
+        self.assertIn("online fallback unreachable", doctor_line())
+        self.stub("ccusage", "#!/bin/sh\n[ \"$1\" = --version ] && { echo 'ccusage 1'; exit 0; }\necho nope\n")
+        self.assertIn("offline listing failed", doctor_line())
+        os.environ["PATH"] = str(self.bindir); (self.bindir / "ccusage").unlink()
+        self.assertIn("not installed", doctor_line())
+        self.assertEqual(Cost("unknown").line(), "not indexed by ccusage yet")
+        self.assertEqual(Cost("error").line(), "unavailable (ccusage error)")
+
+    def test_listing_shape_variants(self):
+        import json as _json
+        (self.root / "offline.json").write_text(_json.dumps({"sessions": [row(SID, 1, 10, [("m", 1, 10)])]}))
+        self.stub("ccusage", f"#!/bin/sh\ncat {self.root}/offline.json\n")
+        self.assertEqual(session_cost(SID, None).status, "ok")
+        os.environ["CLAUDE_PINS_CCUSAGE"] = str(self.root / "missing")
+        self.assertEqual(session_cost(SID, None).status, "missing")
+
     def test_preview_streams_before_cost(self):
         import io
         from claude_pins.render import stream_preview, View
