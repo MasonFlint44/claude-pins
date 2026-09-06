@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+"""claude-pins entry point. Stdlib only; works from a checkout or a symlink."""
+import os
+import sys
+
+here = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.dirname(here))
+
+from claude_pins.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())
