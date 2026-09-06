@@ -59,7 +59,7 @@ class Sandbox(unittest.TestCase):
 
     def setUp(self):
         self._saved = {k: os.environ.get(k) for k in ENV_KEYS}
-        self.root = Path(tempfile.mkdtemp(prefix="pins-test-"))
+        self.root = Path(tempfile.mkdtemp(prefix="pins-test-")).resolve()  # macOS: /var → /private/var
         self.home = self.root / "home"
         self.home.mkdir()
         self.claude_dir = self.home / ".claude"
