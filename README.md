@@ -12,8 +12,10 @@ $ pin standup         # one match → cd there and `claude --resume <id>`; sever
 $ pin rc-mower --fork # one-off fork (new session id, original untouched)
 ```
 
-Inside Claude: `/pin` pins the current session (Claude drafts an alias and title from the
-conversation and confirms), `/unpin` removes it. Everything else is terminal-only.
+Inside Claude: `/pins:pin` pins the current session (Claude drafts an alias and title from the
+conversation and confirms), `/pins:unpin` removes it. Claude Code namespaces plugin commands
+with the plugin name, so they show up as `/pins:pin` and `/pins:unpin` in the command list.
+Everything else is terminal-only.
 
 ## Install
 
@@ -24,7 +26,7 @@ conversation and confirms), `/unpin` removes it. Everything else is terminal-onl
    /plugin install pins@claude-toolbox
    ```
 
-2. Run `/pins-install` once. It symlinks `bin/pin` into `~/.local/bin`, installs bash
+2. Run `/pins:pins-install` once. It symlinks `bin/pin` into `~/.local/bin`, installs bash
    completion, and runs `pin doctor`, which checks for **fzf ≥ 0.44** (older or missing falls
    back to a numbered menu) and **ccusage** (optional; only for the cost line).
 
