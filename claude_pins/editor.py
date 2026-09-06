@@ -56,6 +56,8 @@ def _shown(pin: Pin, field: str, kind: str) -> str:
 
 def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
     """Interactive edit. Returns the (possibly new) alias if saved, else None."""
+    if run is None and not fzf.available():
+        return edit_pin_plain(store, alias)
     run = run or fzf.run
     color = palette(sys.stdout)
     original = store.require(alias)
@@ -168,3 +170,64 @@ def choose(run, crumb: str, options: list[str], current: str | None) -> str | No
     if res is None or not res.ids:
         return None
     return res.ids[0]
+
+
+def edit_pin_plain(store: Store, alias: str) -> str | None:
+    """The same form as a numbered text menu, for terminals without fzf."""
+    color = palette(sys.stdout)
+    original = store.require(alias)
+    draft = original.copy()
+    while True:
+        dirty = {f for _, f, _, _ in FIELDS if _get(draft, f) != _get(original, f)}
+        print(f"\n pins › {original.alias} › edit{' (unsaved)' if dirty else ''}")
+        section = None
+        for i, (sec, field, kind, hint) in enumerate(FIELDS, 1):
+            if sec != section:
+                section = sec
+                print(color(f"  ── {sec} ──", "dim"))
+            star = "*" if field in dirty else " "
+            print(f"  {i:>2}  {field + (' *' if field == 'title' else ''):<11} {star}{_shown(draft, field, kind):<26} {color(hint, 'dim')}".rstrip())
+        print(color("\n  N change field · s save · q cancel", "dim"))
+        try:
+            raw = input(" > ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print()
+            return None
+        if raw == "q":
+            return None
+        if raw == "s":
+            try:
+                validate_alias(draft.alias)
+                if not draft.title.strip():
+                    raise PinError("title is required")
+                if draft.alias != original.alias and store.get(draft.alias) is not None:
+                    raise PinError(f"alias {draft.alias} is taken")
+            except PinError as e:
+                print(f" ✗ {e}")
+                continue
+            target = store.require(original.alias)
+            for _, f, _, _ in FIELDS:
+                _set(target, f, _get(draft, f))
+            store.save()
+            return draft.alias
+        if not raw.isdigit() or not 1 <= int(raw) <= len(FIELDS):
+            continue
+        _, field, kind, _ = FIELDS[int(raw) - 1]
+        try:
+            if kind == "bool":
+                _set(draft, field, not _get(draft, field))
+            elif kind in ("text", "model"):
+                _set(draft, field, prompt.text(field, _get(draft, field) or ""))
+            elif kind == "dir":
+                value = prompt.text("cwd", _get(draft, field) or "")
+                _set(draft, field, os.path.abspath(os.path.expanduser(value)) if value else "")
+            elif kind == "choice":
+                options = list(PERMISSION_MODES if field == "permission" else EFFORT_LEVELS)
+                for i, o in enumerate(options, 1):
+                    print(f"  {i}) {o}")
+                print("  0) (clear)")
+                pick = prompt.text(f"{field} [0-{len(options)}]", "")
+                if pick.isdigit() and 0 <= int(pick) <= len(options):
+                    _set(draft, field, options[int(pick) - 1] if int(pick) else "")
+        except prompt.Cancelled:
+            continue

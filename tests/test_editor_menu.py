@@ -110,6 +110,41 @@ class MenuTests(FzfSandbox):
         self.assertIn("no row 9", r.stdout)
         self.assertIn("unknown command 'zz'", r.stdout)
 
+    def test_menu_new_pin_and_sort(self):
+        sid3 = "33333333-3333-3333-3333-333333333333"
+        self.make_session(sid3, cwd=str(self.home / "Documents"), age_days=0.2, title="Tax prep questions")
+        r = self.run_pin(input="n\n1\n\ns\na\nq\n")
+        self.assertIn("pins › new", r.stdout)
+        self.assertRegex(r.stdout, r"1  Tax prep questions\s+~/Documents")
+        self.assertIn("✓ pinned as tax-prep-questions", r.stdout)
+        self.assertIn("sort: alias", r.stdout)
+        self.assertIn("tax-prep-questions", {p["alias"] for p in json.loads(self.store_path().read_text())["pins"]})
+
+    def test_menu_edit_without_fzf(self):
+        r = self.run_pin(input="e1\n1\nStandup prep (Tue)\n9\n8\n3\ns\nq\n")
+        self.assertIn("pins › standup-prep › edit", r.stdout)
+        self.assertIn("N change field · s save · q cancel", r.stdout)
+        self.assertIn("✓ saved standup-prep", r.stdout)
+        pins = {p["alias"]: p for p in json.loads(self.store_path().read_text())["pins"]}
+        self.assertEqual(pins["standup-prep"]["title"], "Standup prep (Tue)")
+        self.assertTrue(pins["standup-prep"]["keep"])
+        self.assertEqual(pins["standup-prep"]["launch"], {"permission_mode": "plan"})
+        r = self.run_pin("edit", "standup-prep", input="10\nq\n")
+        self.assertIn("no changes", r.stdout)
+
+    def test_menu_prune_and_expired(self):
+        self.t2.unlink()
+        r = self.run_pin(input="a\np\ny\nz\nq\n")
+        self.assertIn("1 expired · a show · p prune", r.stdout)
+        self.assertRegex(r.stdout, r"2  rc-mower\s+Navimow schedule debug\s+~\s+✗")
+        self.assertIn("✓ pruned 1 · z undo", r.stdout)
+        self.assertIn("✓ restored rc-mower (prune)", r.stdout)
+
+    def test_menu_worktree_and_letter_without_number(self):
+        r = self.run_pin(input="t\nw1\n")
+        self.assertIn("t needs a row number (e.g. t1)", r.stdout)
+        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID1, "--worktree"])
+
     def test_old_fzf_reason(self):
         os.environ.pop("CLAUDE_PINS_NO_FZF")
         self.stub("fzf", "#!/bin/sh\necho '0.38.0 (old)'\n")
