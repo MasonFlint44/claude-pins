@@ -34,5 +34,5 @@ idempotent; run it again after a plugin update.
    and the doctor prints the one-line static-binary install), whether ccusage is installed
    (`npm i -g ccusage`; optional, only for the cost line), the pin store, and the Claude
    projects directory.
-5. Finish with the two-line usage reminder: `pin` opens the picker, `/pin` pins the current
+5. Finish with the two-line usage reminder: `pin` opens the picker, `/pins:pin` pins the current
    session. Do not run `pin` itself (it is interactive) and never run `claude`.

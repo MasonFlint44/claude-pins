@@ -1,6 +1,6 @@
 ---
 name: pins-doctor
-description: Diagnose the pins plugin — why `pin` is not found, why the picker falls back to a numbered menu, why the cost line says "no price" or "install ccusage", why a pin shows as expired, or whether the pin store and Claude's projects directory are in order. Use when the user says pin is missing, broken, slow, shows no cost, lost a pin, or asks whether pins are working.
+description: Diagnose the pins plugin — why the picker falls back to a numbered menu, why the cost line says "no price" or "install ccusage", why a pin shows as expired, or whether the pin store and Claude's projects directory are in order. Use when the user says pins are broken, slow, show no cost, lost a pin, or asks whether pins are working. A `pin` command that is not found is the install skill's job.
 allowed-tools: Bash
 ---
 
@@ -12,8 +12,8 @@ skill runs it and turns each line into a fix.
 ## Steps
 
 1. **Find the command.** Prefer `pin` on PATH; if `command -v pin` fails, use
-   `"${CLAUDE_PLUGIN_ROOT}/bin/pin"` and tell the user the symlink is missing
-   (`/pins:pins-install` creates it).
+   `"${CLAUDE_PLUGIN_ROOT}/bin/pin"` for the checks below and offer to run the
+   `/pins:pins-install` steps afterwards (the symlink and completion; both are idempotent).
 2. **Run `pin doctor`** and show its output verbatim. Lines start with `✓` (fine), `·`
    (works, with a caveat) or `✗` (broken); the exit code is 1 when anything is `✗`.
 3. **Explain each non-✓ line and its fix:**
