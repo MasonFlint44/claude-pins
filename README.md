@@ -90,16 +90,36 @@ resets all) or by editing `~/.config/claude-pins/keys.toml`. fzf's own query-edi
 alt+enter (Windows Terminal) are avoided on purpose. Markers: ● open · ⚑ keep · ⑂ fork ·
 ⌂ worktree · ⏳ expiring · ✗ expired.
 
-## Subcommands
+## Command line
+
+`pin --help` and `pin <subcommand> --help` print the same information.
 
 ```
-pin add <session-id> <alias> [--title …] [--note …] [--keep] [--fork] [--worktree]
-pin list [--all] [--sort recency|alias|pinned] [--json]
-pin edit <alias> [--title … --note … --cwd … --rename … --model … --effort … --permission-mode …
-                  --keep/--no-keep --fork/--no-fork --worktree/--no-worktree]   # no flags → editor
-pin open <alias> [--fork] [--resume] [-w [name]]
-pin rm|unpin <alias> · pin undo · pin prune [-y] · pin touch <alias> · pin doctor
+pin [words…] [--fork | --resume | -w [name]] [--sort recency|alias|pinned] [--all] [--no-fzf]
 ```
+
+| | |
+|---|---|
+| `pin` | the picker; enter opens, esc leaves |
+| `pin <words…>` | loose match over alias and title, every word must appear; exactly one hit opens it, several open the picker pre-filtered, none prints "no pin matches" |
+| `--fork` / `--resume` / `-w [name]` | one-off open mode: fork the session, plain resume ignoring the pin's modes, or a new worktree (optionally named); these apply to a unique match |
+| `--sort`, `--all`, `--no-fzf` | starting sort, show expired pins from the start, use the numbered menu |
+
+Every subcommand exits 0 on success and 1 with a one-line message on `stderr` otherwise.
+
+| Subcommand | What it does |
+|---|---|
+| `pin add <session-id> <alias> [--title …] [--note …] [--cwd …] [--keep] [--fork] [--worktree] [--rename]` | pin a session. Title and directory default to the transcript's; a session with no transcript yet is accepted with a warning. Pinning an already pinned session says "already pinned as X" and, with `--title`/`--note`, updates it, or with `--rename`, renames it; a taken alias is refused with a suggested `alias-2` |
+| `pin list [--all] [--sort …] [--json]` | the rows the picker shows, expired ones hidden unless `--all`; `--json` adds `state`, `age`, `open`, `markers`, `remaining_days` per pin |
+| `pin edit <alias> [flags]` | set fields directly: `--title`, `--note`, `--cwd`, `--rename <alias>`, `--model`, `--effort`, `--permission-mode` (empty string clears), `--keep`/`--no-keep`, `--fork`/`--no-fork`, `--worktree`/`--no-worktree`. With no flags, the interactive editor |
+| `pin open <alias> [--fork] [--resume] [-w [name]]` | open by exact alias, with the same one-off modes as above; runs the already-open, missing-directory and branch prompts first |
+| `pin rm <alias>` / `pin unpin <alias>` | unpin, no confirmation; "no pin named x" when there is none |
+| `pin undo` | restore the last unpin or prune (the last ten are kept); a restored alias that is taken meanwhile comes back as `alias-2` |
+| `pin prune [-y]` | unpin every expired pin after listing them and asking; `-y` skips the question; "nothing to prune" otherwise |
+| `pin touch <alias>` | bump the transcript's mtime, restarting its retention clock |
+| `pin doctor` | fzf version, ccusage and its price coverage across your sessions, store health, projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
+
+Every run of any of these also touches the transcripts of pins with `keep`.
 
 ## Files and environment
 
