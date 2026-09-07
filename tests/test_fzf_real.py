@@ -41,7 +41,8 @@ SID1 = "11111111-1111-1111-1111-111111111111"
 SID2 = "22222222-2222-2222-2222-222222222222"
 SID3 = "33333333-3333-3333-3333-333333333333"
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
-COUNT3 = r"3/3|3 pins"      # the stock counter, or the --info-command text on builds that have it (0.54+)
+COUNT3 = r"3/3|(?<!of )3 pins"   # the stock counter, or the --info-command text (0.65.2+; it passes through
+                                 # ``0 of 3 pins`` while the rows load, which is not the finished screen)
 
 
 def plain(text: str) -> str:
@@ -352,8 +353,8 @@ class InteractiveSmokeTest(FzfSandbox):
         claude starts."""
         pid, fd = self.spawn(30)
         try:
-            screen = self.wait_for(fd, COUNT3)              # three pins listed
-            self.assertRegex(screen, r"alias\s+title\s+directory\s+idle")   # the label row, under the prompt
+            self.wait_for(fd, COUNT3)                       # three pins listed
+            screen = self.wait_for(fd, r"alias\s+title\s+directory\s+idle")   # the label row, under the prompt
             self.assertIn("alt-i details · f1 help", screen)
             self.assertIn("📌 pins ›", screen)
             self.assertIn("session    " + SID3, self.wait_for(fd, r"session\s+" + SID3))  # the preview pane is up
@@ -390,8 +391,8 @@ class InteractiveSmokeTest(FzfSandbox):
         off and then refuses to turn it back on, and alt-i still shows the details."""
         pid, fd = self.spawn(16)
         try:
-            screen = self.wait_for(fd, COUNT3)
-            self.assertIn("preview hidden: terminal too short", screen)
+            self.wait_for(fd, COUNT3)
+            screen = self.wait_for(fd, r"preview hidden: terminal too short")
             self.assertNotIn("session    " + SID3, screen)                     # no pane drawn
             self.out = b""                          # each screen is a new fzf; wait for it to draw before typing
             os.write(fd, b"\x1bv")                                              # alt-v: off

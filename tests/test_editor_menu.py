@@ -238,8 +238,14 @@ class MenuTests(FzfSandbox):
         self.assertTrue(p["keep"])
         r = self.run_pin("edit", "standup-prep", input="2\nBAD\ns\n3\n")  # invalid alias refused, EOF cancels
         self.assertIn("✗ invalid alias 'BAD'", r.stdout); self.assertIn("standup-prep", self.stored())
-        r = self.run_pin("edit", "standup-prep", input="1\n\ns\nq\n")  # empty title refused
-        self.assertIn("✗ title is required", r.stdout)
+        from claude_pins.prompt import prefills
+        import readline
+        r = self.run_pin("edit", "standup-prep", input="1\n\ns\nq\n")
+        if prefills(readline):
+            self.assertIn("✗ title is required", r.stdout)                  # an empty answer empties the field
+        else:
+            self.assertIn("title [Standup prep]:", r.stdout)                 # libedit: bare enter keeps the value
+            self.assertIn("✓ saved standup-prep", r.stdout)
         r = self.run_pin("edit", "standup-prep", input="2\nrc-mower\ns\nq\n")
         self.assertIn("✗ alias rc-mower is taken", r.stdout)
         r = self.run_pin("edit", "standup-prep", input="99\nabc\nq\n")  # ignored inputs
