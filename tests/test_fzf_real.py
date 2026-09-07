@@ -134,7 +134,7 @@ class RealFzfTests(FzfSandbox):
             self.assertIn(opt, args)
         self.assertEqual(args[args.index("--preview-window") + 1], "down,55%,border-rounded,wrap,<10(hidden)")
         self.assertIn(f"focus:transform-preview-label(echo {{1}})+transform-header({transform})", args)  # one bind per trigger
-        self.assertEqual(("--info-command" in args), VERSION >= (0, 54))
+        self.assertEqual(("--info-command" in args), VERSION >= (0, 65, 2))
         self.assertEqual(any(a.startswith("resize:") for a in args), VERSION >= (0, 46))
 
     def test_reload_rows(self):

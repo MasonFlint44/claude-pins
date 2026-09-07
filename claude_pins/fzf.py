@@ -61,7 +61,7 @@ def min_lines(*, bottom_border: bool = False) -> int:
 # below the floor's feature set is emitted unconditionally; these are gated on ``supports()``.
 FEATURES = {
     "resize": (0, 46),            # the resize event, and $FZF_LINES / $FZF_COLUMNS / the count variables
-    "info-command": (0, 54),      # --info-command with $FZF_INFO
+    "info-command": (0, 65, 2),   # --info-command is 0.54.0, but inline-right cut its last cell until 0.65.2
     "transform-header": (0, 40),  # present on the floor; listed so the gate reads as a table
 }
 

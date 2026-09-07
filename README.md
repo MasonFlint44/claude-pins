@@ -107,7 +107,7 @@ The list is read from the store every time a screen returns; alt-r re-reads it i
 picker left open while another terminal pinned something. On fzf 0.46 and newer the rows also
 re-fit themselves when the terminal is resized, and the too-short note follows the height;
 0.44 and 0.45 refit at the next screen and refresh the note on the next cursor move or
-keystroke. On 0.54 and newer the counter reads `3 of 5 pins · 2 selected`.
+keystroke. On 0.65.2 and newer the counter reads `3 of 5 pins · 2 selected`.
 
 In the editor: enter changes the highlighted field (booleans flip, text fields prompt with the
 current value, choices open a short list with `(clear)`), alt-s saves, esc goes back and asks

@@ -439,7 +439,7 @@ class PickerTests(FzfSandbox):
 
     def test_version_gates(self):
         """Older fzf: the too-short note follows focus and change; 0.46 adds the resize event (rows and note
-        re-fit on resize) and 0.54 the info command. The preview off drops the note transform."""
+        re-fit on resize) and 0.65.2 the info command. The preview off drops the note transform."""
         self.steps({"abort": True})
         self.run_pin()
         call = self.fzf_calls()[0]
@@ -466,7 +466,10 @@ class PickerTests(FzfSandbox):
         self.assertEqual([b for b in self.binds(calls[1]) if b.startswith("resize:")],
                          ["resize:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort recency)"])
         self.steps({"abort": True})
-        self.run_pin(env={"CLAUDE_PINS_FZF_STUB_VERSION": "0.54.0"})
+        self.run_pin(env={"CLAUDE_PINS_FZF_STUB_VERSION": "0.65.1"})     # has --info-command, cuts its last cell
+        self.assertNotIn("--info-command", self.fzf_calls()[-1]["argv"])
+        self.steps({"abort": True})
+        self.run_pin(env={"CLAUDE_PINS_FZF_STUB_VERSION": "0.65.2"})
         call = self.fzf_calls()[-1]
         self.assertIn('t="$FZF_MATCH_COUNT of $n $s"', self.arg(call, "--info-command"))
         self.t3.unlink()                                          # the expired footer costs a row: limit 20

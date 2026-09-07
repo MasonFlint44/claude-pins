@@ -50,7 +50,9 @@ reasons behind several design choices and are recorded nowhere else.
   `cli.main`.
 - Feature versions, from fzf's CHANGELOG and gated in `fzf.supports()`: the
   `resize` event with `$FZF_LINES`, `$FZF_COLUMNS` and the count variables
-  0.46.0; `--info-command` with `$FZF_INFO` 0.54.0; `transform-header` 0.40.0.
+  0.46.0; `--info-command` with `$FZF_INFO` 0.54.0, gated at 0.65.2 because
+  `--info=inline-right` cut its last cell before that (`3 pin…`, seen on
+  0.64.0); `transform-header` 0.40.0.
   Inside a transform on 0.44 `$FZF_LINES` is empty and `tput lines` answers 24
   whatever the size, while `stty size </dev/tty` is right, which is why the
   header note binds to `focus,change` there and to `resize` on 0.46+.

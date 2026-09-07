@@ -35,7 +35,7 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   picker, for a picker left open while another terminal pinned something. Enter
   opens a pin that arrived that way. On fzf 0.46 and newer the rows also re-fit
   when the terminal is resized, and the too-short note follows the height; on
-  0.44 the note catches up on the next cursor move or keystroke. On 0.54 and
+  0.44 the note catches up on the next cursor move or keystroke. On 0.65.2 and
   newer the counter reads `3 of 5 pins · 2 selected`.
 - `pin list` and `pin sessions` share the renderer, so their columns follow.
 - `pin doctor`'s install hint points at fzf's releases page instead of naming a
