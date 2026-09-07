@@ -58,7 +58,7 @@ def filter_ids(items: list[fzf.Item], text: str, **kw) -> list[str]:
     kw = {k: v for k, v in kw.items() if k not in ("query", "env")}
     items, kw["header_lines"] = fzf.sticky(items, kw.get("header_lines", 0), VERSION)   # as ``fzf.run`` does
     args = [a for a in fzf.build_args(REAL_FZF, version=VERSION, **kw) if a != "--no-sort"] + ["--filter", text]
-    rows = "\n".join(fzf.lines_for(items)) + "\n"
+    rows = "\n".join(fzf.lines_for(items, columns=kw.get("nth") is not None)) + "\n"   # as ``fzf.run`` does
     p = subprocess.run(args, input=rows, capture_output=True, text=True)
     if p.returncode not in (0, 1):
         raise AssertionError(f"fzf {VERSION} rejected the options: {p.stderr.strip()}")
@@ -127,14 +127,15 @@ class RealFzfTests(FzfSandbox):
         kw = dict(prompt="📌 pins › ", header="h\nflash\nnote", expect=keys, query="x", multi=True, preview="echo {1}",
                   preview_label_cmd="echo {1}", pos=2, border_label=" 2 expired ", disabled=True, header_lines=1,
                   binds=binds, info_command=fzf.INFO_COMMAND if fzf.supports("info-command", VERSION) else None,
-                  extra=["--bind", "alt-t:change-header(✓ touched)+reload(true)", "--bind", "enter:become(echo {1})",
+                  nth="1..3", extra=["--bind", "alt-t:change-header(✓ touched)+reload(true)", "--bind", "enter:become(echo {1})",
                          "--expect", "ctrl-r,ctrl-alt-r", "--preview-label", " draft "])
         items = [fzf.Item("-", "label"), fzf.Item("a", "b")]
         self.assertEqual(filter_ids(items, "x", **kw), [])  # accepted, nothing matches "x" against "b"
         self.assertEqual(filter_ids(items, "", **kw), ["a"])  # the header line is neither matched nor printed
         args = fzf.build_args(REAL_FZF, version=VERSION, **kw)
-        for opt in ("--header-first", "--header-lines=1", "--disabled", "--no-clear"):
+        for opt in ("--header-first", "--header-lines=1", "--disabled", "--no-clear", "--tabstop=1"):
             self.assertIn(opt, args)
+        self.assertEqual(args[args.index("--nth") + 1], "1..3")
         self.assertEqual(("--with-shell" in args), VERSION >= (0, 51))
         if "--with-shell" in args:
             self.assertEqual(args[args.index("--with-shell") + 1], "sh -c")
@@ -209,6 +210,7 @@ class RealFzfTests(FzfSandbox):
         self.assertEqual((gap_items[0], n), (fzf.GAP_ROW, 2) if VERSION >= (0, 63) else (items[0], 1))
 
     def test_main_picker(self):
+        self.run_pin("edit", "rc-mower", "--fork")                     # one marker glyph on that row
         items, kw = self.capture(lambda: self.picker().run())
         self.assertEqual([i.id for i in items], ["-", "standup", "rc-mower", "cc-collector"])
         self.assertEqual(kw["header_lines"], 1)
@@ -220,6 +222,29 @@ class RealFzfTests(FzfSandbox):
         self.assertKeeps(items, kw, "zzz", [])
         self.assertKeeps(items, kw, "", ["standup", "rc-mower", "cc-collector"])
         self.assertEveryRowFindable(items, kw)
+        # --nth stops at the directory: the idle time and the marker glyphs are drawn but never matched
+        self.assertEqual(kw["nth"], "1..3")
+        self.assertIn("2d", plain(items[2].display))
+        self.assertKeeps(items, kw, "'2d", [])
+        self.assertIn(theme.glyphs().fork, items[2].display)
+        self.assertKeeps(items, kw, theme.glyphs().fork, [])
+        # --tabstop=1 draws each tab as one space, so every boundary is a tab plus a space, and the
+        # columns are the fields --nth counts: alias, title, directory, idle, markers
+        columns = plain(items[2].display).split("\t")
+        self.assertEqual(len(columns), 5)
+        self.assertTrue(all(c.startswith(" ") for c in columns[1:]))
+        self.assertEqual(columns[0].rstrip(), "rc-mower")
+
+    def test_main_picker_narrow(self):
+        """A squeezed directory still matches by its last component, which stays whole; the abbreviated
+        leading components match only as displayed (fzf highlights matches, so hidden text would be a
+        surprise)."""
+        os.environ["COLUMNS"] = "60"
+        items, kw = self.capture(lambda: self.picker().run())
+        row = plain(next(i.display for i in items if i.id == "cc-collector"))
+        self.assertIn("~/g/command-center", row)
+        self.assertKeeps(items, kw, "command-center", ["cc-collector"])
+        self.assertKeeps(items, kw, "'git", ["standup", "rc-mower"])       # the two directories still whole
 
     def test_main_picker_prefiltered(self):
         from claude_pins.picker import Picker
@@ -266,6 +291,12 @@ class RealFzfTests(FzfSandbox):
         self.assertKeeps(items, kw, "standup", [i.id for i in items if SID3 in i.id])
         self.assertKeeps(items, kw, "dotclaude", [i.id for i in items if SID3 in i.id])
         self.assertEveryRowFindable(items, kw)
+        # title and directory only: idle, the message count and the pinned tag are outside --nth
+        self.assertEqual(kw["nth"], "1..2")
+        self.assertTrue(all("msgs" in plain(i.display) for i in items))
+        self.assertKeeps(items, kw, "'msgs", [])
+        self.assertKeeps(items, kw, "'9d", [])
+        self.assertKeeps(items, kw, "'pinned", [])
 
     def test_editor_and_choice(self):
         from claude_pins import editor

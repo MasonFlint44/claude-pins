@@ -105,8 +105,10 @@ look holds on light and dark terminals alike; `NO_COLOR` or `CLAUDE_PINS_COLOR=0
 
 Above the prompt sit the marker legend and the key hints, on one line when the terminal is
 wide enough (about 150 columns) and stacked otherwise, then a status line that carries the
-last action's result for one screen. The list's `idle` column is the time since the transcript
-was last written, which is what the retention clock counts. The preview pane below the list
+last action's result for one screen. Typing filters the list by alias, title and directory,
+the way fzf matches; the `idle` column and the marker glyphs are shown but never matched.
+`idle` is the time since the transcript was last written, which is what the retention clock
+counts. The preview pane below the list
 hides itself when it would get fewer than ten rows (the status line says `preview hidden:
 terminal too short`); alt-i opens the same
 details on a screen of their own, with more of the last exchange, and enter there opens the pin.

@@ -5,8 +5,8 @@ import re
 from claude_pins.cost import Cost, format_tokens
 from claude_pins.model import Launch, Pin
 from claude_pins import theme
-from claude_pins.render import (Palette, View, branch_line, crumb, display_dir, fit_dir, format_size, grouped,
-                                label_row, layout, legend, preview, rows, session_rows)
+from claude_pins.render import (FZF_COLUMN_SEP, Palette, View, branch_line, crumb, display_dir, fit_dir, format_size,
+                                grouped, label_row, layout, legend, preview, rows, session_rows)
 from claude_pins.text import cells, clip, pad
 from claude_pins.sessions import Expiry
 from claude_pins.transcript import Summary
@@ -43,6 +43,26 @@ class RowTests(Sandbox):
             self.assertLessEqual(cells(line), 100)
         self.assertEqual(label_row(layout(views(home), 100)),
                          "alias         title                                                directory             idle")
+
+    def test_rows_fzf_columns(self):
+        """On the fzf screens the columns are tab-separated so --nth can pick them; the tab stands in for
+        one of the two spaces (--tabstop=1 draws it as one), so the plain and fzf rows agree cell for cell.
+        A tab inside a value is flattened first: it would pass for a column boundary."""
+        home = str(self.home)
+        vs = views(home)
+        plain_rows = rows(vs, width=100)
+        fzf_rows = rows(vs, width=100, sep=FZF_COLUMN_SEP)
+        self.assertEqual([r.replace("\t ", "  ") for r in fzf_rows], plain_rows)
+        self.assertEqual([r.count("\t") for r in fzf_rows], [4, 3, 4, 4, 4])     # alias·title·dir·idle(·markers)
+        self.assertEqual(fzf_rows[1].split("\t")[2].strip(), "~/git/command-center")
+        vs[1].pin.title = "tab\there"
+        vs[1].pin.cwd = f"{home}/git/odd\tname"
+        out = rows(vs, width=100, sep=FZF_COLUMN_SEP)[1]
+        self.assertEqual(out.count("\t"), 3)
+        self.assertIn("tab here", out)
+        self.assertIn("~/git/odd name", out)
+        vs[1].pin.title = "tab\there"
+        self.assertIn("tab here", rows(vs, width=100)[1])
 
     def test_rows_text_glyphs(self):
         """The one-cell fallback set: the marker column narrows and ⧗ stands in for ⏳."""
@@ -251,6 +271,9 @@ class PreviewTests(Sandbox):
         self.assertRegex(out[0], r"^Standup prep\s+~/git/dotclaude\s+2h\s+85 msgs$")
         self.assertLessEqual(max(cells(o) for o in out), 90)
         self.assertTrue(out[1].endswith("🚩 pinned"))
+        fzf_out = session_rows([(s, False), (s, True)], width=90, sep=FZF_COLUMN_SEP)
+        self.assertEqual([r.replace("\t ", "  ") for r in fzf_out], out)
+        self.assertEqual([r.count("\t") for r in fzf_out], [3, 4])                 # title·dir·idle·msgs(·pinned)
 
     def test_format_tokens(self):
         self.assertEqual(format_tokens(950), "950")

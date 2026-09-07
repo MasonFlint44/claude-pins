@@ -28,13 +28,17 @@ class Item:
     display: str    # what fzf shows and, minus colour codes, what the query matches
 
 
-def lines_for(items: list[Item]) -> list[str]:
+def lines_for(items: list[Item], *, columns: bool = False) -> list[str]:
     """One ``id<tab>display`` line per item. The id is hidden with --with-nth and comes back in the output.
 
     There is no hidden search field: fzf applies --nth to the line *after* --with-nth has cut it down, so
     a field that is not displayed cannot be matched either (true since at least 0.44). Matching therefore
-    runs over the displayed text, which --ansi strips of colour first.
+    runs over the displayed text, which --ansi strips of colour first. With ``columns`` the display's own
+    tabs are kept as field boundaries so ``--nth`` can pick the columns to match (``--tabstop=1`` draws
+    each as one space); otherwise a stray tab is flattened so it cannot shift the id.
     """
+    if columns:
+        return [f"{it.id}\t{it.display}" for it in items]
     return [f"{it.id}\t{it.display.replace(chr(9), ' ')}" for it in items]
 
 
@@ -185,15 +189,19 @@ def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] 
                pos: int | None = None, border_label: str = "", extra: list[str] | None = None,
                disabled: bool = False, ansi: bool = True, info: str = "inline-right",
                header_lines: int = 0, binds: list[tuple[str, str]] | None = None,
-               info_command: str | None = None, version: tuple[int, ...] | None = None) -> list[str]:
+               info_command: str | None = None, nth: str | None = None,
+               version: tuple[int, ...] | None = None) -> list[str]:
     """``binds`` are (event or key, action) pairs; pairs on the same trigger are chained with ``+``,
-    since a later --bind for a trigger would replace an earlier one rather than add to it. ``version``
-    gates the options above the 0.44 floor."""
+    since a later --bind for a trigger would replace an earlier one rather than add to it. ``nth`` is
+    fzf's field range to match, counted over the display's tab-separated columns (``1..3`` for the
+    picker's alias, title and directory). ``version`` gates the options above the 0.44 floor."""
     # --no-clear leaves the alternate screen up between runs so the next screen draws over this one
     # instead of flashing the shell in between; leave_screen() drops it at the end.
-    args = [binary, "--layout=reverse", "--delimiter=\t", "--with-nth=2..", "--tiebreak=index",
+    args = [binary, "--layout=reverse", "--delimiter=\t", "--with-nth=2..", "--tabstop=1", "--tiebreak=index",
             "--no-sort", "--print-query", f"--info={info}", "--no-separator", "--no-clear",
             "--pointer", ">", "--marker", "▌", "--prompt", prompt, "--cycle", "--ellipsis", "…"]
+    if nth:
+        args += ["--nth", nth]
     chains: dict[str, list[str]] = {}
     for trigger, action in binds or []:
         chains.setdefault(trigger, []).append(action)
@@ -322,23 +330,24 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
         pos: int | None = None, border_label: str = "", extra: list[str] | None = None,
         disabled: bool = False, ansi: bool = True, info: str = "inline-right",
         header_lines: int = 0, binds: list[tuple[str, str]] | None = None, info_command: str | None = None,
-        env: dict[str, str] | None = None) -> Result | None:
+        nth: str | None = None, env: dict[str, str] | None = None) -> Result | None:
     """Run fzf over ``items``; None when the user pressed esc/ctrl-c.
 
     With ``header_lines``, that many leading items are fzf's sticky header (column labels): shown like
     rows, never matched, selected or printed back; the gap row goes ahead of them where the build draws
-    them under the prompt. ``env`` adds variables for the commands fzf runs."""
+    them under the prompt. With ``nth`` the displays are tab-separated columns and only that field
+    range is matched. ``env`` adds variables for the commands fzf runs."""
     global _alt_screen
     binary = fzf_bin()
     if not binary:
         return None
     version = fzf_version(binary)
     items, header_lines = sticky(items, header_lines, version)
-    lines = lines_for(items)
+    lines = lines_for(items, columns=nth is not None)
     args = build_args(binary, prompt=prompt, header=header, expect=expect, query=query, multi=multi,
                       preview=preview, preview_window=preview_window, preview_label_cmd=preview_label_cmd,
                       pos=pos, border_label=border_label, extra=extra, disabled=disabled, ansi=ansi, info=info,
-                      header_lines=header_lines, binds=binds, info_command=info_command, version=version)
+                      header_lines=header_lines, binds=binds, info_command=info_command, nth=nth, version=version)
     # stderr is inherited on purpose: fzf ≤ 0.4x draws its UI there (newer builds use /dev/tty),
     # and option errors should reach the user either way.
     try:

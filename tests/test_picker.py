@@ -71,7 +71,7 @@ class PickerTests(FzfSandbox):
         call = self.fzf_calls()[0]
         self.assertIn(f"--color={theme.fzf_colors()}", call["argv"])
         self.assertIn("prompt:#d97757", theme.fzf_colors())
-        self.assertTrue(call["lines"][3].endswith(f"\x1b[{theme.sgr(theme.WARNING)}m 26d\x1b[0m  ⏳"))  # gold idle; emoji bare
+        self.assertTrue(call["lines"][3].endswith(f"\x1b[{theme.sgr(theme.WARNING)}m 26d\x1b[0m\t ⏳"))  # gold idle; emoji bare; tab-separated columns
         self.assertIn("\x1b[1m", call["lines"][1])                      # the alias is bold
         self.assertIn("\x1b[2m", call["lines"][0])                      # the label row is dim
         for env in ({"NO_COLOR": "1"}, {"NO_COLOR": "", "CLAUDE_PINS_COLOR": "0"}):

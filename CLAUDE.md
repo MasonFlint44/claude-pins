@@ -23,9 +23,15 @@ reasons behind several design choices and are recorded nowhere else.
   get `${CLAUDE_SESSION_ID}` substituted. Nothing tails history files.
 - fzf applies `--nth` to the line *after* `--with-nth` has trimmed it, so a
   hidden field cannot be the search target (this hid every pin from the query
-  until 0.4.1). Rows are `id<tab>display` and the query matches the display.
-  `--filter` with `--no-sort` prints the trimmed line instead of the whole one,
-  which only `tests/test_fzf_real.py` has to work around.
+  until 0.4.1; the 0.64+ template form of `--with-nth` behaves the same). Rows
+  are `id<tab>display`, and on the picker and the new-pin screen the display's
+  own columns are tab-separated too, so `--nth=1..3` (alias, title, directory)
+  and `--nth=1..2` (title, directory) keep the idle time, message count and
+  marker glyphs out of the match; `--tabstop=1` draws each tab as one space, so
+  the layout is the plain table's (checked on 0.44.1, 0.53.0, 0.64.0, 0.74.3).
+  Values have their tabs flattened first, since a tab in a title would shift the
+  fields. `--filter` with `--no-sort` prints the trimmed line instead of the
+  whole one, which only `tests/test_fzf_real.py` has to work around.
 - fzf cannot bind printable characters (they type into the query), which is why
   the help screen's reset keys are ctrl-r and ctrl-alt-r rather than `r` and `R`.
   Its own editing keys are left alone so the filter stays editable, and alt+enter

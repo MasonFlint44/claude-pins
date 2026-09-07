@@ -13,7 +13,8 @@ from .keymap import ACTIONS, BY_ID, GROUPS, Keymap, key_warning, validate_key
 from .listing import build_views, next_sort
 from .model import Pin, PinError, kebab, next_free_alias
 from .opener import launch, plan_open, take_notes, touch_kept, touch_pin
-from .render import (View, crumb, grouped, label_row, layout, legend, palette, preview, rows, session_rows,
+from .render import (FZF_COLUMN_SEP, View, crumb, grouped, label_row, layout, legend, palette, preview, rows,
+                     session_rows,
                      terminal_height, terminal_width)
 from .theme import ERROR, SUCCESS
 from .sessions import iter_transcripts
@@ -23,6 +24,10 @@ from .transcript import read_summary
 EMPTY_MESSAGE = "No pins yet. {new} pins a recent session, or run /pins:pin inside a Claude session."
 TOO_SHORT_NOTE = "preview hidden: terminal too short"
 LIST_WIDTH_SLACK = 4        # fzf's pointer and marker columns plus a little room at the right edge
+# The query matches the columns a person thinks of a session by, not its idle time or marker glyphs:
+# fzf's --nth over the tab-separated columns (see render.FZF_COLUMN_SEP).
+PICKER_NTH = "1..3"         # alias, title, directory
+SESSIONS_NTH = "1..2"       # title, directory (not idle, the message count or the pinned tag)
 
 
 def list_items(views: list[View], km: Keymap, color) -> list[fzf.Item]:
@@ -33,7 +38,7 @@ def list_items(views: list[View], km: Keymap, color) -> list[fzf.Item]:
         return [fzf.Item("-", color(EMPTY_MESSAGE.format(new=km.key("new") or "pin add"), "dim"))]
     cols = layout(views, width)
     items = [fzf.Item("-", label_row(cols, color))]
-    for v, line in zip(views, rows(views, width=width, color=color, cols=cols)):
+    for v, line in zip(views, rows(views, width=width, color=color, cols=cols, sep=FZF_COLUMN_SEP)):
         items.append(fzf.Item(v.pin.alias, line))
     return items
 
@@ -142,7 +147,7 @@ class Picker:
             res = fzf.run(items, prompt=crumb(), header=header.text(bottom_border=bool(footer)), header_lines=1,
                           expect=expect, query=self.state.query,
                           multi=bool(views), pos=pos, preview=preview_cmd, preview_label_cmd="echo ' '{1}' '",
-                          border_label=footer, binds=binds, env=header.env(),
+                          border_label=footer, binds=binds, env=header.env(), nth=PICKER_NTH,
                           info_command=fzf.INFO_COMMAND if fzf.supports("info-command", self.fzf_version) else None)
             self.state.flash = ""
             if res is None:
@@ -392,9 +397,10 @@ class Picker:
             self.state.flash = "no sessions found under " + config.tilde(config.projects_dir())
             return
         items = [fzf.Item(s.path, line)
-                 for (s, _), line in zip(pairs, session_rows(pairs, width=terminal_width() - LIST_WIDTH_SLACK, color=self.color))]
+                 for (s, _), line in zip(pairs, session_rows(pairs, width=terminal_width() - LIST_WIDTH_SLACK,
+                                                              color=self.color, sep=FZF_COLUMN_SEP))]
         res = fzf.run(items, prompt=crumb("new"), header=self.header("enter pin · esc back").text(), expect=[],
-                      preview=f"{pin_exe()} _spreview {{1}}", preview_label_cmd="echo ' session '")
+                      preview=f"{pin_exe()} _spreview {{1}}", preview_label_cmd="echo ' session '", nth=SESSIONS_NTH)
         if res is None or not res.ids:
             return
         summary = next(s for s, _ in pairs if s.path == res.ids[0])

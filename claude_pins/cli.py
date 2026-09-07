@@ -482,13 +482,14 @@ def cmd_spreview(opts) -> int:
 
 def cmd_rows(opts) -> int:
     """The picker's rows for fzf's ``reload``: the sticky rows first (the gap row with ``--gap``, then the
-    labels), then ``alias<tab>display``, at the width fzf reports. Colour is on unless NO_COLOR says
-    otherwise, like ``_preview`` (stdout is a pipe)."""
+    labels), then ``alias<tab>display`` with the display's columns tab-separated as the picker sends
+    them, at the width fzf reports. Colour is on unless NO_COLOR says otherwise, like ``_preview``
+    (stdout is a pipe)."""
     from .keymap import Keymap
     from .picker import list_items
     views, _ = build_views(load_store(), include_expired=opts.all, sort=opts.sort or config.default_sort())
     items = list_items(views, Keymap.load(), palette())
-    for line in fzf.lines_for([fzf.GAP_ROW, *items] if opts.gap else items):
+    for line in fzf.lines_for([fzf.GAP_ROW, *items] if opts.gap else items, columns=True):
         print(line)
     return 0
 

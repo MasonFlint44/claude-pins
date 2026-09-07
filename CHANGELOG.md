@@ -20,6 +20,11 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
 - fzf runs the picker's shell snippets under `sh` (`--with-shell`, fzf 0.51 and
   newer) instead of the login shell, so a fish user's picker no longer depends
   on the snippets being fish-compatible.
+- **The query matches what you would type.** The picker filters on alias, title
+  and directory, and the new-pin screen on title and directory; the idle time,
+  the message count and the marker glyphs are shown but no longer matched, so
+  `1d` stops keeping every pin idle for a day. A squeezed directory matches as
+  it is drawn, its last component always whole.
 
 ## 0.5.0 — 2026-09-07
 

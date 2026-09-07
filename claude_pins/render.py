@@ -19,6 +19,15 @@ from .transcript import Summary, shorten
 
 MARKER_ORDER = ("open", "keep", "fork", "worktree", "expired", "expiring")
 
+COLUMN_SEP = "  "           # between the columns of a plain table
+FZF_COLUMN_SEP = "\t "      # on an fzf screen: the tab is a field boundary for --nth, drawn as one space
+                            # by --tabstop=1, so the gap stays two cells wide
+
+
+def flat(text: str) -> str:
+    """A value with its tabs turned to spaces, so it cannot pass for a column boundary."""
+    return text.replace("\t", " ")
+
 
 def legend() -> str:
     g = glyphs()
@@ -186,8 +195,8 @@ def label_row(cols: Columns, color: Palette | None = None) -> str:
 
 
 def rows(views: list[View], width: int | None = None, color: Palette | None = None,
-         numbered: bool = False, cols: Columns | None = None) -> list[str]:
-    """One rendered line per view, columns sized to the terminal width."""
+         numbered: bool = False, cols: Columns | None = None, sep: str = COLUMN_SEP) -> list[str]:
+    """One rendered line per view, columns sized to the terminal width and joined by ``sep``."""
     width = width or terminal_width()
     color = color or Palette(False)
     if not views:
@@ -198,16 +207,16 @@ def rows(views: list[View], width: int | None = None, color: Palette | None = No
     out = []
     for i, v in enumerate(views, 1):
         num = pad(f"{i}", num_w, ">") + "  " if numbered else ""
-        alias = pad(v.pin.alias, alias_w)
-        title = pad(v.title, title_w)
-        d = pad(fit_dir(display_dir(v.pin.cwd), dir_w), dir_w)
+        alias = pad(flat(v.pin.alias), alias_w)
+        title = pad(flat(v.title), title_w)
+        d = pad(fit_dir(flat(display_dir(v.pin.cwd)), dir_w), dir_w)
         age = pad(v.age, age_w, ">")
-        marks = ("  " + v.painted_markers(color)) if v.markers else ""
+        marks = (sep + v.painted_markers(color)) if v.markers else ""
         if v.expiry.expired:
-            line = color(f"{alias}  {title}  {d}  {age}", "dim", "strike") + marks
+            line = color(f"{alias}{sep}{title}{sep}{d}{sep}{age}", "dim", "strike") + marks
         else:
             age_c = color(age, WARNING) if v.expiry.expiring else color(age, "dim")
-            line = f"{color(alias, 'bold')}  {title}  {color(d, 'dim')}  {age_c}{marks}"
+            line = f"{color(alias, 'bold')}{sep}{title}{sep}{color(d, 'dim')}{sep}{age_c}{marks}"
         out.append(num + line.rstrip())
     return out
 
@@ -350,8 +359,9 @@ def preview(view: View, cost: Cost | None = None, current_branch: str | None = N
     return "\n".join(lines)
 
 
-def session_rows(items: list[tuple[Summary, bool]], width: int | None = None, color: Palette | None = None) -> list[str]:
-    """Session rows for the new-pin screen: title · dir · age · msgs · pinned marker."""
+def session_rows(items: list[tuple[Summary, bool]], width: int | None = None, color: Palette | None = None,
+                 sep: str = COLUMN_SEP) -> list[str]:
+    """Session rows for the new-pin screen: title · dir · age · msgs · pinned marker, joined by ``sep``."""
     width = width or terminal_width()
     color = color or Palette(False)
     if not items:
@@ -365,9 +375,10 @@ def session_rows(items: list[tuple[Summary, bool]], width: int | None = None, co
     out = []
     for s, pinned in items:
         age = pad(format_age(max(0.0, now - s.mtime)), AGE_WIDTH, ">")
-        line = f"{pad(s.title, title_w)}  {color(pad(fit_dir(display_dir(s.cwd), dir_w), dir_w), 'dim')}  {color(age, 'dim')}  {pad(f'{s.messages} msgs', msgs_w, '>')}"
+        d = pad(fit_dir(flat(display_dir(s.cwd)), dir_w), dir_w)
+        line = f"{pad(flat(s.title), title_w)}{sep}{color(d, 'dim')}{sep}{color(age, 'dim')}{sep}{pad(f'{s.messages} msgs', msgs_w, '>')}"
         if pinned:
-            line += "  " + color(f"{keep} pinned", SUCCESS)
+            line += sep + color(f"{keep} pinned", SUCCESS)
         out.append(line)
     return out
 
