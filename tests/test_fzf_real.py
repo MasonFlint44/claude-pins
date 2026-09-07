@@ -482,6 +482,10 @@ class InteractiveSmokeTest(PtyMixin, FzfSandbox):
             import pyte
         except ImportError:
             self.skipTest("pyte is not installed (uv sync --group dev)")
+        if VERSION < (0, 67):
+            # the built-in picker mirrors the look measured on 0.67: older builds draw the stock counter
+            # (before 0.65.2), no gap row (before 0.63) and a plain gutter, so they cannot agree cell for cell
+            self.skipTest(f"fzf {'.'.join(map(str, VERSION))} draws the older chrome; the parity is with 0.67+")
         from claude_pins import config
         config.noted_file().parent.mkdir(parents=True, exist_ok=True); config.noted_file().touch()
         self.run_pin("edit", "rc-mower", "--fork")

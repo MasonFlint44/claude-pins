@@ -127,7 +127,8 @@ same function from `hooks.py` in process, which is what makes a reload draw
 exactly what a launch would on either backend. Measured on fzf 0.67.0 in a pty
 through pyte, and `tests/test_fzf_real.py` keeps the two backends cell-for-cell
 equal (text, colour, bold) on the main list, a filtered query with a selection,
-and the editor:
+and the editor, on fzf 0.67 and newer (older builds draw the stock counter, no
+gap row and a plain gutter, so the test skips there):
 
 - The current row is bold, in 254 where the text has no colour of its own, on
   236 under the pointer, the marker and the text only (the padding stays
