@@ -95,8 +95,8 @@ reasons behind several design choices and are recorded nowhere else.
   with ctrl-c; piped stdin bypasses readline, so its pre-fill is only tested in
   a pseudo-terminal. macOS Pythons link readline to libedit, whose pre-input
   hook inserts nothing (seen on CI's 3.10 and 3.12), so `prompt.prefills()`
-  falls back to showing the default in the label there and the pty test
-  skips. Importing readline exports the real terminal's `LINES` and
+  falls back to a line saying what enter keeps and that `c` clears (the only
+  way to empty a field there), and the pty test skips. Importing readline exports the real terminal's `LINES` and
   `COLUMNS` into the C environment, which `os.execv` passes on but
   `os.environ` does not know about, so the pty tests exec with `os.environ`
   (a picker sized by them would omit the too-short note).

@@ -62,8 +62,9 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   editing. What the opener says on the way (a recreated worktree, an unpin)
   is printed once the shell is back, or joins the flash when the open is
   cancelled. Without fzf the same questions are readline prompts with the
-  value pre-filled and numbered lists; the plain editor shares the breadcrumb
-  and the gutter grouping.
+  value pre-filled and numbered lists (macOS's libedit cannot pre-fill, so
+  there the prompt says what enter keeps and that `c` clears); the plain
+  editor shares the breadcrumb and the gutter grouping.
 - `pin list` and `pin sessions` share the renderer, so their columns follow.
 - `pin doctor`'s install hint points at fzf's releases page instead of naming a
   version that goes stale.

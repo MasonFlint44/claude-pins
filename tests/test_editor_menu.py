@@ -244,8 +244,10 @@ class MenuTests(FzfSandbox):
         if prefills(readline):
             self.assertIn("✗ title is required", r.stdout)                  # an empty answer empties the field
         else:
-            self.assertIn("title [Standup prep]:", r.stdout)                 # libedit: bare enter keeps the value
+            self.assertIn('title: enter keeps "Standup prep", c clears', r.stdout)   # libedit: bare enter keeps the value
             self.assertIn("✓ saved standup-prep", r.stdout)
+            r = self.run_pin("edit", "standup-prep", input="1\nc\ns\nq\n")
+            self.assertIn("✗ title is required", r.stdout)                    # and c empties it
         r = self.run_pin("edit", "standup-prep", input="2\nrc-mower\ns\nq\n")
         self.assertIn("✗ alias rc-mower is taken", r.stdout)
         r = self.run_pin("edit", "standup-prep", input="99\nabc\nq\n")  # ignored inputs

@@ -108,9 +108,13 @@ def prefills(rl) -> bool:
     return "libedit" not in (rl.__doc__ or "")
 
 
+CLEAR = "c"     # on the fallback path, the answer that empties a field (like the choice fields' ``(clear)`` row)
+
+
 def _plain_text(label: str, default: str, completer=None) -> str:
-    """readline with ``default`` pre-filled (and a completer when given); where it cannot pre-fill, the
-    default is shown in the label and bare enter keeps it."""
+    """readline with ``default`` pre-filled (and a completer when given). Where it cannot pre-fill, a line
+    above the prompt says what enter keeps and that ``c`` clears, the way the choice menus offer ``(clear)``,
+    since there is no other way to empty a field there."""
     rl = _readline()
     prefill = rl is not None and prefills(rl)
     if prefill:
@@ -119,7 +123,7 @@ def _plain_text(label: str, default: str, completer=None) -> str:
             rl.redisplay()
         rl.set_pre_input_hook(hook)
     elif default:
-        label = f"{label} [{default}]"
+        print(f' {label}: enter keeps "{default}", {CLEAR} clears, or type a new value')
     if rl is not None and completer is not None:
         rl.set_completer_delims(" \t\n")
         rl.set_completer(completer)
@@ -131,8 +135,11 @@ def _plain_text(label: str, default: str, completer=None) -> str:
             rl.set_pre_input_hook(None)
         if rl is not None and completer is not None:
             rl.set_completer(None)
-    if not prefill and not value.strip():
-        return default
+    if not prefill and default:
+        if not value.strip():
+            return default
+        if value.strip() == CLEAR:
+            return ""
     return value.strip()
 
 

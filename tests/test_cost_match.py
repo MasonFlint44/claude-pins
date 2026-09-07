@@ -205,12 +205,20 @@ class PromptTests(Sandbox):
         self.assertTrue(prompt.prefills(type("Gnu", (), {"__doc__": "GNU readline", "backend": "readline"})()))
         self.assertFalse(prompt.prefills(type("Ed", (), {"backend": "editline"})()))
         os.environ["CLAUDE_PINS_NO_FZF"] = "1"
-        asked = []
+        answers, asked, shown = iter(["", "c", "  new  ", "", "c"]), [], []
         with mock.patch.object(prompt, "_readline", lambda: Editline()), \
-                mock.patch("builtins.input", lambda text: asked.append(text) or ""):
-            self.assertEqual(prompt.text("title", "Standup prep"), "Standup prep")
-            self.assertEqual(prompt.directory("~/git"), "~/git")
-        self.assertEqual(asked, [" title [Standup prep]: ", " directory (tab completes) [~/git]: "])
+                mock.patch("builtins.input", lambda text: asked.append(text) or next(answers)), \
+                mock.patch("builtins.print", lambda *a, **k: shown.append(" ".join(map(str, a)))):
+            self.assertEqual(prompt.text("title", "Standup prep"), "Standup prep")   # enter keeps
+            self.assertEqual(prompt.text("note", "a note"), "")                      # c clears
+            self.assertEqual(prompt.text("note", "a note"), "new")                   # anything else replaces
+            self.assertEqual(prompt.text("note", ""), "")                            # nothing to keep: no menu line
+            self.assertEqual(prompt.directory("~/git"), "")
+        self.assertEqual(asked, [" title: ", " note: ", " note: ", " note: ", " directory (tab completes): "])
+        self.assertEqual(shown, [' title: enter keeps "Standup prep", c clears, or type a new value',
+                                 ' note: enter keeps "a note", c clears, or type a new value',
+                                 ' note: enter keeps "a note", c clears, or type a new value',
+                                 ' directory (tab completes): enter keeps "~/git", c clears, or type a new value'])
 
     def test_directory_completions(self):
         from claude_pins.prompt import directory_completions
