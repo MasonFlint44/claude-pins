@@ -12,11 +12,17 @@ new enough the module is skipped, which the test output says out loud.
 
 from __future__ import annotations
 
+import fcntl
 import os
+import pty
 import re
+import select
 import shutil
+import struct
 import subprocess
 import sys
+import termios
+import time
 import unittest
 from unittest import mock
 
@@ -168,6 +174,81 @@ class RealFzfTests(FzfSandbox):
         items, kw = self.capture(lambda: editor.choose(self.recorder, "› model › ", ["fable", "opus", "sonnet"], "opus"))
         self.assertKeeps(items, kw, "son", ["sonnet"])
         self.assertKeeps(items, kw, "clear", [""])
+
+
+@unittest.skipIf(SKIP, SKIP)
+class InteractiveSmokeTest(FzfSandbox):
+    """The real picker in a pseudo-terminal: type a query, watch the list shrink, press enter, see claude run.
+
+    The only test that drives the interactive binary. It proves the whole chain a user touches (terminal →
+    fzf → --expect → opener → claude) once; the scripted stub covers the flows, ``RealFzfTests`` the matching.
+    """
+
+    def setUp(self):
+        super().setUp()
+        os.environ["CLAUDE_PINS_FZF"] = REAL_FZF
+        os.environ["TERM"] = "xterm-256color"
+        self.make_session(SID1, cwd=str(self.home / "git" / "mower"), age_days=2, title="Navimow schedule debug")
+        self.make_session(SID2, cwd=str(self.home / "git" / "command-center"), age_days=9, title="Command center collector")
+        self.make_session(SID3, cwd=str(self.home / "git" / "dotclaude"), age_days=1, title="Standup prep")
+        for sid, alias in ((SID1, "rc-mower"), (SID2, "cc-collector"), (SID3, "standup")):
+            self.run_pin("add", sid, alias)
+        self.out = b""
+
+    def tearDown(self):
+        os.environ.pop("TERM", None)
+        super().tearDown()
+
+    def wait_for(self, fd: int, pattern: str, timeout: float = 15.0) -> str:
+        """Read the terminal until ``pattern`` shows in the colour-stripped stream, or fail with what came."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if re.search(pattern, plain(self.out.decode("utf-8", "replace"))):
+                return plain(self.out.decode("utf-8", "replace"))
+            r, _, _ = select.select([fd], [], [], 0.1)
+            if r:
+                try:
+                    self.out += os.read(fd, 65536)
+                except OSError:
+                    break
+        self.fail(f"{pattern!r} never appeared; terminal so far:\n{plain(self.out.decode('utf-8', 'replace'))[-800:]}")
+
+    def test_query_then_enter_resumes_the_match(self):
+        from tests.helpers import PIN
+        pid, fd = pty.fork()
+        if pid == 0:  # the picker; its exec of the claude stub inherits the terminal
+            os.execv(sys.executable, [sys.executable, str(PIN)])
+        try:
+            fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
+            self.wait_for(fd, r"3/3")                       # three pins listed
+            os.write(fd, b"navi")
+            screen = self.wait_for(fd, r"1/3")              # one survives the query
+            self.assertIn("rc-mower", screen)
+            os.write(fd, b"\r")
+            deadline = time.time() + 15
+            while time.time() < deadline:                   # drain until the child (now the claude stub) exits
+                r, _, _ = select.select([fd], [], [], 0.1)
+                if r:
+                    try:
+                        self.out += os.read(fd, 65536)
+                    except OSError:
+                        break
+                done, status = os.waitpid(pid, os.WNOHANG)
+                if done:
+                    break
+            else:
+                self.fail("the picker did not exit after enter")
+        finally:
+            try:
+                os.kill(pid, 9)
+            except OSError:
+                pass
+            os.close(fd)
+        self.assertEqual(status, 0, plain(self.out.decode("utf-8", "replace"))[-800:])
+        calls = self.claude_calls()
+        self.assertIsNotNone(calls, "claude was never launched")
+        self.assertEqual(calls["argv"], ["--resume", SID1])
+        self.assertEqual(calls["cwd"], str(self.home / "git" / "mower"))
 
 
 if __name__ == "__main__":

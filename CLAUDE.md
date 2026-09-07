@@ -60,7 +60,9 @@ bash tests/coverage.sh                 # coverage report; needs uv (dev deps liv
   them in `--filter` mode, which uses the interactive matcher. That module skips
   when no fzf ≥ 0.44 is on PATH (and fails, not skips, when `CLAUDE_PINS_TEST_FZF`
   names a bad binary), so read its verbose output before pushing. A new screen
-  must get a test there. The stub-driven tests are where a hidden-field bug hid
+  must get a test there. The same module holds the one test that runs the real
+  interactive picker in a pseudo-terminal (type a query, enter, the claude stub
+  runs); keep it to one, since each step there waits on a terminal redraw. The stub-driven tests are where a hidden-field bug hid
   for four releases: do not judge matching by them.
 - fzf support floors at 0.44.1, which lacks `transform`, `--footer`, `print`,
   `exclude` and the `result` event. The CI `fzf` job runs `tests/test_fzf_real.py`

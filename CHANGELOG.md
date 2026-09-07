@@ -15,8 +15,9 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   chooser. A new test module, `tests/test_fzf_real.py`, feeds what every
   screen sends to the real fzf and asserts what a query keeps; it runs locally
   against the fzf on `PATH` and in CI against 0.44.1, 0.53.0, 0.64.0 and
-  0.74.3. It replaces the option-grammar check, which only asked whether
-  fzf accepted the options.
+  0.74.3, and also runs the real interactive picker once in a pseudo-terminal:
+  type a query, press enter, see claude launched. It replaces the option-grammar
+  check, which only asked whether fzf accepted the options.
 
 ## 0.4.0 — 2026-09-06
 
