@@ -25,7 +25,7 @@ reasons behind several design choices and are recorded nowhere else.
   hidden field cannot be the search target (this hid every pin from the query
   until 0.4.1). Rows are `id<tab>display` and the query matches the display.
   `--filter` with `--no-sort` prints the trimmed line instead of the whole one,
-  which only the grammar check has to work around.
+  which only `tests/test_fzf_real.py` has to work around.
 - fzf cannot bind printable characters (they type into the query), which is why
   the help screen's reset keys are ctrl-r and ctrl-alt-r rather than `r` and `R`.
   Its own editing keys are left alone so the filter stays editable, and alt+enter
@@ -39,22 +39,33 @@ reasons behind several design choices and are recorded nowhere else.
 
 ```
 python3 -m unittest -q                 # must exit 0; check the status, not the last line of output
+python3 -m unittest -v tests.test_fzf_real   # the real fzf on PATH over every screen's rows; must say "ok", not "skipped"
 shellcheck completions/pin.bash tests/completion_check.sh tests/coverage.sh tests/skills/run.sh tests/skills/triggers.sh
 bash tests/completion_check.sh         # after touching completions/pin.bash or the subcommand list
 docker run --rm -v "$PWD:/repo:ro" zshusers/zsh:5.9 zsh /repo/tests/zsh_completion_check.sh   # no zsh on this machine
-python3 tests/fzf_grammar_check.py     # after touching any fzf option in claude_pins/fzf.py or picker.py
+CLAUDE_PINS_TEST_FZF=/path/to/fzf python3 -m unittest tests.test_fzf_real   # another fzf build; CI runs 0.44.1 … 0.74.3
 bash tests/coverage.sh                 # coverage report; needs uv (dev deps live in pyproject.toml)
 ```
 
-- Tests never launch the real `claude` or the real `fzf`: a stub on PATH records
-  argv and cwd, and `tests/fzf_stub.py` plays a scripted picker. Keep it that
-  way, so CI spends nothing. `tests/skills/run.sh` runs the skills through
-  `claude -p` for real money (about $0.50 on sonnet); only run it by hand. So does
+- Tests never launch the real `claude`: a stub on PATH records argv and cwd, so
+  CI spends nothing. `tests/skills/run.sh` runs the skills through `claude -p`
+  for real money (about $0.50 on sonnet); only run it by hand. So does
   `tests/skills/triggers.sh`, which scores the skill descriptions' triggering with
   the skill-creator plugin's evaluator; run it after changing a description.
+- fzf is tested two ways, and both are needed. The flow tests use
+  `tests/fzf_stub.py`, a scripted user: the real fzf wants a terminal and a
+  person typing, and the stub answers each screen from a script in milliseconds
+  with no timing. It cannot say what fzf would match, so `tests/test_fzf_real.py`
+  captures the rows and options every screen sends and runs the real binary over
+  them in `--filter` mode, which uses the interactive matcher. That module skips
+  when no fzf ≥ 0.44 is on PATH (and fails, not skips, when `CLAUDE_PINS_TEST_FZF`
+  names a bad binary), so read its verbose output before pushing. A new screen
+  must get a test there. The stub-driven tests are where a hidden-field bug hid
+  for four releases: do not judge matching by them.
 - fzf support floors at 0.44.1, which lacks `transform`, `--footer`, `print`,
-  `exclude` and the `result` event. The grammar check runs the picker's option
-  set against that binary in CI; run it locally when you add an option.
+  `exclude` and the `result` event. The CI `fzf` job runs `tests/test_fzf_real.py`
+  against 0.44.1, 0.53.0, 0.64.0 and 0.74.3; add a version there when a release
+  changes matching or option grammar.
 - `tests/test_plugin.py` reads the README: the Keys table must equal the keymap
   defaults, every subcommand must appear in the command reference, and every
   `CLAUDE_PINS_*` variable except `CLAUDE_PINS_EXE` must be in the environment

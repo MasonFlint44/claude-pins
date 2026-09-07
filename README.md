@@ -156,7 +156,7 @@ python3 -m unittest            # store, reader, expiry, git worktrees, opener pr
 bash tests/coverage.sh         # the same suite under coverage, bin/pin subprocesses included (needs uv)
 bash tests/completion_check.sh # bash completion (CI also runs it on bash 3.2 / 4.4 / 5.2 images, plus shellcheck)
 zsh tests/zsh_completion_check.sh                 # zsh completion
-python3 tests/fzf_grammar_check.py [fzf-binary]   # every option the picker uses, against fzf 0.44.1 in CI
+python3 -m unittest -v tests.test_fzf_real        # every screen's rows through the real fzf on PATH (CI: 0.44.1 to 0.74.3)
 uv run docs/preview.py                            # regenerate the README preview
 ```
 
@@ -164,7 +164,9 @@ The tool itself is stdlib only. `pyproject.toml` exists for the dev tools (`cove
 which `uv sync --group dev` installs into `.venv`; `uv run` finds them without activating it.
 
 Tests never run the real `claude`: a stub on `PATH` records the argv and cwd it was launched
-with, and a scripted stand-in for fzf drives the picker. Zero Claude usage in CI.
+with. Zero Claude usage in CI. A scripted stand-in for fzf drives the picker's flows, and
+`tests/test_fzf_real.py` feeds what every screen sends to a real fzf to check that queries
+match; CI runs that against four fzf versions, and locally it uses whichever fzf is on `PATH`.
 `tests/test_plugin.py` checks the plugin files without a model: frontmatter, the commands'
 dynamic-context snippets against a real store, the install skill's shell steps in a sandbox,
 and that every line the doctor skill explains is one `pin doctor` prints.

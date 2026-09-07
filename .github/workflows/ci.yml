@@ -31,11 +31,28 @@ jobs:
       - name: shellcheck
         if: runner.os == 'Linux'
         run: shellcheck completions/pin.bash tests/completion_check.sh tests/coverage.sh tests/skills/run.sh tests/skills/triggers.sh
-      - name: Real fzf 0.44 option grammar
-        if: runner.os == 'Linux'
+
+  fzf:
+    # The picker's rows and options against real fzf builds: the supported floor, the last release before
+    # the tags grew a "v", a mid one, and the newest at the time of writing. tests/test_fzf_real.py fails
+    # rather than skips when CLAUDE_PINS_TEST_FZF points at a binary it cannot use.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fzf: ["0.44.1", "0.53.0", "v0.64.0", "v0.74.3"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch fzf ${{ matrix.fzf }}
         run: |
-          curl -sSL https://github.com/junegunn/fzf/releases/download/0.44.1/fzf-0.44.1-linux_amd64.tar.gz | tar xz
-          python tests/fzf_grammar_check.py ./fzf
+          v="${{ matrix.fzf }}"; v="${v#v}"
+          curl -sSL "https://github.com/junegunn/fzf/releases/download/${{ matrix.fzf }}/fzf-${v}-linux_amd64.tar.gz" | tar xz
+          ./fzf --version
+      - name: Every screen's rows through fzf ${{ matrix.fzf }}
+        run: CLAUDE_PINS_TEST_FZF="$PWD/fzf" python -m unittest -v tests.test_fzf_real
 
   completion:
     runs-on: ubuntu-latest

@@ -12,8 +12,11 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   never there to match (on every supported fzf version). The query now
   matches the visible row: alias, title, directory, age and flags. The same
   applied to the editor, the action palette, the help screen and the session
-  chooser. The CI check against fzf 0.44 now feeds it the picker's rows and
-  asserts a query matches, so this cannot regress silently.
+  chooser. A new test module, `tests/test_fzf_real.py`, feeds what every
+  screen sends to the real fzf and asserts what a query keeps; it runs locally
+  against the fzf on `PATH` and in CI against 0.44.1, 0.53.0, 0.64.0 and
+  0.74.3. It replaces the option-grammar check, which only asked whether
+  fzf accepted the options.
 
 ## 0.4.0 — 2026-09-06
 
