@@ -72,10 +72,17 @@ def has_fg(style: Style) -> bool:
     return any(c.startswith("38;") or (c.isdigit() and 30 <= int(c) <= 37) for c in style)
 
 
-def emit(cells: list[tuple[str, Style]]) -> str:
-    """The cells as text with the fewest SGR changes, ending in a reset when anything was styled."""
+def is_color(code: str) -> bool:
+    return code.startswith(("38;", "48;")) or (code.isdigit() and 30 <= int(code) <= 47)
+
+
+def emit(cells: list[tuple[str, Style]], *, color: bool = True) -> str:
+    """The cells as text with the fewest SGR changes, ending in a reset when anything was styled. With
+    ``color`` off only the attributes (bold, dim, strike) are written, as fzf's ``--color=bw`` keeps."""
     out, cur = [], ()
     for ch, style in cells:
+        if not color:
+            style = tuple(c for c in style if not is_color(c))
         if style != cur:
             out.append("\x1b[0m" if not style else "\x1b[0;" + ";".join(style) + "m")
             cur = style

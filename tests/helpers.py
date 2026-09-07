@@ -244,8 +244,9 @@ class PtyMixin:
         self.assertEqual(self.raw.count(b"\x1b[?1049l"), 1, "the alternate screen was left more than once")
         self.assertGreater(self.raw.rfind(b"\x1b[?1049l"), self.raw.rfind(b"\x1b[?1049h"))
 
-    def wait_for(self, fd: int, pattern: str, timeout: float = 15.0, *, fresh: bool = False) -> str:
-        """Read the terminal until ``pattern`` shows in the colour-stripped stream, or fail with what came.
+    def wait_for(self, fd: int, pattern: str, timeout: float = 15.0, *, fresh: bool = False, fail: bool = True) -> str:
+        """Read the terminal until ``pattern`` shows in the colour-stripped stream, or fail with what came
+        (with ``fail`` off, return it: a way to read for a while).
         ``fresh`` matches only what came after the last alternate-screen entry, that is the newest fzf's
         drawing: a screen keeps drawing for a moment after the key that ends it (its header transform
         redraws on 0.44), and that tail would satisfy a wait meant for the next screen."""
@@ -264,7 +265,9 @@ class PtyMixin:
                     break
                 self.out += chunk
                 self.raw += chunk
-        self.fail(f"{pattern!r} never appeared; terminal so far:\n{plain(self.out.decode('utf-8', 'replace'))[-800:]}")
+        if fail:
+            self.fail(f"{pattern!r} never appeared; terminal so far:\n{plain(self.out.decode('utf-8', 'replace'))[-800:]}")
+        return plain(self.out.decode("utf-8", "replace"))
 
     def drain_until_exit(self, pid: int, fd: int) -> int:
         """Read the terminal until the child exits; its exit status."""

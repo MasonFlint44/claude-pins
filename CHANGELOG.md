@@ -4,6 +4,34 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
+## 0.6.0 — unreleased
+
+- **The same picker without fzf.** The numbered menu is gone. When fzf is
+  missing or older than 0.44 (or with `--no-fzf`), `pin` draws every screen
+  itself in a raw-mode terminal: the same header, prompt and counter, the
+  pointer, marker and current-row highlight, the preview pane and its size
+  rule, the palette, editor, details and help screens and every prompt, with
+  the same keys, the keymap file included, and a mouse (click, double-click to
+  open, right click to select, the wheel over the list or the pane; shift-up
+  and shift-down scroll the pane from the keyboard). Typing filters with fzf's
+  syntax (`'exact`, `^prefix`, `suffix$`, `!not`, `a | b`, smart case) and
+  highlights the matches; what it lacks is fzf's ranking, so rows keep their
+  list order. The preview is computed off the input loop, so the cursor never
+  waits on ccusage; a resize re-lays the rows out. The look was matched to
+  fzf 0.67 cell for cell through a terminal emulator, and a test keeps it so.
+- **fzf is recommended, not required.** `pin doctor` marks a missing or old
+  fzf with `·` and exits 0, saying what fzf adds and how to install it; the
+  built-in picker says so once on its status line the first time it runs, and
+  the f1 screen keeps one line about it. The doctor and install skills say the
+  same.
+- `pin _keys` names every key and mouse event as the picker reads it, for
+  checking a terminal or a bug report.
+- A question asked where there is no terminal (a pipe, a script) is now
+  cancelled with a line on stderr instead of read from stdin; `TERM=dumb` gets
+  the list and a pointer at the commands.
+- The counter on the new-pin screen reads `3 sessions` (fzf 0.65.2 and newer),
+  as the picker's reads `3 pins`.
+
 ## 0.5.1 — 2026-09-07
 
 - **A calmer top.** The marker legend and the key hints share one line when the

@@ -107,28 +107,85 @@ reasons behind several design choices and are recorded nowhere else.
   what makes a text field one `--disabled --query` screen with no rows.
 - fzf leaves its alternate screen up under `--no-clear`, so anything printed
   between two screens is drawn over by the next one. The picker and editor hold
-  the screen (`fzf.hold_screen()`) and route messages through headers and
+  the screen (`screen.hold_screen()`) and route messages through headers and
   flashes; the opener queues its banners for the moment the shell is back
   (`launch()` after the restore, or the cancel flash). A prompt run outside a
   hold (`pin prune`, `pin edit`) drops the screen as soon as it ends so the
-  command's output is seen.
-- Python's `input()` cannot see escape, so the plain prompts (no fzf) cancel
-  with ctrl-c; piped stdin bypasses readline, so its pre-fill is only tested in
-  a pseudo-terminal. macOS Pythons link readline to libedit, whose pre-input
-  hook inserts nothing (seen on CI's 3.10 and 3.12), so `prompt.prefills()`
-  falls back to a line saying what enter keeps and that `c` clears (the only
-  way to empty a field there), and the pty test skips. Importing readline exports the real terminal's `LINES` and
-  `COLUMNS` into the C environment, which `os.execv` passes on but
-  `os.environ` does not know about, so the pty tests exec with `os.environ`
-  (a picker sized by them would omit the too-short note).
+  command's output is seen. The built-in picker keeps the same discipline: it
+  enters the alternate screen only when no screen left it up, and never leaves
+  it itself.
 - Terminal automation (opening a new tab for the resumed session) was dropped on
   purpose: Ghostty's D-Bus surface offers new-window only.
+
+## Facts the built-in picker relies on
+
+Every screen is a `screen.Screen`; fzf draws it when it is on PATH and ≥ 0.44,
+`tui.py` draws it otherwise. The hooks a screen runs (preview, reload, the rows
+for a query) are named, not closures, because fzf can only run commands: the fzf
+backend lowers each to a `pin _<hook>` subprocess and the built-in one calls the
+same function from `hooks.py` in process, which is what makes a reload draw
+exactly what a launch would on either backend. Measured on fzf 0.67.0 in a pty
+through pyte, and `tests/test_fzf_real.py` keeps the two backends cell-for-cell
+equal (text, colour, bold) on the main list, a filtered query with a selection,
+and the editor:
+
+- The current row is bold, in 254 where the text has no colour of its own, on
+  236 under the pointer, the marker and the text only (the padding stays
+  unpainted); the gutter glyph `▌` is drawn in 236 on every other row; the
+  prompt and the query are bold. The counter ends one cell before the right
+  edge; header and sticky rows are indented two cells; the pane's scrollbar
+  takes the padding column inside the right border and its `3/17` position
+  sits on the first row; the last list column is left for the list scrollbar.
+  `NO_COLOR` keeps only the attributes, as fzf's `--color=bw` does.
+- The decoder is fzf's `src/tui/light.go` table (0.67.0), so every name the
+  keymap file accepts decodes to itself. Esc alone is esc only after nothing
+  follows it for `ESCDELAY` ms (fzf's default 100), because alt-x arrives as
+  ESC x; a partial sequence left over after that wait is dropped, as fzf drops
+  it; ESC ESC in one read is one esc. fzf's own defaults apply where the keymap
+  is silent: home/end edit the query line, tab does nothing without
+  multi-select, cycling wraps only from the last row, page moves are one row
+  short of a page, a double-click accepts, a right click toggles, the wheel
+  moves over the list and scrolls over the pane.
+- The matcher is fzf's extended syntax over the `--nth` span of the plain row
+  (fields keep their trailing delimiter), and its anchored forms step over the
+  text's own whitespace the way fzf's `PrefixMatch`/`SuffixMatch`/`EqualMatch`
+  do, or `mower$` could never match a directory column. Rows keep their order:
+  fzf's ranking is not reproduced. `tests/test_fzf_real.py` checks that both
+  keep the same rows for a list of queries on every screen.
+- Mouse reporting is xterm 1000 with the SGR form 1006 (release events, no
+  223-cell limit) and is switched off on every exit path; fzf's double-click
+  window is 500 ms on one cell.
+- The preview runs on a worker thread that posts chunks through a wake pipe
+  the input loop selects on, because `cost.session_cost` can take up to 8 s on
+  a ccusage cache miss and the cursor must not wait; results are cached per
+  (row, pane width) for the screen's life and dropped on reload. SIGWINCH
+  writes to the same pipe; a resize re-runs the `rows` hook at the new width.
+- A screen shown where there is no terminal (a pipe, a script, `TERM=dumb`) is
+  cancelled with a line on stderr rather than asked, since `input()` was the
+  only alternative and it cannot draw a screen; `pin` with no arguments on a
+  dumb terminal prints the list and where the commands are.
+- The kernel discards SIGTSTP for an orphaned process group, so the ctrl-z test
+  runs the picker under an interactive bash in the pty. The macOS runners' own
+  `python3` (3.9) is what a shebang finds, so that test symlinks the test's
+  interpreter first on PATH, and `keys.Event` is a `typing.Union` so an old
+  interpreter fails on the version check rather than on an import.
+- `tests/helpers.TuiSandbox` plays the built-in picker from
+  `CLAUDE_PINS_TUI_SCRIPT` (one JSON step per screen, the way the fzf stub is
+  scripted) and records each screen's items, header, last frame and result in
+  `CLAUDE_PINS_TUI_LOG`; the flow tests read the log where the fzf flows read
+  the stub's argv. A pty test cannot use `wait_for(fresh=True)` against the
+  built-in picker: it enters the alternate screen once and redraws every screen
+  over the last, so each wait clears what was read and looks at the new frame.
+- The one-time fzf note is remembered by `config.noted_file()` in the cache
+  directory; the pty and parity tests touch it first so their first screen is
+  the ordinary one.
 
 ## Verify before committing
 
 ```
 python3 -m unittest -q                 # must exit 0; check the status, not the last line of output
 python3 -m unittest -v tests.test_fzf_real   # the real fzf on PATH over every screen's rows; must say "ok", not "skipped"
+uv run --group dev python -m unittest tests.test_tui tests.test_fzf_real   # with pyte: the painting test and the fzf parity test (they skip without it; CI installs it)
 shellcheck completions/pin.bash tests/completion_check.sh tests/coverage.sh tests/skills/run.sh tests/skills/triggers.sh
 bash tests/completion_check.sh         # after touching completions/pin.bash or the subcommand list
 docker run --rm -v "$PWD:/repo:ro" zshusers/zsh:5.9 zsh /repo/tests/zsh_completion_check.sh   # no zsh on this machine
@@ -161,6 +218,16 @@ bash tests/coverage.sh                 # coverage report; needs uv (dev deps liv
   alternate-screen entry.
   The stub-driven tests are where a hidden-field bug hid for four releases: do
   not judge matching by them.
+- The built-in picker is tested the same two ways plus one: `tests/test_tui.py`
+  runs its flows from a scripted terminal (the fzf stub's counterpart) and its
+  frames in process, `tests/test_tui_pty.py` drives the raw-mode terminal for
+  what only a terminal shows (cooked mode handed back before claude, the mouse,
+  a resize signal, ctrl-z under bash, `pin _keys`), and `tests/test_fzf_real.py`
+  holds the matcher agreement and the pyte parity test against the real fzf. A
+  change to the chrome must keep the parity test green rather than be judged by
+  eye. `pin _keys` is the by-hand check on a terminal: GNOME Terminal (VTE),
+  Terminal.app, iTerm2, VS Code, Ghostty, Windows Terminal over WSL, tmux,
+  Konsole and Kitty are the ones to try.
 - fzf support floors at 0.44.1, which lacks `transform`, `--footer`, `print`,
   `exclude` and the `result` event. The CI `fzf` job runs `tests/test_fzf_real.py`
   against 0.44.1, 0.53.0, 0.64.0 and 0.74.3; add a version there when a release
@@ -182,6 +249,11 @@ bash tests/coverage.sh                 # coverage report; needs uv (dev deps liv
   optional fzf and ccusage. `pyproject.toml` is dev tooling only (`uv sync
   --group dev` for coverage and pyte); the version there is read from
   `claude_pins/__init__.py`, so a release does not touch it.
+- Scope: keep a change and its tests to what was asked; scratch checks (a pyte
+  capture, a one-off script) need not be kept. Prefer targeted edits over
+  rewriting a file when the result is the same. Proceed on reversible steps
+  that follow from the request; ask before anything destructive or that changes
+  the scope (a release, a paid skill test).
 - `pin list` and `pin sessions` print column labels (and `pin list` the legend)
   only when stdout is a terminal, so piped output stays bare rows for grep;
   `--json` is the scripting form. Each glyph has one meaning across screens:

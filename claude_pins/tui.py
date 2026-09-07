@@ -38,7 +38,7 @@ import termios
 import threading
 import tty
 
-from . import ansi, hooks, keys, theme
+from . import ansi, config, hooks, keys, theme
 from .keys import Key, Mouse, Reader, canonical
 from .query import matches as query_matches
 from .screen import Item, Result, Screen, alt_screen_up, entered_alt_screen, leave_screen, preview_fits, preview_rows
@@ -315,6 +315,7 @@ class Session:
         self.preview_queue: queue.Queue = queue.Queue()
         self.killed = ""                            # ctrl-y's yank buffer
         self.frame: list[str] = []
+        self.color = config.color_enabled(sys.stdout)        # off: attributes only, as fzf's --color=bw
         self.rows, self.cols = term.size()
         # layout, refreshed by draw()
         self.list_top = 0
@@ -719,7 +720,7 @@ class Session:
             cells_ = gutter + mark + ansi.fit(row, width, ellipsis=ELLIPSIS)
             if overflow and bar[0] <= n < bar[0] + bar[1]:
                 cells_.append(("│", DIM))
-            body.append(ansi.emit(cells_))
+            body.append(self.emit(cells_))
         while len(body) < self.list_rows:
             body.append("")
         lines += body[:self.list_rows]
@@ -738,17 +739,20 @@ class Session:
         out.append(f"\x1b[{len(header) + 1};{cx + 1}H\x1b[?25h")
         self.term.write("".join(out))
 
+    def emit(self, cells_: list) -> str:
+        return ansi.emit(cells_, color=self.color)
+
     def fit(self, text: str, width: int, *, fill=()) -> str:
-        return ansi.emit(ansi.fit(ansi.parse(text), width, ellipsis=ELLIPSIS, fill=fill))
+        return self.emit(ansi.fit(ansi.parse(text), width, ellipsis=ELLIPSIS, fill=fill))
 
     def prompt_line(self, cols: int) -> str:
         left = [(ch, _prompt_style) for ch in self.screen.prompt] + [(ch, _query_style) for ch in self.query]
         info = self.counter()
         if not info:
-            return ansi.emit(ansi.fit(left, cols))
+            return self.emit(ansi.fit(left, cols))
         # the counter ends one cell before the right edge, as fzf's inline-right does
         room = max(0, cols - cells(info) - 2)
-        return ansi.emit(ansi.fit(left, room) + [(" ", ())] + [(ch, DIM) for ch in info] + [(" ", ())])
+        return self.emit(ansi.fit(left, room) + [(" ", ())] + [(ch, DIM) for ch in info] + [(" ", ())])
 
     def counter(self) -> str:
         if not self.screen.counter:
@@ -785,7 +789,7 @@ class Session:
                     w += cell_width(cells_[n][0]); n += 1
                 if n == 0:
                     n = 1
-                out.append(ansi.emit(cells_[:n]))
+                out.append(self.emit(cells_[:n]))
                 cells_ = cells_[n:]
         while out and out[-1] == "":
             out.pop()
@@ -803,14 +807,14 @@ class Session:
             start = max(0, (cols - 2 - lw) // 2)
             top = top[:start] + list(label) + top[start + lw:]
             top = top[:cols - 2]
-        dim = ansi.emit([(ch, DIM) for ch in "╭" + "".join(top) + "╮"])
+        dim = self.emit([(ch, DIM) for ch in "╭" + "".join(top) + "╮"])
         lines = [dim]
         body = self.pane_lines(inner)
         height = self.pane_rows - 2
         top_line = max(0, min(self.preview_offset, max(0, len(body) - height)))
         self.preview_offset = top_line
         bar = self.scrollbar(len(body), height, top_line) if len(body) > height else None
-        side = ansi.emit([("│", DIM)])
+        side = self.emit([("│", DIM)])
         for n in range(height):
             k = top_line + n
             text = body[k] if k < len(body) else ""
@@ -820,8 +824,8 @@ class Session:
             if n == 0 and bar:                          # fzf's position over the first row: ``3/17``
                 where = f"{top_line + 1}/{len(body)}"
                 row = row[:inner - cells(where)] + [(ch, DIM) for ch in where]
-            lines.append(side + " " + ansi.emit(row) + track + side)
-        lines.append(ansi.emit([(ch, DIM) for ch in "╰" + "─" * (cols - 2) + "╯"]))
+            lines.append(side + " " + self.emit(row) + track + side)
+        lines.append(self.emit([(ch, DIM) for ch in "╰" + "─" * (cols - 2) + "╯"]))
         return lines[:self.pane_rows]
 
     def footer(self, cols: int) -> str:
@@ -829,7 +833,7 @@ class Session:
         line = ["─"] * cols
         lw = cells(label)
         line = line[:2] + list(label) + line[2 + lw:]
-        return ansi.emit([(ch, DIM) for ch in "".join(line)[:cols]])
+        return self.emit([(ch, DIM) for ch in "".join(line)[:cols]])
 
 
 # ---- pin _keys -------------------------------------------------------------------------------------------------

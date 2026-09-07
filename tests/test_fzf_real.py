@@ -473,6 +473,51 @@ class InteractiveSmokeTest(PtyMixin, FzfSandbox):
         self.assertIsNone(self.claude_calls())
         self.assertScreenRestoredOnce()
 
+    def test_built_in_picker_draws_what_fzf_draws(self):
+        """The same fixture through fzf and through the built-in picker, both in a pseudo-terminal read by pyte:
+        every cell agrees in text, colour and boldness (blank cells in background only), on the main list, with
+        a query and a selection, and on the editor. The chrome was matched to this fzf by measurement, and this
+        is what keeps it matched."""
+        try:
+            import pyte
+        except ImportError:
+            self.skipTest("pyte is not installed (uv sync --group dev)")
+        from claude_pins import config
+        config.noted_file().parent.mkdir(parents=True, exist_ok=True); config.noted_file().touch()
+        self.run_pin("edit", "rc-mower", "--fork")
+        os.environ.pop("NO_COLOR", None); os.environ["CLAUDE_PINS_COLOR"] = "1"       # colour on, as in a terminal
+
+        def capture(steps, native: bool) -> pyte.Screen:
+            os.environ["CLAUDE_PINS_NO_FZF"] = "1" if native else ""
+            pid, fd = self.spawn(30, 100)
+            try:
+                self.out = b""
+                self.wait_for(fd, r"hi back")                               # the pane is up (the last exchange)
+                for keys, then in steps:                                    # one key at a time: fzf filters asynchronously
+                    self.out = b""
+                    os.write(fd, keys)
+                    self.wait_for(fd, then)
+                self.wait_for(fd, r"(?!x)x", timeout=0.8, fail=False)        # read on a while: the redraw finishes
+                screen = pyte.Screen(100, 30)
+                pyte.ByteStream(screen).feed(self.raw)
+                return screen
+            finally:
+                os.kill(pid, 9)
+                os.close(fd)
+                self.raw = b""
+
+        for steps in ([], [(b"sched", r"1 of 3 pins"), (b"\t", r"1 selected")], [(b"\x1be", r"opens")]):
+            keys = b"".join(k for k, _ in steps)
+            a, b = capture(steps, False), capture(steps, True)
+            for y in range(30):
+                for x in range(100):
+                    ca, cb = a.buffer[y][x], b.buffer[y][x]
+                    if ca.data.strip() == "" and cb.data.strip() == "":
+                        self.assertEqual(ca.bg, cb.bg, f"keys {keys!r} row {y} col {x}: background")
+                        continue
+                    self.assertEqual((ca.data, ca.fg, ca.bg, ca.bold), (cb.data, cb.fg, cb.bg, cb.bold),
+                                     f"keys {keys!r} row {y} col {x}: fzf {a.display[y]!r} vs built-in {b.display[y]!r}")
+
     def test_editor_field_on_the_query_line(self):
         """``pin edit`` in a terminal: the form with the draft in its pane, the title typed on fzf's query line
         (enter over an empty list exits 1 and still prints the query), the star on the row and the mark in

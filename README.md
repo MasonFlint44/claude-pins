@@ -210,7 +210,7 @@ Every run of any of these also touches the transcripts of pins with `keep`.
 ## Development
 
 ```
-python3 -m unittest            # store, reader, expiry, git worktrees, opener prompts, picker flows
+python3 -m unittest            # store, reader, expiry, git worktrees, opener prompts, picker flows, both pickers
 bash tests/coverage.sh         # the same suite under coverage, bin/pin subprocesses included (needs uv)
 bash tests/completion_check.sh # bash completion (CI also runs it on bash 3.2 / 4.4 / 5.2 images, plus shellcheck)
 zsh tests/zsh_completion_check.sh                 # zsh completion
@@ -222,9 +222,12 @@ The tool itself is stdlib only. `pyproject.toml` exists for the dev tools (`cove
 which `uv sync --group dev` installs into `.venv`; `uv run` finds them without activating it.
 
 Tests never run the real `claude`: a stub on `PATH` records the argv and cwd it was launched
-with. Zero Claude usage in CI. A scripted stand-in for fzf drives the picker's flows, and
-`tests/test_fzf_real.py` feeds what every screen sends to a real fzf to check that queries
-match; CI runs that against four fzf versions, and locally it uses whichever fzf is on `PATH`.
+with. Zero Claude usage in CI. A scripted stand-in for fzf drives the picker's flows, a scripted
+terminal drives the built-in picker's, and `tests/test_fzf_real.py` feeds what every screen sends
+to a real fzf to check that queries match, that the built-in matcher keeps the same rows, and
+(with `pyte`) that the two backends draw the same cells; CI runs that against four fzf versions,
+and locally it uses whichever fzf is on `PATH`. `tests/test_tui_pty.py` runs the built-in picker
+in a pseudo-terminal for what only a terminal shows.
 `tests/test_plugin.py` checks the plugin files without a model: frontmatter, the commands'
 dynamic-context snippets against a real store, the install skill's shell steps in a sandbox,
 and that every line the doctor skill explains is one `pin doctor` prints.

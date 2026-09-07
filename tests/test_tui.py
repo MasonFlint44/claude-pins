@@ -384,7 +384,7 @@ class FrameTests(TuiSandbox):
             import pyte
         except ImportError:
             self.skipTest("pyte is not installed (uv sync --group dev)")
-        os.environ["CLAUDE_PINS_COLOR"] = "1"
+        os.environ.pop("NO_COLOR"); os.environ["CLAUDE_PINS_COLOR"] = "1"
         written = []
 
         class Capturing(tui.ScriptedTerminal):
@@ -407,6 +407,15 @@ class FrameTests(TuiSandbox):
         self.assertEqual((row[2].fg, row[2].bold, row[2].bg), ("e4e4e4", True, "303030"))      # text: bold 254 on 236
         self.assertEqual(row[5].fg, "b1b9f9")                                                   # the matched "2"
         self.assertEqual(row[20].bg, "default")                                                 # the padding is not painted
+        os.environ["NO_COLOR"] = "1"; del os.environ["CLAUDE_PINS_COLOR"]
+        written.clear()
+        self.steps(["2", "@enter"])
+        tui.Session(Screen(items, prompt="> ", header_lines=1, nth="1..2"), Capturing(str(self.script), str(self.tui_log))).run()
+        screen = pyte.Screen(40, 8)
+        pyte.ByteStream(screen).feed("".join(written).encode())
+        row = screen.buffer[3]
+        self.assertEqual((row[0].fg, row[0].bg, row[0].bold), ("default", "default", True))     # NO_COLOR: attributes only
+        self.assertEqual((row[5].fg, row[2].bold), ("default", True))
 
 
 class FlowTests(TuiSandbox):

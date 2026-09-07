@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Diagnose the pins plugin — why the picker falls back to a numbered menu, why the cost line says "no price" or "install ccusage", why a pin shows as expired, or whether the pin store and Claude's projects directory are in order. Use when the user says pins are broken, slow, show no cost, lost a pin, or asks whether pins are working. A `pin` command that is not found is the install skill's job.
+description: Diagnose the pins plugin — why `pin` says the built-in picker is in use instead of fzf, why the cost line says "no price" or "install ccusage", why a pin shows as expired, or whether the pin store and Claude's projects directory are in order. Use when the user says pins are broken, slow, show no cost, lost a pin, asks what a `pin doctor` line means, or asks whether pins are working. A `pin` command that is not found is the install skill's job.
 allowed-tools: Bash
 ---
 

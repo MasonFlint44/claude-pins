@@ -53,6 +53,8 @@ jobs:
           v="${{ matrix.fzf }}"; v="${v#v}"
           curl -sSL "https://github.com/junegunn/fzf/releases/download/${{ matrix.fzf }}/fzf-${v}-linux_amd64.tar.gz" | tar xz
           ./fzf --version
+      - name: pyte, for the cell-for-cell comparison of the built-in picker with this fzf
+        run: python -m pip install -q pyte
       - name: Every screen's rows through fzf ${{ matrix.fzf }}
         run: CLAUDE_PINS_TEST_FZF="$PWD/fzf" python -m unittest -v tests.test_fzf_real
 

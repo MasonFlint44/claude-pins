@@ -4,7 +4,7 @@
     "should_trigger": true
   },
   {
-    "query": "pin is giving me a numbered menu instead of the fzf picker, why",
+    "query": "pin says 'built-in picker in use' instead of using fzf, why is that",
     "should_trigger": true
   },
   {
