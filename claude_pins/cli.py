@@ -7,22 +7,22 @@ import json
 import os
 import sys
 
-from . import __version__, config, fzf
-from .cost import doctor_line, session_cost
-from .gitutil import current_branch, is_repo
+from . import __version__, config, fzf, hooks
+from .cost import doctor_line
 from .listing import build_views
 from .match import loose_match, match_sessions, recent_sessions, short_ids
 from .model import Launch, Pin, PinError, is_session_id, validate_alias, PERMISSION_MODES, EFFORT_LEVELS
 from .opener import launch, plan_open, touch_kept, touch_pin
-from .render import (Palette, label_row, layout, legend, palette, preview, rows, session_label_row,
-                     session_layout, session_preview, session_rows, stream_preview, terminal_width)
+from .render import (Palette, label_row, layout, legend, palette, rows, session_label_row,
+                     session_layout, session_rows, terminal_width)
 from .text import cells, pad
 from .sessions import find_transcript, iter_transcripts, session_id_from_env
+from .screen import Hook, leave_screen
 from .store import Store, load_store
 from .transcript import Summary, read_summary
 
 SUBCOMMANDS = ("add", "list", "ls", "sessions", "edit", "rename", "rm", "unpin", "undo", "prune", "touch", "doctor", "open",
-               "_preview", "_spreview", "_rows", "_dirs", "_status", "_complete", "help")
+               "_preview", "_spreview", "_rows", "_dirs", "_status", "_complete", "_keys", "help")
 
 
 def _global_options(p: argparse.ArgumentParser) -> None:
@@ -31,7 +31,7 @@ def _global_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--fork", action="store_true", help="open as a fork (one-off)")
     p.add_argument("--resume", action="store_true", help="plain resume, ignoring the pin's fork/worktree modes")
     p.add_argument("-w", "--worktree", nargs="?", const="", metavar="NAME", help="open in a new worktree (one-off)")
-    p.add_argument("--no-fzf", action="store_true", help="use the numbered menu instead of fzf")
+    p.add_argument("--no-fzf", action="store_true", help="use the built-in picker instead of fzf")
     p.add_argument("--all", action="store_true", help="start with expired pins shown")
 
 
@@ -98,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     o.add_argument("--fork", action="store_true"); o.add_argument("--resume", action="store_true")
     o.add_argument("-w", "--worktree", nargs="?", const="", metavar="NAME")
 
-    for hidden in ("_preview", "_spreview", "_dirs", "_status", "_complete"):
+    for hidden in ("_preview", "_spreview", "_dirs", "_status", "_complete", "_keys"):
         h = sub.add_parser(hidden)
         h.add_argument("arg", nargs="?")
         if hidden == "_preview":
@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
             print()
             return 130
         finally:
-            fzf.leave_screen(force=True)
+            leave_screen(force=True)
     try:
         opts = parser.parse_args(argv)
     except SystemExit as e:
@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
         print()
         return 130
     finally:
-        fzf.leave_screen(force=True)      # every way out of an fzf screen, error paths included
+        leave_screen(force=True)      # every way out of a screen, error paths included
 
 
 def dispatch(opts, parser) -> int:
@@ -160,17 +160,12 @@ def dispatch(opts, parser) -> int:
         "rename": cmd_rename, "rm": cmd_unpin, "unpin": cmd_unpin,
         "undo": cmd_undo, "prune": cmd_prune, "touch": cmd_touch, "doctor": cmd_doctor, "open": cmd_open,
         "_preview": cmd_preview, "_spreview": cmd_spreview, "_rows": cmd_rows, "_dirs": cmd_dirs, "_status": cmd_status,
+        "_keys": cmd_keys,
         "_complete": cmd_complete,
     }[cmd](opts)
 
 
 # ---- picker / matching -------------------------------------------------------------------------
-
-def _use_fzf(opts) -> bool:
-    if getattr(opts, "no_fzf", False):
-        os.environ["CLAUDE_PINS_NO_FZF"] = "1"      # so the prompts the menu reaches stay plain too
-    return fzf.available()
-
 
 def run_query(opts) -> int:
     store = load_store()
@@ -182,7 +177,9 @@ def run_query(opts) -> int:
             return _open(store, hits[0], fork=opts.fork or None, worktree=opts.worktree, plain=opts.resume)
         if not hits:
             print(f"pin: no pin matches {query!r}", file=sys.stderr)
-    if not (sys.stdin.isatty() and sys.stdout.isatty()) and not os.environ.get("CLAUDE_PINS_FZF"):
+    from . import tui
+    scripted = os.environ.get("CLAUDE_PINS_FZF") or os.environ.get("CLAUDE_PINS_TUI_SCRIPT")   # the tests' stand-ins
+    if not (sys.stdin.isatty() and sys.stdout.isatty()) and not scripted:
         if words:
             if hits:
                 print("pin: several pins match; be more specific:", file=sys.stderr)
@@ -191,14 +188,15 @@ def run_query(opts) -> int:
             return 1
         opts.json = False
         return cmd_list(opts)
-    if _use_fzf(opts):
-        from .picker import Picker
-        return Picker(store, query=query if words else "", sort=opts.sort, show_expired=opts.all).run()
-    from .menu import run_menu
-    reason = "" if fzf.fzf_version() else "fzf not found"
-    if fzf.fzf_version() and fzf.fzf_version() < config.MIN_FZF:
-        reason = f"fzf {'.'.join(map(str, fzf.fzf_version()))} is too old"
-    return run_menu(store, query=query if words else "", sort=opts.sort, reason=reason)
+    if getattr(opts, "no_fzf", False):
+        os.environ["CLAUDE_PINS_NO_FZF"] = "1"      # every screen the picker reaches uses the built-in one too
+    if not fzf.available() and not tui.usable():    # a dumb terminal: the list, and where the commands are
+        opts.json = False
+        code = cmd_list(opts)
+        print("(no picker on this terminal: pin <alias> opens a pin, pin help lists the commands)")
+        return code
+    from .picker import Picker
+    return Picker(store, query=query if words else "", sort=opts.sort, show_expired=opts.all).run()
 
 
 def _open(store: Store, pin: Pin, *, fork=None, worktree=None, plain=False) -> int:
@@ -455,53 +453,28 @@ def cmd_doctor(opts) -> int:
 # ---- hidden helpers -----------------------------------------------------------------------------
 
 def cmd_preview(opts) -> int:
+    """The pane for fzf: the pin under the cursor, printed as it comes (fzf renders preview output as it
+    arrives, so the pane fills at once and the cost line drops in when ccusage answers)."""
     if opts.draft:
-        return cmd_draft_preview(opts.draft)
-    if not opts.arg or opts.arg == "-":
+        sys.stdout.write(hooks.draft_preview(opts.draft))
         return 0
-    store = load_store()
-    pin = store.get(opts.arg)
-    if pin is None:
-        return 0
-    from .listing import view_for
-    view = view_for(pin, set())
-    branch = current_branch(pin.cwd) if pin.cwd and os.path.isdir(pin.cwd) and is_repo(pin.cwd) else None
-    if view.summary and view.summary.exists:
-        stream_preview(view, lambda: session_cost(pin.session_id, pin.transcript), branch, color=palette())
-    else:
-        print(preview(view, None, branch, color=palette()))
-    return 0
-
-
-def cmd_draft_preview(path: str) -> int:
-    """The editor's pane: the unsaved draft, read from the file the editor keeps current, with the
-    changed rows marked. No cost lookup: the draft cannot change it and the pane redraws on every move."""
-    from .editor import read_draft
-    from .listing import view_for
-    try:
-        pin, changed = read_draft(path)
-    except (OSError, ValueError, KeyError):
-        return 0
-    view = view_for(pin, set())
-    branch = current_branch(pin.cwd) if pin.cwd and os.path.isdir(pin.cwd) and is_repo(pin.cwd) else None
-    print(preview(view, None, branch, color=palette(), changed=changed))
+    for chunk in hooks.pin_preview(opts.arg or ""):
+        sys.stdout.write(chunk)
+        sys.stdout.flush()
     return 0
 
 
 def cmd_dirs(opts) -> int:
     """The directory field's list for fzf's ``reload``: the gap row with ``--gap``, the typed directory,
     then its completions."""
-    from .prompt import directory_rows
-    items = [fzf.Item(r, r) for r in directory_rows(opts.arg or "")]
+    items = hooks.dir_rows(opts.arg or "")
     for line in fzf.lines_for([fzf.GAP_ROW, *items] if opts.gap else items):
         print(line)
     return 0
 
 
 def cmd_spreview(opts) -> int:
-    if not opts.arg:
-        return 0
-    print(session_preview(read_summary(opts.arg), color=palette()))
+    sys.stdout.write("".join(hooks.preview_text(Hook("spreview"), opts.arg or "")))
     return 0
 
 
@@ -510,13 +483,17 @@ def cmd_rows(opts) -> int:
     labels), then ``alias<tab>display`` with the display's columns tab-separated as the picker sends
     them, at the width fzf reports. Colour is on unless NO_COLOR says otherwise, like ``_preview``
     (stdout is a pipe)."""
-    from .keymap import Keymap
-    from .picker import list_items
-    views, _ = build_views(load_store(), include_expired=opts.all, sort=opts.sort or config.default_sort())
-    items = list_items(views, Keymap.load(), palette())
+    items = hooks.pin_rows(opts.sort, opts.all)
     for line in fzf.lines_for([fzf.GAP_ROW, *items] if opts.gap else items, columns=True):
         print(line)
     return 0
+
+
+def cmd_keys(opts) -> int:
+    """Print the name of every key and mouse event this terminal sends, the way the built-in picker reads
+    them; esc twice or ctrl-c ends it. For checking a terminal, and for bug reports."""
+    from .tui import key_check
+    return key_check()
 
 
 def cmd_status(opts) -> int:

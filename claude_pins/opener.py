@@ -7,9 +7,10 @@ import shutil
 import sys
 from dataclasses import dataclass
 
-from . import config, fzf, gitutil, prompt
+from . import config, gitutil, prompt
 from .model import Pin, PinError
 from .render import Palette, crumb, palette
+from .screen import leave_screen, screen_held
 from .theme import WARNING
 from .sessions import expiry_for, find_transcript, open_session_ids
 from .store import Store
@@ -43,7 +44,7 @@ _notes: list[str] = []      # what was said while a screen was held, printed onc
 def _banner(text: str, color: Palette):
     """A line for the user. While the picker holds the alternate screen a print would vanish under the
     next screen, so it waits for ``take_notes()`` (launch prints them, a cancel flashes them)."""
-    if fzf.screen_held():
+    if screen_held():
         _notes.append(text)
     else:
         print(color(f" {text}", WARNING), file=sys.stdout)
@@ -206,7 +207,7 @@ def launch(plan: Plan) -> None:
     if not exe:
         raise PinError("claude is not on PATH")
     os.chdir(plan.cwd)
-    fzf.leave_screen(force=True)
+    leave_screen(force=True)
     for note in take_notes():
         print(note)
     sys.stdout.flush()

@@ -1,31 +1,16 @@
-"""A thin, testable wrapper over an fzf process."""
+"""The fzf backend: a Screen lowered to fzf's options, the process, and what comes back."""
 
 from __future__ import annotations
 
-import contextlib
 import os
 import re
 import shlex
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
 
 from . import config, theme
-from .text import cells
-
-
-@dataclass
-class Result:
-    key: str            # "" for enter
-    query: str
-    ids: list[str]      # first field of every selected line
-
-
-@dataclass
-class Item:
-    id: str
-    display: str    # what fzf shows and, minus colour codes, what the query matches
+from .screen import HEADER_GAP, HEADER_MARGIN, Hook, Item, Result, Screen, entered_alt_screen, min_lines
 
 
 def lines_for(items: list[Item], *, columns: bool = False) -> list[str]:
@@ -43,25 +28,9 @@ def lines_for(items: list[Item], *, columns: bool = False) -> list[str]:
 
 
 # The preview pane sits below the list and hides itself when it would get fewer than ten rows (fzf
-# measures the pane's own rows, bottom border included, and re-checks on every resize).
+# measures the pane's own rows, bottom border included, and re-checks on every resize; the arithmetic is
+# ``screen.preview_fits``).
 PREVIEW_WINDOW = "down,55%,border-rounded,wrap,<10(hidden)"
-PREVIEW_MIN_ROWS = 10
-PREVIEW_SHARE = 55
-
-
-def preview_fits(lines: int, *, bottom_border: bool = False) -> bool:
-    """Python's copy of fzf's threshold arithmetic for PREVIEW_WINDOW, so the picker can say when the pane
-    is hidden: the pane gets 55% of the rows left after the bottom border, and hides under ten."""
-    pane = (lines - (1 if bottom_border else 0)) * PREVIEW_SHARE // 100
-    return pane >= PREVIEW_MIN_ROWS
-
-
-def min_lines(*, bottom_border: bool = False) -> int:
-    """The shortest terminal on which the pane still shows (the same arithmetic, solved for the height)."""
-    lines = PREVIEW_MIN_ROWS
-    while not preview_fits(lines, bottom_border=bottom_border):
-        lines += 1
-    return lines
 
 
 # Versions that introduced what the picker uses beyond the 0.44 floor, from fzf's CHANGELOG. Everything
@@ -92,51 +61,6 @@ LEGEND_CELLS_VAR = "CLAUDE_PINS_LEGEND_CELLS"
 EXTRA_VAR = "CLAUDE_PINS_EXTRA"        # lines under the legend and hints (the help screen's keymap path)
 STATUS_VAR = "CLAUDE_PINS_STATUS"      # the line above the prompt: a flash, else a space
 NOTE_VAR = "CLAUDE_PINS_NOTE"          # what takes the status line when the terminal is too short for the pane
-HEADER_GAP = 4          # the least space between the legend and the hints on one line
-HEADER_MARGIN = 4       # fzf's two-cell header indent plus the two cells it cuts at the right edge (measured)
-
-
-@dataclass
-class Header:
-    """The lines above the prompt (fzf's --header-first): the legend on the left and the hints
-    right-justified on one line when the width allows ``HEADER_GAP`` between them, else the legend
-    over the hints (hints alone stay left); then ``extra``; then the status line, which is the flash
-    for one screen, the too-short note, or a space that keeps the prompt off the header. ``text()``
-    is the launch-time layout and ``header_transform()`` the same arithmetic in shell, fed by ``env()``,
-    so fzf re-fits the header itself on resize (or on every keystroke on 0.44). A header line holding
-    one space is kept where a trailing newline would be dropped."""
-    hints: str
-    legend: str = ""
-    extra: tuple[str, ...] = ()
-    status: str = " "
-    note: str = ""
-    color: theme.Palette | None = None
-
-    def _dim(self, text: str) -> str:
-        return self.color(text, "dim") if self.color else text
-
-    def env(self) -> dict[str, str]:
-        return {HINTS_VAR: self._dim(self.hints), HINTS_CELLS_VAR: str(cells(self.hints)),
-                LEGEND_VAR: self._dim(self.legend), LEGEND_CELLS_VAR: str(cells(self.legend)),
-                EXTRA_VAR: "\n".join(self.extra), STATUS_VAR: self.status, NOTE_VAR: self.note}
-
-    def text(self, columns: int | None = None, lines: int | None = None, *, bottom_border: bool = False) -> str:
-        if columns is None or lines is None:
-            from .render import terminal_height, terminal_width
-            columns = terminal_width() if columns is None else columns
-            lines = terminal_height() if lines is None else lines
-        out = []
-        pad = columns - cells(self.legend) - cells(self.hints) - HEADER_MARGIN
-        if self.legend and pad >= HEADER_GAP:
-            out.append(self._dim(self.legend) + " " * pad + self._dim(self.hints))
-        elif self.legend:
-            out += [self._dim(self.legend), self._dim(self.hints)]
-        else:
-            out.append(self._dim(self.hints))
-        out += self.extra
-        short = self.note and lines < min_lines(bottom_border=bottom_border)
-        out.append(self.note if short else self.status)
-        return "\n".join(out)
 
 
 def header_transform(*, bottom_border: bool = False) -> str:
@@ -176,11 +100,15 @@ def sticky(items: list[Item], header_lines: int, version: tuple[int, ...] | None
     return items, header_lines
 
 
-# ``3 of 5 pins · 2 selected``; ``5 pins`` when nothing is filtered out. The count variables exclude
-# the sticky label row.
-INFO_COMMAND = ('n=$FZF_TOTAL_COUNT; s=pins; test "$n" = 1 && s=pin; '
-                'if test "$FZF_MATCH_COUNT" = "$n"; then t="$n $s"; else t="$FZF_MATCH_COUNT of $n $s"; fi; '
-                'test "$FZF_SELECT_COUNT" -gt 0 && t="$t · $FZF_SELECT_COUNT selected"; printf %s "$t"')
+def info_command(noun: str = "pins") -> str:
+    """``3 of 5 pins · 2 selected``; ``5 pins`` when nothing is filtered out; ``1 pin``. The count
+    variables exclude the sticky label row."""
+    return (f'n=$FZF_TOTAL_COUNT; s={noun}; test "$n" = 1 && s={noun.rstrip("s")}; '
+            'if test "$FZF_MATCH_COUNT" = "$n"; then t="$n $s"; else t="$FZF_MATCH_COUNT of $n $s"; fi; '
+            'test "$FZF_SELECT_COUNT" -gt 0 && t="$t · $FZF_SELECT_COUNT selected"; printf %s "$t"')
+
+
+INFO_COMMAND = info_command()
 
 
 def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] | None = None,
@@ -278,52 +206,6 @@ def install_hint() -> str:
             "https://github.com/junegunn/fzf/releases unpacked into ~/.local/bin")
 
 
-# ---- the alternate screen -----------------------------------------------------------------------
-
-_alt_screen = False     # fzf ran with --no-clear and left the terminal on the alternate screen
-_held = 0               # depth of hold_screen(): screens that want the next fzf to draw over this one
-
-
-@contextlib.contextmanager
-def hold_screen():
-    """Keep the alternate screen up between the fzf runs inside this block (the picker's loop, the
-    editor's), so they draw over each other; leaving the outermost block returns to the normal screen.
-    A prompt run outside any hold (``pin prune``, ``pin edit``) drops the screen as soon as it ends,
-    so what the command prints afterwards is seen."""
-    global _held
-    _held += 1
-    try:
-        yield
-    finally:
-        _held -= 1
-        if _held == 0:
-            leave_screen()
-
-
-def screen_held() -> bool:
-    return _held > 0
-
-
-def leave_screen(*, force: bool = False) -> None:
-    """Return to the normal screen if fzf left the alternate one up and no screen holds it (``force``
-    ignores holds: exec and every way out of ``main``). fzf itself restores everything else on exit
-    (cooked mode, cursor, mouse tracking; measured on 0.44.1, 0.53.0 and 0.67.0), so this one sequence
-    is the whole restore. Idempotent."""
-    global _alt_screen
-    if not _alt_screen or (_held and not force):
-        return
-    _alt_screen = False
-    seq = "\x1b[?1049l"
-    try:
-        if sys.stderr.isatty():
-            sys.stderr.write(seq); sys.stderr.flush()
-        elif sys.stdin.isatty():
-            with open("/dev/tty", "w") as tty:
-                tty.write(seq)
-    except (OSError, ValueError):
-        pass
-
-
 def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] | None = None,
         query: str = "", multi: bool = False, preview: str | None = None,
         preview_window: str = PREVIEW_WINDOW, preview_label_cmd: str | None = None,
@@ -337,7 +219,6 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
     rows, never matched, selected or printed back; the gap row goes ahead of them where the build draws
     them under the prompt. With ``nth`` the displays are tab-separated columns and only that field
     range is matched. ``env`` adds variables for the commands fzf runs."""
-    global _alt_screen
     binary = fzf_bin()
     if not binary:
         return None
@@ -355,7 +236,7 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
                            env={**os.environ, **env} if env else None)
     except OSError:
         return None
-    _alt_screen = True
+    entered_alt_screen()
     if p.returncode not in (0, 1):   # 130 = esc/ctrl-c, 2 = bad option
         return None
     out = p.stdout.split("\n")
@@ -364,3 +245,62 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
     rest = out[2:] if expect else out[1:]
     ids = [ln.split("\t", 1)[0] for ln in rest if ln]
     return Result(key, q, ids)
+
+
+# ---- a Screen as fzf options -----------------------------------------------------------------------------
+
+def hook_command(hook: Hook, *, version: tuple[int, ...] | None = None, width: int | None = None) -> str:
+    """The shell that runs a hook from inside fzf: ``pin`` re-entered with the hidden subcommand, the row
+    under the cursor as ``{1}`` and the query as ``{q}``. The rows commands are told the gap row rather
+    than asking fzf its version on every reload, and get the launch width as the fallback for builds
+    without $FZF_COLUMNS (the width fzf reports wins where it exists)."""
+    gap = " --gap" if supports("sticky-under-prompt", version) else ""
+    if hook.name in ("preview", "spreview"):
+        return f"{pin_exe()} _{hook.name} {{1}}"
+    if hook.name == "draft":
+        return f"{pin_exe()} _preview --draft {shlex.quote(hook.args[0])}"
+    if hook.name == "rows":
+        sort, show = hook.args
+        cols = f"COLUMNS={width} " if width else ""
+        return f"{cols}{pin_exe()} _rows --sort {sort}{gap}" + (" --all" if show == "all" else "")
+    if hook.name == "dirs":
+        return f"{pin_exe()} _dirs{gap} {{q}}"
+    raise ValueError(f"unknown hook {hook.name}")
+
+
+def run_screen(screen: Screen) -> Result | None:
+    """Lower a Screen to ``run()``: the header text and its transform, the hooks as shell, the counter as
+    the info command where fzf draws it whole, the footer as a bottom border label."""
+    from .render import terminal_width
+    version = fzf_version()
+    binds: list[tuple[str, str]] = []
+    if screen.reload:
+        reload = f"reload({hook_command(screen.reload, version=version, width=terminal_width())})"
+        if screen.refresh_key:
+            binds.append((screen.refresh_key, reload))
+        if supports("resize", version):
+            binds.append(("resize", reload))
+    if screen.on_change:
+        binds.append(("change", f"reload({hook_command(screen.on_change, version=version)})"))
+    env = None
+    header = ""
+    if screen.header:
+        header = screen.header_text()
+        env = screen.header.env()
+        if screen.header.legend or screen.header.note:      # a header that re-fits with the width or height
+            binds += header_binds(bottom_border=screen.bottom_border, version=version)
+    preview_label_cmd = None
+    extra: list[str] = []
+    if screen.preview:
+        if screen.label_from_row:
+            preview_label_cmd = "echo ' '{1}' '"
+        elif screen.preview_label:
+            extra += ["--preview-label", screen.preview_label]
+    info = "inline-right" if screen.counter else "hidden"
+    cmd = info_command(screen.counter) if screen.counter and supports("info-command", version) else None
+    return run(screen.items, prompt=screen.prompt, header=header, expect=list(screen.expect), query=screen.query,
+               multi=screen.multi, pos=screen.pos,
+               preview=hook_command(screen.preview, version=version) if screen.preview else None,
+               preview_label_cmd=preview_label_cmd, border_label=screen.footer, extra=extra or None,
+               disabled=screen.disabled, info=info, header_lines=screen.header_lines, binds=binds or None,
+               info_command=cmd, nth=screen.nth, env=env)

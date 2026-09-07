@@ -1,10 +1,9 @@
 import json
-import os
 import shutil
 import subprocess
 from pathlib import Path
 
-from tests.helpers import FzfSandbox
+from tests.helpers import FzfSandbox, TuiSandbox
 
 SID = "11111111-1111-1111-1111-111111111111"
 
@@ -14,13 +13,9 @@ def git(*args, cwd):
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
-class OpenerTests(FzfSandbox):
-    """The opener's tiers, driven through the plain prompts (piped stdin); OpenerScreenTests below run the
-    same prompts as fzf screens."""
-
-    def setUp(self):
-        super().setUp()
-        os.environ["CLAUDE_PINS_NO_FZF"] = "1"
+class OpenerTests(TuiSandbox):
+    """The opener's tiers, driven through the built-in picker's screens (no fzf); OpenerScreenTests below
+    run the same prompts as fzf screens."""
 
     def repo(self, path: Path) -> Path:
         path.mkdir(parents=True, exist_ok=True)
@@ -36,12 +31,21 @@ class OpenerTests(FzfSandbox):
     def stored(self):
         return {p["alias"]: p for p in json.loads(self.store_path().read_text())["pins"]}
 
+    @staticmethod
+    def pick(n: int, default: int = 1) -> list[str]:
+        """The keys that choose row ``n`` of a list whose cursor starts on ``default``."""
+        return ["@down" if n > default else "@up"] * abs(n - default) + ["@enter"]
+
+    def options(self, n: int) -> list[str]:
+        return [l.split("\t", 1)[1] for l in self.screens()[n]["items"]]
+
     # tier 1: exists → silent
     def test_existing_dir_silent(self):
         self.pin_in(str(self.home / "git" / "proj"))
         r = self.run_pin("sp")
         self.assertEqual(r.stdout, "")
         self.assertEqual(self.claude_calls()["cwd"], str(self.home / "git" / "proj"))
+        self.assertEqual(self.screens(), [])
 
     # tier 2a: worktree gone, branch survives
     def test_worktree_recreated_on_surviving_branch(self):
@@ -51,13 +55,16 @@ class OpenerTests(FzfSandbox):
         git("worktree", "lock", str(wt), cwd=repo)
         self.pin_in(str(wt), branch="worktree-x")
         shutil.rmtree(wt)
-        r = self.run_pin("sp", input="\ny\n")
+        self.steps(["@enter"])
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
-        self.assertIn("directory ~/git/foo/.claude/worktrees/x is missing", r.stdout)
-        self.assertIn("branch worktree-x still exists in ~/git/foo", r.stdout)
-        self.assertIn("1) recreate the worktree on branch worktree-x        (enter)", r.stdout)
+        menu = self.screens()[0]
+        self.assertEqual(menu["prompt"], "📌 pins › sp › open › ")
+        self.assertIn("directory ~/git/foo/.claude/worktrees/x is missing", menu["header"])
+        self.assertIn("branch worktree-x still exists in ~/git/foo", menu["header"])
+        self.assertEqual(self.options(0)[0], "recreate the worktree on branch worktree-x")
         self.assertIn("→ recreated ~/git/foo/.claude/worktrees/x on worktree-x", r.stdout)
-        self.assertNotIn("update pin cwd?", r.stdout)  # same path as the pin → nothing to update
+        self.assertEqual(len(self.screens()), 1)                    # same path as the pin → no cwd question
         self.assertTrue(wt.is_dir())
         self.assertEqual(self.claude_calls()["cwd"], str(wt))
         self.assertEqual(git("branch", "--show-current", cwd=wt), "worktree-x")
@@ -68,13 +75,16 @@ class OpenerTests(FzfSandbox):
         wt = repo / ".claude" / "worktrees" / "x"
         self.pin_in(str(wt))
         shutil.rmtree(wt)
-        r = self.run_pin("sp", input="2\nn\n")
-        self.assertIn("branch worktree-x is gone", r.stdout)
-        self.assertIn("1) create a fresh worktree x off HEAD", r.stdout)
-        self.assertIn("2) open in the repo root ~/git/foo", r.stdout)
+        self.steps(self.pick(2), self.pick(2))                      # the repo root; no, keep the pin's cwd
+        r = self.run_pin("sp")
+        self.assertIn("branch worktree-x is gone", self.screens()[0]["header"])
+        self.assertEqual(self.options(0)[:2], ["create a fresh worktree x off HEAD", "open in the repo root ~/git/foo"])
+        self.assertEqual(self.options(1), ["yes", "no"])
+        self.assertIn("update pin cwd?", self.screens()[1]["header"])
         self.assertEqual(self.claude_calls()["cwd"], str(repo))
-        self.assertEqual(self.stored()["sp"]["cwd"], str(wt))  # answered n → pin unchanged
-        r = self.run_pin("sp", input="1\ny\n")
+        self.assertEqual(self.stored()["sp"]["cwd"], str(wt))       # answered no → pin unchanged
+        self.steps(["@enter"], ["@enter"])
+        r = self.run_pin("sp")
         self.assertIn("→ recreated ~/git/foo/.claude/worktrees/x on worktree-x", r.stdout)
         self.assertEqual(self.stored()["sp"]["cwd"], str(wt))
         self.assertTrue(wt.is_dir())
@@ -84,10 +94,10 @@ class OpenerTests(FzfSandbox):
         gone = self.home / "Documents" / "old"
         self.pin_in(str(gone))
         shutil.rmtree(gone)
-        r = self.run_pin("sp", input="\ny\n")
-        self.assertIn("1) open in ~ (session context won't match this directory)        (enter)", r.stdout)
-        self.assertIn("2) choose another directory", r.stdout)
-        self.assertIn("3) unpin", r.stdout)
+        self.steps(["@enter"], ["@enter"])
+        r = self.run_pin("sp")
+        self.assertEqual(self.options(0), ["open in ~ (session context won't match this directory)",
+                                           "choose another directory", "unpin"])
         self.assertEqual(self.claude_calls()["cwd"], str(self.home))
         self.assertEqual(self.stored()["sp"]["cwd"], str(self.home))
 
@@ -96,17 +106,25 @@ class OpenerTests(FzfSandbox):
         self.pin_in(str(gone))
         shutil.rmtree(gone)
         other = self.home / "git" / "elsewhere"; other.mkdir(parents=True)
-        r = self.run_pin("sp", input=f"2\n{other}\nn\n")
+        self.steps(self.pick(2), ["@ctrl-u", str(other), "@enter"], self.pick(2))
+        r = self.run_pin("sp")
+        self.assertEqual(self.screens()[1]["prompt"], "📌 pins › sp › open › directory › ")
         self.assertEqual(self.claude_calls()["cwd"], str(other))
-        r = self.run_pin("sp", input="3\n")
+        self.steps(self.pick(3))
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1)
         self.assertIn("✓ unpinned sp", r.stdout)
         self.assertEqual(self.stored(), {})
 
-    def test_cancel_with_eof(self):
+    def test_cancel_with_esc(self):
         gone = self.home / "Documents" / "old"
         self.pin_in(str(gone)); shutil.rmtree(gone)
-        r = self.run_pin("sp", input="")
+        self.steps(["@esc", "@pause"])
+        r = self.run_pin("sp")
+        self.assertEqual(r.returncode, 1)
+        self.assertIsNone(self.claude_calls())
+        self.steps()                                                # no answer at all: the same
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1)
         self.assertIsNone(self.claude_calls())
 
@@ -115,9 +133,10 @@ class OpenerTests(FzfSandbox):
         repo = self.repo(self.home / "git" / "foo")
         git("branch", "feature", cwd=repo)
         self.pin_in(str(repo), branch="feature")
-        r = self.run_pin("sp", input="2\n")
-        self.assertIn("is on main, the session was on feature", r.stdout)
-        self.assertIn("2) checkout feature first (tree is clean)", r.stdout)
+        self.steps(self.pick(2))
+        r = self.run_pin("sp")
+        self.assertIn("is on main, the session was on feature", self.screens()[0]["header"])
+        self.assertEqual(self.options(0)[1], "checkout feature first (tree is clean)")
         self.assertIn("→ checked out feature", r.stdout)
         self.assertEqual(git("branch", "--show-current", cwd=repo), "feature")
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID])
@@ -127,10 +146,11 @@ class OpenerTests(FzfSandbox):
         git("branch", "feature", cwd=repo)
         (repo / "f").write_text("x"); git("add", "f", cwd=repo)
         self.pin_in(str(repo), branch="feature")
-        r = self.run_pin("sp", input="\n")
-        self.assertIn("working tree has changes, so checkout is not offered", r.stdout)
-        self.assertNotIn("checkout feature", r.stdout)
-        self.assertIn("1) continue on main        (enter)", r.stdout)
+        self.steps(["@enter"])
+        r = self.run_pin("sp")
+        self.assertIn("working tree has changes, so checkout is not offered", self.screens()[0]["header"])
+        self.assertNotIn("checkout feature", "\n".join(self.options(0)))
+        self.assertEqual(self.options(0)[0], "continue on main")
         self.assertEqual(git("branch", "--show-current", cwd=repo), "main")  # never auto-switch
         self.assertEqual(self.claude_calls()["cwd"], str(repo))
 
@@ -138,21 +158,24 @@ class OpenerTests(FzfSandbox):
         repo = self.repo(self.home / "git" / "foo")
         git("branch", "feature", cwd=repo)
         self.pin_in(str(repo), branch="feature")
-        r = self.run_pin("sp", "-w", input="")
+        self.steps()
+        r = self.run_pin("sp", "-w")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertNotIn("session was on", r.stdout)
+        self.assertEqual(self.screens(), [])
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID, "--worktree"])
 
     # already open
     def test_already_open(self):
         self.pin_in(str(self.home / "git" / "proj"))
         ps = self.root / "ps.txt"; ps.write_text(f"claude --resume {SID}\n")
-        r = self.run_pin("sp", input="\n", env={"CLAUDE_PINS_PS": str(ps)})
+        self.steps(["@enter"])                                      # the cursor starts on cancel
+        r = self.run_pin("sp", env={"CLAUDE_PINS_PS": str(ps)})
         self.assertEqual(r.returncode, 1)
-        self.assertIn("sp is already open in another tab", r.stdout)
-        self.assertIn("2) cancel        (enter)", r.stdout)
+        self.assertIn("sp is already open in another tab", self.screens()[0]["header"])
+        self.assertEqual(self.options(0), ["resume anyway (a second claude on the same session)", "cancel"])
         self.assertIsNone(self.claude_calls())
-        r = self.run_pin("sp", input="1\n", env={"CLAUDE_PINS_PS": str(ps)})
+        self.steps(self.pick(1, default=2))
+        r = self.run_pin("sp", env={"CLAUDE_PINS_PS": str(ps)})
         self.assertEqual(r.returncode, 0)
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID])
         r = self.run_pin("list", env={"CLAUDE_PINS_PS": str(ps)})
@@ -172,9 +195,10 @@ class OpenerTests(FzfSandbox):
         wt = repo / ".claude" / "worktrees" / "x"
         git("worktree", "add", "-q", "-b", "worktree-x", str(wt), cwd=repo)
         self.pin_in(str(wt), branch="main")
-        r = self.run_pin("sp", input="")
+        self.steps()
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertNotIn("session was on", r.stdout)
+        self.assertEqual(self.screens(), [])
         self.assertEqual(git("branch", "--show-current", cwd=wt), "worktree-x")
         self.assertEqual(self.claude_calls()["cwd"], str(wt))
 
@@ -185,27 +209,31 @@ class OpenerTests(FzfSandbox):
         self.pin_in(str(wt), branch="main")  # what Claude records for a worktree session: the base branch
         git("worktree", "remove", "--force", str(wt), cwd=repo)
         # repo root, and decline the cwd update
-        r = self.run_pin("sp", input="2\nn\n")
+        self.steps(self.pick(2), self.pick(2))
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("→ opening in the repo root ~/git/foo", r.stdout)
         self.assertEqual(self.claude_calls()["cwd"], str(repo))
         self.assertEqual(self.stored()["sp"]["cwd"], str(wt))
         # ~, accepting the update
-        r = self.run_pin("sp", input="3\n\n")
+        self.steps(self.pick(3), ["@enter"])
+        r = self.run_pin("sp")
         self.assertIn("session context won't match", r.stdout)
         self.assertEqual(self.stored()["sp"]["cwd"], str(self.home))
 
     def test_choose_dir_cancel_and_not_a_dir(self):
         gone = self.home / "Documents" / "old"
         self.pin_in(str(gone)); shutil.rmtree(gone)
-        r = self.run_pin("sp", input="2\n")  # EOF at the directory prompt
+        self.steps(self.pick(2), ["@esc", "@pause"])                # esc at the directory field
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1); self.assertIsNone(self.claude_calls())
-        r = self.run_pin("sp", input="2\n/no/such/dir\n")
+        self.steps(self.pick(2), ["@ctrl-u", "/no/such/dir", "@enter"])
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1); self.assertIn("not a directory; cancelled", r.stdout)
-        r = self.run_pin("sp", input="2\n\n")  # empty answer
+        self.steps(self.pick(2), ["@ctrl-u", "~/Documents/ol", "@enter"])    # nothing completes it: the text as typed
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1); self.assertIn("not a directory; cancelled", r.stdout)
-        r = self.run_pin("sp", input="9\n2\n")  # out-of-range choice is re-asked
-        self.assertIn("pick 1–3", r.stdout)
+        self.assertEqual(self.screens()[1]["result"], {"key": "", "query": "~/Documents/ol", "ids": []})
 
     def test_recreate_worktree_failure(self):
         repo = self.repo(self.home / "git" / "foo")
@@ -214,7 +242,8 @@ class OpenerTests(FzfSandbox):
         self.pin_in(str(wt), branch="worktree-x")
         git("worktree", "remove", "--force", str(wt), cwd=repo)
         git("checkout", "-q", "worktree-x", cwd=repo)  # the branch is now checked out in the main tree
-        r = self.run_pin("sp", input="\n")
+        self.steps(["@enter"])
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1)
         self.assertIn("could not recreate worktree:", r.stdout)
         self.assertIsNone(self.claude_calls())
@@ -223,24 +252,29 @@ class OpenerTests(FzfSandbox):
         repo = self.repo(self.home / "git" / "foo")
         git("branch", "feature", cwd=repo)
         self.pin_in(str(repo), branch="feature")
-        r = self.run_pin("sp", input="3\n")
+        self.steps(self.pick(3))
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1); self.assertIsNone(self.claude_calls())
-        r = self.run_pin("sp", input="")
+        self.steps(["@esc", "@pause"])
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1)
         # the recorded branch no longer exists: checkout fails, nothing launches
         git("branch", "-D", "feature", cwd=repo)
-        r = self.run_pin("sp", input="2\n")
+        self.steps(self.pick(2))
+        r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1); self.assertIn("checkout failed:", r.stdout)
         self.assertIsNone(self.claude_calls())
         # detached HEAD in the session record: no check at all
         self.make_session(SID, cwd=str(repo), branch="HEAD")
+        self.steps()
         r = self.run_pin("sp")
         self.assertEqual(r.returncode, 0, r.stdout); self.assertEqual(self.claude_calls()["argv"], ["--resume", SID])
 
-    def test_already_open_eof_cancels(self):
+    def test_already_open_esc_cancels(self):
         self.pin_in(str(self.home / "git" / "proj"))
         ps = self.root / "ps.txt"; ps.write_text(f"/usr/bin/node /opt/claude --resume={SID}\n")
-        r = self.run_pin("sp", input="", env={"CLAUDE_PINS_PS": str(ps)})
+        self.steps(["@esc", "@pause"])
+        r = self.run_pin("sp", env={"CLAUDE_PINS_PS": str(ps)})
         self.assertEqual(r.returncode, 1); self.assertIsNone(self.claude_calls())
 
     def test_transcript_moved_updates_pin(self):

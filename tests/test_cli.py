@@ -273,12 +273,14 @@ class CliTests(FzfSandbox):
 
     def test_prune_asks(self):
         self.run_pin("add", SID1, "a"); self.t1.unlink()
-        plain = {"CLAUDE_PINS_NO_FZF": "1"}
-        r = self.run_pin("prune", input="n\n", env=plain)
+        script = self.root / "tui.jsonl"
+        script.write_text(json.dumps({"send": ["@down", "@enter"]}) + "\n")     # no, on the built-in picker's screen
+        native = {"CLAUDE_PINS_NO_FZF": "1", "CLAUDE_PINS_TUI_SCRIPT": str(script)}
+        r = self.run_pin("prune", env=native)
         self.assertEqual(r.returncode, 1); self.assertIn("1 expired: a", r.stdout)
         self.assertEqual(self.run_pin("_complete").stdout.split(), ["a"])
-        r = self.run_pin("prune", input="", env=plain)
-        self.assertEqual(r.returncode, 130)  # ctrl-c / EOF at the question
+        r = self.run_pin("prune", input="", env={"CLAUDE_PINS_NO_FZF": "1"})     # no terminal to ask on
+        self.assertEqual(r.returncode, 130); self.assertIn("no terminal to answer", r.stderr)
         self.steps({"abort": True})                                  # with fzf the question is a screen: esc
         r = self.run_pin("prune")
         self.assertEqual(r.returncode, 130)

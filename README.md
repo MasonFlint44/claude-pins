@@ -194,7 +194,7 @@ Every run of any of these also touches the transcripts of pins with `keep`.
 | `CLAUDE_PINS_GLYPHS` | `emoji` or `text` markers (default: emoji on a UTF-8 locale outside the Linux console) |
 | `NO_COLOR` / `CLAUDE_PINS_COLOR=0` / `CLAUDE_PINS_COLOR=1` | never / never / always color |
 | `CLAUDE_PINS_FZF`, `CLAUDE_PINS_CCUSAGE` | alternate binaries |
-| `CLAUDE_PINS_PS`, `CLAUDE_PINS_NOW` | test hooks: a fake process table file, a fake clock (epoch seconds) |
+| `CLAUDE_PINS_PS`, `CLAUDE_PINS_NOW`, `CLAUDE_PINS_TUI_SCRIPT`, `CLAUDE_PINS_TUI_LOG` | test hooks: a fake process table file, a fake clock (epoch seconds), a scripted terminal for the built-in picker and its log |
 
 ## Development
 

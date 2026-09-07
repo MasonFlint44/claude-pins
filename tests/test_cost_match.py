@@ -137,20 +137,18 @@ class DoctorTests(CostTests):
         self.assertEqual(session_cost(SID, None).status, "missing")
 
     def test_preview_streams_before_cost(self):
-        import io
-        from claude_pins.render import stream_preview, View
+        from claude_pins.render import preview_chunks, View
         from claude_pins.model import Pin
         from claude_pins.sessions import Expiry
         from claude_pins.transcript import Summary
-        seen = []
-        buf = io.StringIO()
-        orig = buf.flush
-        buf.flush = lambda: seen.append(buf.getvalue())
+        asked = []
         view = View(Pin(alias="a", session_id=SID, title="T", cwd="/x"), Expiry("ok", 100, 29), summary=Summary(exists=True, ai_title="T", model="claude-fable-5-1", prompts=1, last_prompt="hi"))
-        stream_preview(view, lambda: Cost("ok", 1.5, 10), None, width=80, out=buf)
-        self.assertIn("model", seen[0]); self.assertNotIn("cost", seen[0])     # flushed before the lookup
-        self.assertIn("cost       est $1.50 (ccusage)\ntranscript", buf.getvalue())
-        self.assertTrue(buf.getvalue().rstrip().endswith("you        hi"))
+        chunks = preview_chunks(view, lambda: asked.append(1) or Cost("ok", 1.5, 10), None, width=80)
+        first = next(chunks)
+        self.assertIn("model", first); self.assertNotIn("cost", first); self.assertEqual(asked, [])   # before the lookup
+        text = first + next(chunks)
+        self.assertIn("cost       est $1.50 (ccusage)\ntranscript", text)
+        self.assertTrue(text.rstrip().endswith("you        hi"))
 
 
 class MatchTests(Sandbox):
@@ -197,38 +195,6 @@ class MatchTests(Sandbox):
 
 
 class PromptTests(Sandbox):
-    def test_plain_text_without_a_prefilling_readline(self):
-        """libedit (macOS) takes the hook but inserts nothing, so the default goes in the label and bare
-        enter keeps it; GNU readline pre-fills and an empty answer means empty."""
-        from unittest import mock
-        from claude_pins import prompt
-
-        class Editline:
-            __doc__ = "Importing this module enables command line editing using libedit readline."
-
-            def set_completer_delims(self, d): pass
-            def set_completer(self, c): self.completer = c
-            def parse_and_bind(self, s): pass
-
-        self.assertFalse(prompt.prefills(Editline()))
-        self.assertTrue(prompt.prefills(type("Gnu", (), {"__doc__": "GNU readline", "backend": "readline"})()))
-        self.assertFalse(prompt.prefills(type("Ed", (), {"backend": "editline"})()))
-        os.environ["CLAUDE_PINS_NO_FZF"] = "1"
-        answers, asked, shown = iter(["", "c", "  new  ", "", "c"]), [], []
-        with mock.patch.object(prompt, "_readline", lambda: Editline()), \
-                mock.patch("builtins.input", lambda text: asked.append(text) or next(answers)), \
-                mock.patch("builtins.print", lambda *a, **k: shown.append(" ".join(map(str, a)))):
-            self.assertEqual(prompt.text("title", "Standup prep"), "Standup prep")   # enter keeps
-            self.assertEqual(prompt.text("note", "a note"), "")                      # c clears
-            self.assertEqual(prompt.text("note", "a note"), "new")                   # anything else replaces
-            self.assertEqual(prompt.text("note", ""), "")                            # nothing to keep: no menu line
-            self.assertEqual(prompt.directory("~/git"), "")
-        self.assertEqual(asked, [" title: ", " note: ", " note: ", " note: ", " directory (tab completes): "])
-        self.assertEqual(shown, [' title: enter keeps "Standup prep", c clears, or type a new value',
-                                 ' note: enter keeps "a note", c clears, or type a new value',
-                                 ' note: enter keeps "a note", c clears, or type a new value',
-                                 ' directory (tab completes): enter keeps "~/git", c clears, or type a new value'])
-
     def test_directory_completions(self):
         from claude_pins.prompt import directory_completions
         (self.home / "git" / "alpha").mkdir(parents=True); (self.home / "git" / "alps").mkdir()

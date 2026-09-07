@@ -1,9 +1,8 @@
-"""Prompts: fzf screens while fzf is in use, plain text otherwise.
+"""Prompts as screens: a text field is the query line (disabled as a filter, prefilled, handed back on
+enter), a yes/no and a choice are short lists, and a directory field is the query line over a list of
+completions that reloads as you type. ctrl-c and esc cancel.
 
-With fzf, a text field is fzf's query line (``--disabled``, prefilled, printed back on enter), a yes/no
-and a choice are short lists, and a directory field is the query line over a list of completions that
-reloads as you type. Without fzf (missing, too old, ``CLAUDE_PINS_NO_FZF``) the same calls are readline
-prompts with the current value pre-filled and numbered menus. ctrl-c and esc cancel either way.
+The plain readline paths below are what the numbered menu used; they go with it.
 """
 
 from __future__ import annotations
@@ -11,9 +10,9 @@ from __future__ import annotations
 import os
 import sys
 
-from . import fzf
 from .render import crumb as default_crumb
 from .render import palette
+from .screen import Header, Hook, Item, Screen, leave_screen, show
 
 TEXT_HINTS = "enter save · esc cancel · ctrl-u clear"
 LIST_HINTS = "enter choose · esc cancel"
@@ -24,11 +23,11 @@ class Cancelled(Exception):
 
 
 def use_fzf() -> bool:
-    return fzf.available()
+    return True
 
 
-def _header(hints: str, notes: list[str]) -> str:
-    return fzf.Header(hints, extra=tuple(notes), color=palette(sys.stdout)).text()
+def _header(hints: str, notes: list[str]) -> Header:
+    return Header(hints, extra=tuple(notes), color=palette(sys.stdout))
 
 
 def _ask(text: str) -> str:
@@ -42,10 +41,9 @@ def _ask(text: str) -> str:
 # ---- lists ----------------------------------------------------------------------------------
 
 def _list(crumb: str | None, notes: list[str], options: list[str], default: int) -> int:
-    items = [fzf.Item(str(i), o) for i, o in enumerate(options, 1)]
-    res = fzf.run(items, prompt=crumb or default_crumb(), header=_header(LIST_HINTS, notes), pos=default,
-                  info="hidden")
-    fzf.leave_screen()
+    items = [Item(str(i), o) for i, o in enumerate(options, 1)]
+    res = show(Screen(items, prompt=crumb or default_crumb(), header=_header(LIST_HINTS, notes), pos=default))
+    leave_screen()
     if res is None or not res.ids:
         raise Cancelled()
     return int(res.ids[0])
@@ -146,9 +144,9 @@ def text(label: str, default: str = "", *, crumb: str | None = None, note: str =
     """One-line text field. fzf: the query line under a breadcrumb ending in the field's name, with
     ``note`` under the hints; plain: ``label`` with the value pre-filled."""
     if use_fzf():
-        res = fzf.run([], prompt=crumb or default_crumb(label), header=_header(TEXT_HINTS, [note] if note else []),
-                      query=default, disabled=True, info="hidden")
-        fzf.leave_screen()
+        res = show(Screen([], prompt=crumb or default_crumb(label), header=_header(TEXT_HINTS, [note] if note else []),
+                          query=default, disabled=True))
+        leave_screen()
         if res is None:
             raise Cancelled()
         return res.query.strip()
@@ -195,13 +193,11 @@ def directory(default: str = "", *, crumb: str | None = None, note: str = "") ->
     directory, or the text when the list is empty. Plain: readline with tab completion. Returns the
     text as typed, "" for none; the caller expands and checks it."""
     if use_fzf():
-        items = [fzf.Item(r, r) for r in directory_rows(default)]
-        gap = " --gap" if fzf.supports("sticky-under-prompt") else ""
-        reload = f"reload({fzf.pin_exe()} _dirs{gap} {{q}})"
-        res = fzf.run(items, prompt=crumb or default_crumb("directory"),
-                      header=_header(TEXT_HINTS, [note] if note else []), query=default, disabled=True,
-                      info="hidden", binds=[("change", reload)])
-        fzf.leave_screen()
+        items = [Item(r, r) for r in directory_rows(default)]
+        res = show(Screen(items, prompt=crumb or default_crumb("directory"),
+                          header=_header(TEXT_HINTS, [note] if note else []), query=default, disabled=True,
+                          on_change=Hook("dirs")))
+        leave_screen()
         if res is None:
             raise Cancelled()
         return (res.ids[0] if res.ids else res.query).strip()

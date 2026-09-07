@@ -8,9 +8,10 @@ import os
 import sys
 import tempfile
 
-from . import fzf, prompt
+from . import prompt
 from .model import EFFORT_LEVELS, PERMISSION_MODES, Pin, PinError, validate_alias
 from .render import crumb, display_dir, grouped, palette
+from .screen import Header, Hook, Item, Screen, hold_screen, show
 from .text import pad
 from .store import Store
 from .theme import ERROR
@@ -95,13 +96,10 @@ def read_draft(path: str) -> tuple[Pin, set[str]]:
     return draft, changed_fields(draft, original)
 
 
-# ---- fzf editor --------------------------------------------------------------------------------
+# ---- the editor ---------------------------------------------------------------------------------
 
-def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
+def edit_pin(store: Store, alias: str) -> str | None:
     """Interactive edit. Returns the (possibly new) alias if saved, else None."""
-    if run is None and not fzf.available():
-        return edit_pin_plain(store, alias)
-    run = run or fzf.run
     color = palette(sys.stdout)
     original = store.require(alias)
     draft = original.copy()
@@ -120,7 +118,7 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
         return _commit(store, draft, original)
 
     try:
-        with fzf.hold_screen():
+        with hold_screen():
             while True:
                 dirty = changed_fields(draft, original)
                 write_draft(draft_path, draft, original)
@@ -132,12 +130,12 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
                     table.append((sec, f"{field}{req}", f"{star}{pad(value, 26)} {color(hint, 'dim')}"))
                 table += [("", "Done", ""), ("", "Cancel", "")]
                 ids = [f for _, f, _, _ in FIELDS] + ["done", "cancel"]
-                items = [fzf.Item(i, line) for i, line in zip(ids, grouped(table, color))]
+                items = [Item(i, line) for i, line in zip(ids, grouped(table, color))]
                 prompt_text = crumb(original.alias, "edit" + (" (unsaved)" if dirty else ""))
-                header = fzf.Header("enter change · alt-s save · esc back", status=flash or " ", color=color).text()
+                header = Header("enter change · alt-s save · esc back", status=flash or " ", color=color)
                 flash = ""
-                res = run(items, prompt=prompt_text, header=header, expect=["alt-s"], pos=cursor, info="hidden",
-                          preview=f"{fzf.pin_exe()} _preview --draft {draft_path}", extra=["--preview-label", " draft "])
+                res = show(Screen(items, prompt=prompt_text, header=header, expect=["alt-s"], pos=cursor,
+                                  preview=Hook("draft", (draft_path,)), preview_label=" draft "))
                 if res is None:
                     if not dirty:
                         return None
@@ -184,11 +182,11 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
                         _set(draft, target, os.path.abspath(os.path.expanduser(value)) if value else "")
                     elif kind == "choice":
                         options = list(PERMISSION_MODES if target == "permission" else EFFORT_LEVELS)
-                        pick = choose(run, field_crumb, options, _get(draft, target))
+                        pick = choose(field_crumb, options, _get(draft, target))
                         if pick is not None:
                             _set(draft, target, pick)
                     elif kind == "model":
-                        pick = choose(run, field_crumb, MODEL_CHOICES + ["(type a model name…)"], _get(draft, target))
+                        pick = choose(field_crumb, MODEL_CHOICES + ["(type a model name…)"], _get(draft, target))
                         if pick == "(type a model name…)":
                             _set(draft, target, prompt.text("model", _get(draft, target) or "", crumb=field_crumb))
                         elif pick is not None:
@@ -202,12 +200,12 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
             pass
 
 
-def choose(run, crumb: str, options: list[str], current: str | None) -> str | None:
-    """Short fzf list with ``(clear)``. Returns "" for clear, None when cancelled."""
-    items = [fzf.Item(o, o) for o in options] + [fzf.Item("", "(clear)")]
+def choose(crumb: str, options: list[str], current: str | None) -> str | None:
+    """A short list with ``(clear)``. Returns "" for clear, None when cancelled."""
+    items = [Item(o, o) for o in options] + [Item("", "(clear)")]
     pos = (options.index(current) + 1) if current in options else None
-    header = fzf.Header(prompt.LIST_HINTS, color=palette(sys.stdout)).text()
-    res = run(items, prompt=crumb, header=header, expect=[], pos=pos, info="hidden")
+    header = Header(prompt.LIST_HINTS, color=palette(sys.stdout))
+    res = show(Screen(items, prompt=crumb, header=header, pos=pos))
     if res is None or not res.ids:
         return None
     return res.ids[0]

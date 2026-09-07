@@ -12,24 +12,19 @@ new enough the module is skipped, which the test output says out loud.
 
 from __future__ import annotations
 
-import fcntl
 import os
-import pty
 import re
-import select
 import shutil
-import struct
 import subprocess
 import sys
-import termios
-import time
 import unittest
 from unittest import mock
 
-from tests.helpers import FzfSandbox
+from tests.helpers import FzfSandbox, PtyMixin
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 from claude_pins import config, fzf, theme  # noqa: E402
+from claude_pins.screen import Header  # noqa: E402
 
 REAL_FZF = os.environ.get("CLAUDE_PINS_TEST_FZF") or shutil.which("fzf")
 VERSION = fzf.fzf_version(REAL_FZF) if REAL_FZF else None
@@ -106,6 +101,20 @@ class RealFzfTests(FzfSandbox):
             for e in expected:
                 self.assertIn(e, real, f"query {query!r} kept {real}")
 
+    QUERIES = ["", "a", "e", "o", "navi", "rc-mow", "'center", "'pin", "^rc", "^st", "mower$", "p$", "!navi", "!'e",
+               "sched deb", "Navi", "NAVI", "zzz", "navi | zzz", "'2d", "git", "fork", "ali", "'msgs", "tt", "^ ", "$"]
+
+    def assertNativeAgrees(self, items, kw, *queries):
+        """The built-in picker's matcher keeps the same rows as this fzf for every query (in list order;
+        fzf's ranking is not reproduced)."""
+        from claude_pins import query
+        sticky = kw.get("header_lines", 0)
+        for q in (*self.QUERIES, *queries):
+            with_fzf = [i for i in filter_ids(items, q, **kw) if i != "-"]
+            native = [it.id for it in items[sticky:]
+                      if query.matches(q, plain(it.display), kw.get("nth"))[0] and it.id != "-"]
+            self.assertEqual(sorted(native), sorted(with_fzf), f"query {q!r}: fzf kept {with_fzf}, the built-in picker {native}")
+
     def assertEveryRowFindable(self, items, kw):
         """Every selectable row is reachable by typing its first visible word; the id comes back intact."""
         for it in items:
@@ -157,10 +166,10 @@ class RealFzfTests(FzfSandbox):
         from claude_pins.theme import Palette
         hints = "enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help"
         note = "preview hidden: terminal too short"
-        cases = [(fzf.Header(hints, legend=legend(), note=note, color=Palette(True)), (153, 30), (152, 30), (200, 19)),
-                 (fzf.Header(hints, legend=legend(), extra=("keymap: ~/k.toml",), status="✓ saved", color=Palette(True)),
+        cases = [(Header(hints, legend=legend(), note=note, color=Palette(True)), (153, 30), (152, 30), (200, 19)),
+                 (Header(hints, legend=legend(), extra=("keymap: ~/k.toml",), status="✓ saved", color=Palette(True)),
                   (160, 30), (150, 30)),
-                 (fzf.Header("enter run · esc back"), (200, 30), (40, 12))]
+                 (Header("enter run · esc back"), (200, 30), (40, 12))]
         for header, *sizes in cases:
             for cols, lines in sizes:
                 # the transform bound to start, with the size fzf reports; --filter prints the header nowhere,
@@ -222,6 +231,7 @@ class RealFzfTests(FzfSandbox):
         self.assertKeeps(items, kw, "zzz", [])
         self.assertKeeps(items, kw, "", ["standup", "rc-mower", "cc-collector"])
         self.assertEveryRowFindable(items, kw)
+        self.assertNativeAgrees(items, kw, theme.glyphs().fork, "command-center", "'debug", "dotclaude$")
         # --nth stops at the directory: the idle time and the marker glyphs are drawn but never matched
         self.assertEqual(kw["nth"], "1..3")
         self.assertIn("2d", plain(items[2].display))
@@ -245,6 +255,7 @@ class RealFzfTests(FzfSandbox):
         self.assertIn("~/g/command-center", row)
         self.assertKeeps(items, kw, "command-center", ["cc-collector"])
         self.assertKeeps(items, kw, "'git", ["standup", "rc-mower"])       # the two directories still whole
+        self.assertNativeAgrees(items, kw, "~/g/c", "'~/g")
 
     def test_main_picker_prefiltered(self):
         from claude_pins.picker import Picker
@@ -264,6 +275,7 @@ class RealFzfTests(FzfSandbox):
         self.assertKeeps(items, kw, "details", ["details"])
         self.assertKeeps(items, kw, "'pin", ["edit", "new", "unpin"])   # the gutter name matches on its group's first row
         self.assertEveryRowFindable(items, kw)
+        self.assertNativeAgrees(items, kw, "alt-", "'alt-e", "ctrl")
 
     def test_details_screen(self):
         from claude_pins.listing import build_views
@@ -283,6 +295,7 @@ class RealFzfTests(FzfSandbox):
         self.assertKeeps(items, kw, "f1", ["help"])                    # by key
         self.assertKeeps(items, kw, "touch", ["touch"])                # by title
         self.assertEveryRowFindable(items, kw)
+        self.assertNativeAgrees(items, kw, "unbound", "(unbound)", "f1")
 
     def test_session_chooser(self):
         p = self.picker()
@@ -294,6 +307,7 @@ class RealFzfTests(FzfSandbox):
         self.assertKeeps(items, kw, "standup", [i.id for i in items if SID3 in i.id])
         self.assertKeeps(items, kw, "dotclaude", [i.id for i in items if SID3 in i.id])
         self.assertEveryRowFindable(items, kw)
+        self.assertNativeAgrees(items, kw, "standup", "cc-collector", "'9d")
         # title and directory only: idle, the message count and the pinned tag (the pin's alias) are
         # outside --nth
         self.assertEqual(kw["nth"], "1..2")
@@ -306,13 +320,14 @@ class RealFzfTests(FzfSandbox):
     def test_editor_and_choice(self):
         from claude_pins import editor
         from claude_pins.store import load_store
-        items, kw = self.capture(lambda: editor.edit_pin(load_store(), "rc-mower", run=self.recorder))
+        items, kw = self.capture(lambda: editor.edit_pin(load_store(), "rc-mower"))
         self.assertTrue(all(i.id != "-" for i in items))
         self.assertKeeps(items, kw, "alias", ["alias"], only=False)  # fuzzy: a hint elsewhere also matches
         self.assertKeeps(items, kw, "rc-mower", ["alias"])             # by current value
         self.assertKeeps(items, kw, "done", ["done"])
         self.assertEveryRowFindable(items, kw)
-        items, kw = self.capture(lambda: editor.choose(self.recorder, "› model › ", ["fable", "opus", "sonnet"], "opus"))
+        self.assertNativeAgrees(items, kw, "rc-mower", "'(default)", "on")
+        items, kw = self.capture(lambda: editor.choose("› model › ", ["fable", "opus", "sonnet"], "opus"))
         self.assertKeeps(items, kw, "son", ["sonnet"])
         self.assertKeeps(items, kw, "clear", [""])
 
@@ -355,7 +370,7 @@ class RealFzfTests(FzfSandbox):
 
 
 @unittest.skipIf(SKIP, SKIP)
-class InteractiveSmokeTest(FzfSandbox):
+class InteractiveSmokeTest(PtyMixin, FzfSandbox):
     """The real picker in a pseudo-terminal: type a query, watch the list shrink, press enter, see claude run.
 
     These are the only tests that drive the interactive binary, and each step waits on a terminal redraw, so
@@ -374,72 +389,11 @@ class InteractiveSmokeTest(FzfSandbox):
         for sid, alias in ((SID1, "rc-mower"), (SID2, "cc-collector"), (SID3, "standup")):
             self.run_pin("add", sid, alias)
         # This claude stub also records whether the terminal was back in cooked mode when it started.
-        self.stub("claude", "#!/bin/sh\npython3 -c 'import json,os,sys,termios; a = termios.tcgetattr(0)[3]; "
-                  "json.dump({\"argv\": sys.argv[1:], \"cwd\": os.getcwd(), "
-                  "\"cooked\": bool(a & termios.ICANON and a & termios.ECHO)}, "
-                  f"open(\"{self.argv_log}\", \"w\"))' \"$@\"\n")
-        self.out = b""          # what wait_for has read since the last clear
-        self.raw = b""          # everything read, uncleared
+        self.stub_claude_tty()
 
     def tearDown(self):
         os.environ.pop("TERM", None)
         super().tearDown()
-
-    def assertScreenRestoredOnce(self):
-        """--no-clear keeps the alternate screen up between fzf runs; it is left exactly once, at the end."""
-        self.assertEqual(self.raw.count(b"\x1b[?1049l"), 1, "the alternate screen was left more than once")
-        self.assertGreater(self.raw.rfind(b"\x1b[?1049l"), self.raw.rfind(b"\x1b[?1049h"))
-
-    def wait_for(self, fd: int, pattern: str, timeout: float = 15.0, *, fresh: bool = False) -> str:
-        """Read the terminal until ``pattern`` shows in the colour-stripped stream, or fail with what came.
-        ``fresh`` matches only what came after the last alternate-screen entry, that is the newest fzf's
-        drawing: a screen keeps drawing for a moment after the key that ends it (its header transform
-        redraws on 0.44), and that tail would satisfy a wait meant for the next screen."""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            out = self.out
-            if fresh:
-                out = out[out.rfind(b"\x1b[?1049h"):] if b"\x1b[?1049h" in out else b""
-            if re.search(pattern, plain(out.decode("utf-8", "replace"))):
-                return plain(out.decode("utf-8", "replace"))
-            r, _, _ = select.select([fd], [], [], 0.1)
-            if r:
-                try:
-                    chunk = os.read(fd, 65536)
-                except OSError:
-                    break
-                self.out += chunk
-                self.raw += chunk
-        self.fail(f"{pattern!r} never appeared; terminal so far:\n{plain(self.out.decode('utf-8', 'replace'))[-800:]}")
-
-    def drain_until_exit(self, pid: int, fd: int) -> int:
-        """Read the terminal until the child exits; its exit status."""
-        deadline = time.time() + 15
-        while time.time() < deadline:
-            r, _, _ = select.select([fd], [], [], 0.1)
-            if r:
-                try:
-                    chunk = os.read(fd, 65536)
-                except OSError:
-                    chunk = b""
-                self.out += chunk
-                self.raw += chunk
-            done, status = os.waitpid(pid, os.WNOHANG)
-            if done:
-                return status
-        self.fail("the picker did not exit")
-
-    def spawn(self, rows: int, cols: int = 100, *args: str) -> tuple[int, int]:
-        from tests.helpers import PIN
-        size = struct.pack("HHHH", rows, cols, 0, 0)
-        pid, fd = pty.fork()
-        if pid == 0:  # the picker; its exec of the claude stub inherits the terminal
-            fcntl.ioctl(0, termios.TIOCSWINSZ, size)     # before exec, so Python never sees the default size
-            # os.environ, not the C environ: an earlier test's ``import readline`` exported the real
-            # terminal's LINES and COLUMNS there, and the picker would size itself by them
-            os.execve(sys.executable, [sys.executable, str(PIN), *args], dict(os.environ))
-        fcntl.ioctl(fd, termios.TIOCSWINSZ, size)
-        return pid, fd
 
     def test_query_then_enter_resumes_the_match(self):
         """Also: alt-r reloads the rows in place (a pin added from another terminal appears, the label row

@@ -86,6 +86,15 @@ def palette(stream=None) -> Palette:
     return Palette(config.color_enabled(stream))
 
 
+# What fzf draws the current row and the gutter with on its dark default theme (measured on 0.67.0 in a
+# pty): the row's text bold, in 254 unless it has a colour of its own, on 236 under the pointer, the
+# marker and the text (not the padding); the gutter glyph in 236. The built-in picker paints the same,
+# so a row looks alike under either backend.
+CURRENT_FG = "38;5;254"
+CURRENT_BG = "48;5;236"
+GUTTER_FG = "38;5;236"
+
+
 def fzf_colors() -> str:
     """The ``--color`` spec for fzf's chrome. The current row keeps fzf's default, since a 24-bit
     background would assume a dark terminal. The chrome is the terminal's own foreground (``-1``) with

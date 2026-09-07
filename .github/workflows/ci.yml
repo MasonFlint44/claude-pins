@@ -22,6 +22,8 @@ jobs:
           git config --global user.email ci@example.com
           git config --global user.name ci
           git config --global init.defaultBranch main
+      - name: pyte, for the built-in picker's painting test (dev only; the tool is stdlib)
+        run: python -m pip install -q pyte
       - name: Unit and end-to-end tests (stub claude, stub fzf — zero Claude usage)
         run: python -m unittest -v
       - name: zsh completion (the Linux runners do not ship zsh)

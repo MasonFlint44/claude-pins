@@ -13,7 +13,7 @@ from .cost import Cost, format_tokens
 from .gitutil import split_worktree_path
 from .model import Pin
 from .sessions import Expiry, format_age
-from .text import cell_width, cells, clip, pad
+from .text import cells, clip, pad
 from .theme import ERROR, SUCCESS, WARNING, Palette, glyphs, paint_glyph, palette  # noqa: F401  (re-exported)
 from .transcript import Summary, shorten
 
@@ -221,29 +221,22 @@ def rows(views: list[View], width: int | None = None, color: Palette | None = No
     return out
 
 
-PENDING = Cost("pending")            # sentinel: render a placeholder line, filled in by stream_preview
+PENDING = Cost("pending")            # sentinel: render a placeholder line, filled in by preview_chunks
 COST_PLACEHOLDER = "\x00cost\x00"
 
 
-def stream_preview(view: View, compute_cost, current_branch: str | None = None, width: int | None = None,
-                   color: Palette | None = None, out=None) -> None:
-    """Print the preview with everything but the cost line first, then the cost once computed.
-
-    fzf renders preview output as it arrives, so the pane fills instantly even when the cost
-    lookup has to go online.
-    """
-    import sys as _sys
-    out = out or _sys.stdout
+def preview_chunks(view: View, compute_cost, current_branch: str | None = None, width: int | None = None,
+                   color: Palette | None = None):
+    """The preview in two chunks: everything above the cost line, then the cost line and the rest once
+    ``compute_cost`` answers. A pane draws the first at once and the cost drops in when the lookup,
+    which may go online, is done."""
     color = color or Palette(False)
     text = preview(view, PENDING, current_branch, width, color)
     before, _, after = text.partition(COST_PLACEHOLDER)
-    out.write(before)
-    out.flush()
+    yield before
     cost = compute_cost()
     s = view.summary or Summary(exists=False)
-    out.write(f"{color(pad('cost', LABEL_WIDTH), 'dim')} {cost.line(short_model(s.model), s.messages)}")
-    out.write(after + "\n")
-    out.flush()
+    yield f"{color(pad('cost', LABEL_WIDTH), 'dim')} {cost.line(short_model(s.model), s.messages)}{after}\n"
 
 
 def _date(iso: str) -> str:
