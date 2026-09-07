@@ -115,15 +115,23 @@ class RealFzfTests(FzfSandbox):
         """Every option and binding the picker can emit, including the bindings only the stub sees."""
         from claude_pins.keymap import ACTIONS
         keys = [a.key for a in ACTIONS if a.key and a.key not in ("enter", "tab")]
-        kw = dict(prompt="pins › ", header="h\nflash", expect=keys, query="x", multi=True, preview="echo {1}",
-                  preview_label_cmd="echo {1}", pos=2, border_label=" 2 expired ", disabled=True,
+        kw = dict(prompt="📌 pins › ", header="h\nflash\nnote", expect=keys, query="x", multi=True, preview="echo {1}",
+                  preview_label_cmd="echo {1}", pos=2, border_label=" 2 expired ", disabled=True, header_lines=1,
                   extra=["--bind", "alt-t:change-header(✓ touched)+reload(true)", "--bind", "enter:become(echo {1})",
                          "--expect", "ctrl-r,ctrl-alt-r"])
-        self.assertEqual(filter_ids([fzf.Item("a", "b")], "x", **kw), [])  # accepted, nothing matches "x" against "b"
+        items = [fzf.Item("-", "label"), fzf.Item("a", "b")]
+        self.assertEqual(filter_ids(items, "x", **kw), [])  # accepted, nothing matches "x" against "b"
+        self.assertEqual(filter_ids(items, "", **kw), ["a"])  # the header line is neither matched nor printed
+        args = fzf.build_args(REAL_FZF, **kw)
+        for opt in ("--header-first", "--header-lines=1", "--disabled"):
+            self.assertIn(opt, args)
+        self.assertEqual(args[args.index("--preview-window") + 1], "down,55%,border-rounded,wrap,<10(hidden)")
 
     def test_main_picker(self):
         items, kw = self.capture(lambda: self.picker().run())
-        self.assertEqual([i.id for i in items], ["standup", "rc-mower", "cc-collector"])
+        self.assertEqual([i.id for i in items], ["-", "standup", "rc-mower", "cc-collector"])
+        self.assertEqual(kw["header_lines"], 1)
+        self.assertKeeps(items, kw, "alias", [])                       # the label row is a header, never a match
         self.assertKeeps(items, kw, "navi", ["rc-mower"])              # a title word
         self.assertKeeps(items, kw, "rc-mow", ["rc-mower"])            # the alias
         self.assertKeeps(items, kw, "command-center", ["cc-collector"])  # the directory
@@ -144,13 +152,28 @@ class RealFzfTests(FzfSandbox):
         p = self.picker()
         views = build_views(p.store, sort=p.state.sort)[0]
         items, kw = self.capture(lambda: p.palette([views[0]]))
+        self.assertTrue(all(i.id != "-" for i in items))                # gutter groups: every row is an action
         self.assertKeeps(items, kw, "fork", ["open_fork", "fork_mode"])
         self.assertKeeps(items, kw, "unpin", ["unpin"])
+        self.assertKeeps(items, kw, "details", ["details"])
+        self.assertKeeps(items, kw, "'pin", ["edit", "new", "unpin"])   # the gutter name matches on its group's first row
         self.assertEveryRowFindable(items, kw)
+
+    def test_details_screen(self):
+        from claude_pins.listing import build_views
+        p = self.picker()
+        views = build_views(p.store, sort=p.state.sort)[0]
+        items, kw = self.capture(lambda: p.details(views[0]))
+        self.assertTrue(kw["disabled"])
+        self.assertTrue(all(i.id == "-" for i in items))
+        self.assertEqual(filter_ids(items, "", **kw), ["-"] * len(items))   # options accepted; every line comes back
+        self.assertTrue(any(SID3 in plain(i.display) for i in items))
 
     def test_help_screen(self):
         p = self.picker()
         items, kw = self.capture(p.help_screen)
+        self.assertTrue(all(i.id != "-" for i in items))
+        self.assertIn("● open", kw["header"])                          # the legend moved into the header
         self.assertKeeps(items, kw, "f1", ["help"])                    # by key
         self.assertKeeps(items, kw, "touch", ["touch"])                # by title
         self.assertEveryRowFindable(items, kw)
@@ -167,6 +190,7 @@ class RealFzfTests(FzfSandbox):
         from claude_pins import editor
         from claude_pins.store import load_store
         items, kw = self.capture(lambda: editor.edit_pin(load_store(), "rc-mower", run=self.recorder))
+        self.assertTrue(all(i.id != "-" for i in items))
         self.assertKeeps(items, kw, "alias", ["alias"], only=False)  # fuzzy: a hint elsewhere also matches
         self.assertKeeps(items, kw, "rc-mower", ["alias"])             # by current value
         self.assertKeeps(items, kw, "done", ["done"])
@@ -180,8 +204,10 @@ class RealFzfTests(FzfSandbox):
 class InteractiveSmokeTest(FzfSandbox):
     """The real picker in a pseudo-terminal: type a query, watch the list shrink, press enter, see claude run.
 
-    The only test that drives the interactive binary. It proves the whole chain a user touches (terminal →
-    fzf → --expect → opener → claude) once; the scripted stub covers the flows, ``RealFzfTests`` the matching.
+    These are the only tests that drive the interactive binary, and each step waits on a terminal redraw, so
+    there are few of them and each proves several things: the whole chain a user touches (terminal → fzf →
+    --expect → opener → claude), and what only a real terminal can show (the preview pane hiding itself at
+    fzf's size threshold). The scripted stub covers the flows, ``RealFzfTests`` the matching.
     """
 
     def setUp(self):
@@ -213,14 +239,22 @@ class InteractiveSmokeTest(FzfSandbox):
                     break
         self.fail(f"{pattern!r} never appeared; terminal so far:\n{plain(self.out.decode('utf-8', 'replace'))[-800:]}")
 
-    def test_query_then_enter_resumes_the_match(self):
+    def spawn(self, rows: int, cols: int = 100) -> tuple[int, int]:
         from tests.helpers import PIN
         pid, fd = pty.fork()
         if pid == 0:  # the picker; its exec of the claude stub inherits the terminal
             os.execv(sys.executable, [sys.executable, str(PIN)])
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        return pid, fd
+
+    def test_query_then_enter_resumes_the_match(self):
+        pid, fd = self.spawn(30)
         try:
-            fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
-            self.wait_for(fd, r"3/3")                       # three pins listed
+            screen = self.wait_for(fd, r"3/3")              # three pins listed
+            self.assertRegex(screen, r"alias\s+title\s+directory\s+idle")   # the label row, under the prompt
+            self.assertIn("alt-i details · f1 help", screen)
+            self.assertIn("📌 pins ›", screen)
+            self.assertIn("session    " + SID3, self.wait_for(fd, r"session\s+" + SID3))  # the preview pane is up
             os.write(fd, b"navi")
             screen = self.wait_for(fd, r"1/3")              # one survives the query
             self.assertIn("rc-mower", screen)
@@ -249,6 +283,37 @@ class InteractiveSmokeTest(FzfSandbox):
         self.assertIsNotNone(calls, "claude was never launched")
         self.assertEqual(calls["argv"], ["--resume", SID1])
         self.assertEqual(calls["cwd"], str(self.home / "git" / "mower"))
+
+    def test_short_terminal_hides_the_preview(self):
+        """At 16 rows fzf's ``<10(hidden)`` threshold hides the pane; the header says so, alt-v turns the preview
+        off and then refuses to turn it back on, and alt-i still shows the details."""
+        pid, fd = self.spawn(16)
+        try:
+            screen = self.wait_for(fd, r"3/3")
+            self.assertIn("preview hidden: terminal too short", screen)
+            self.assertNotIn("session    " + SID3, screen)                     # no pane drawn
+            self.out = b""                          # each screen is a new fzf; wait for it to draw before typing
+            os.write(fd, b"\x1bv")                                              # alt-v: off
+            self.wait_for(fd, r"3/3")
+            self.wait_for(fd, r"● open")                                        # the legend is back on line 2
+            self.out = b""
+            os.write(fd, b"\x1bv")                                              # alt-v again: cannot turn on
+            self.wait_for(fd, r"preview needs a taller terminal · alt-i for details")
+            self.wait_for(fd, r"3/3")
+            self.out = b""
+            os.write(fd, b"\x1bi")                                              # alt-i: the details screen
+            self.wait_for(fd, r"details ›")
+            self.wait_for(fd, r"session\s+" + SID3)
+            self.wait_for(fd, r"enter open · esc back")
+            os.write(fd, b"\x1b")                                               # esc: back to the list
+            self.wait_for(fd, r"3/3")
+        finally:
+            try:
+                os.kill(pid, 9)
+            except OSError:
+                pass
+            os.close(fd)
+        self.assertIsNone(self.claude_calls())
 
 
 if __name__ == "__main__":

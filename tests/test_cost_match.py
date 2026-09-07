@@ -148,9 +148,9 @@ class DoctorTests(CostTests):
         buf.flush = lambda: seen.append(buf.getvalue())
         view = View(Pin(alias="a", session_id=SID, title="T", cwd="/x"), Expiry("ok", 100, 29), summary=Summary(exists=True, ai_title="T", model="claude-fable-5-1", prompts=1, last_prompt="hi"))
         stream_preview(view, lambda: Cost("ok", 1.5, 10), None, width=80, out=buf)
-        self.assertIn("context", seen[0]); self.assertNotIn("cost", seen[0])   # flushed before the lookup
-        self.assertIn("cost      est $1.50 (ccusage)\ncreated", buf.getvalue())
-        self.assertTrue(buf.getvalue().rstrip().endswith("you       hi"))
+        self.assertIn("model", seen[0]); self.assertNotIn("cost", seen[0])     # flushed before the lookup
+        self.assertIn("cost       est $1.50 (ccusage)\ntranscript", buf.getvalue())
+        self.assertTrue(buf.getvalue().rstrip().endswith("you        hi"))
 
 
 class MatchTests(Sandbox):

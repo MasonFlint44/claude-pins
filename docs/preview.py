@@ -24,7 +24,7 @@ import pyte  # noqa: E402
 
 from tests.helpers import Sandbox  # noqa: E402
 
-COLS, ROWS = 100, 30
+COLS, ROWS = 100, 34
 PALETTE = {"default": "#d0d0d0", "black": "#1c1c1c", "red": "#ff6b6b", "green": "#8ce99a", "yellow": "#ffd43b",
            "blue": "#74c0fc", "magenta": "#e599f7", "cyan": "#66d9e8", "white": "#f8f9fa", "brown": "#ffd43b"}
 

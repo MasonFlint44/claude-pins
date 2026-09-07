@@ -4,6 +4,32 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
+## 0.5.0 — unreleased
+
+- **Layout.** The hints sit above the prompt (fzf's `--header-first`) with the
+  marker legend under them, and a status flash takes the legend's line so the
+  list never moves. The prompt carries a 📌 breadcrumb on every screen. A
+  sticky label row names the columns; the age column is `idle`, the time since
+  the transcript was last written. Alias and directory columns are as wide as
+  their longest value, capped near a fifth and a third of the terminal; the
+  directory gives way first when the terminal is narrow, shortening fish-style
+  (`~/g/c/claude-pins`) and keeping its last component. A Claude worktree shows
+  as `~/git/repo › name`. Widths are measured in terminal cells, so emoji no
+  longer push columns out of line.
+- **Palette, help and editor** group their rows with a dim gutter name instead
+  of separator rows, so every row is selectable, and the key column starts after
+  the longest label.
+- **Preview.** The branch row reads `main`, `main checked out · session ran on
+  feat/x` (yellow) or `(not a git repo)`; the transcript size sits with the
+  message count on a `transcript` row; the full session id is the last metadata
+  row; `last 2d` became `last activity 2d ago`. The pane hides itself when it
+  would get fewer than ten rows, decided by terminal height and re-evaluated
+  on resize; the header then says so, and alt-v cannot bring it back until the
+  terminal is taller.
+- **Details screen** on alt-i (also in the palette): the whole preview on its own
+  screen with more of the last exchange; enter opens the pin, esc goes back.
+- `pin list` and `pin sessions` share the renderer, so their columns follow.
+
 ## 0.4.1 — 2026-09-06
 
 - **Fixed:** typing in the picker's query hid every pin. The rows carried a

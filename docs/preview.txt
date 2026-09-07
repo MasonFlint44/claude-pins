@@ -1,9 +1,11 @@
-pins ›                                                                                      4/4 (0)
-                                              enter open · ctrl-space actions · alt-n new · f1 help
-> standup-prep  Standup prep                                      ~/git/dotclaude        0m  ● ⚑
-▌ insurance     USAA restructure                                  ~/git/foo ⌂x           1d  ⑂ ⌂
-▌ cc-collector  Command center collector                          ~/git/command-center   9d
-▌ rc-mower      Navimow schedule debug                            ~                     26d  ⏳
+  enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help
+  ● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⏳ expiring  ✗ expired
+📌 pins ›                                                                                   4/4 (0)
+  alias         title                                              directory             idle
+> standup-prep  Standup prep                                       ~/git/dotclaude         0m  ● ⚑
+▌ insurance     USAA restructure                                   ~/git/foo › x           1d  ⑂ ⌂
+▌ cc-collector  Command center collector                           ~/git/command-center    9d
+▌ rc-mower      Navimow schedule debug                             ~                      26d  ⏳
 
 
 
@@ -16,15 +18,17 @@ pins ›                                                                        
 │ Standup prep                                                                                     │
 │ Tuesday standup, uses jira-cards                                                                 │
 │                                                                                                  │
-│ dir       ~/git/dotclaude                                                                        │
-│ branch    main  (session: main)                                                                  │
-│ model     fable-5-1 · effort high · mode auto                                                    │
-│ context   ~121k (61%) · 84 msgs                                                                  │
-│ cost      est $0.07 (ccusage)                                                                    │
-│ created   2026-09-01 · last 0m · pinned 2026-09-06 · expires 29d                                 │
-│ keep      on — touched every run                                                                 │
+│ dir        ~/git/dotclaude                                                                       │
+│ branch     main                                                                                  │
+│ model      fable-5-1 · effort high · mode auto                                                   │
+│ context    ~121k (61%)                                                                           │
+│ cost       est $0.07 (ccusage)                                                                   │
+│ transcript 84 msgs · 36 KB                                                                       │
+│ created    2026-09-01 · last activity 0m ago · pinned 2026-09-06 · expires 29d                   │
+│ keep       on — touched every run                                                                │
+│ session    11111111-1111-1111-1111-111111111111                                                  │
 │                                                                                                  │
-│ you       so the pin command should also touch the transcript when it opens a fork?              │
-│ claude    Yes. The picker can bind keys to run a command and reload the list afterwards, which   │
-│           is how the status flashes work.                                                        │
+│ you        so the pin command should also touch the transcript when it opens a fork?             │
+│ claude     Yes. The picker can bind keys to run a command and reload the list afterwards,        │
+│            which is how the status flashes work.                                                 │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯

@@ -4,7 +4,9 @@ import re
 
 from claude_pins.cost import Cost, format_tokens
 from claude_pins.model import Launch, Pin
-from claude_pins.render import Palette, View, display_dir, preview, rows, session_rows
+from claude_pins.render import (Palette, View, branch_line, display_dir, fit_dir, format_size, grouped, label_row,
+                                layout, preview, rows, session_rows)
+from claude_pins.text import cells, clip, pad
 from claude_pins.sessions import Expiry
 from claude_pins.transcript import Summary
 from tests.helpers import Sandbox
@@ -30,20 +32,50 @@ class RowTests(Sandbox):
         home = str(self.home)
         out = rows(views(home), width=100)
         self.assertEqual(out, [
-            "standup-prep  Standup prep                                          ~/git/dotclaude        2d  ● ⚑",
-            "cc-collector  Command center collector                              ~/git/command-center   9d",
-            "rc-mower      Navimow schedule debug                                ~                     26d  ⏳",
-            "insurance     USAA restructure                                      ~/git/foo ⌂x           1d  ⑂ ⌂",
-            "dead          Gone session                                          ~/tmp                      ✗",
+            "standup-prep  Standup prep                                           ~/git/dotclaude         2d  ● ⚑",
+            "cc-collector  Command center collector                               ~/git/command-center    9d",
+            "rc-mower      Navimow schedule debug                                 ~                      26d  ⏳",
+            "insurance     USAA restructure                                       ~/git/foo › x           1d  ⑂ ⌂",
+            "dead          Gone session                                           ~/tmp                       ✗",
         ])
         for line in out:
-            self.assertLessEqual(len(line), 100)
+            self.assertLessEqual(cells(line), 100)
+        self.assertEqual(label_row(layout(views(home), 100)),
+                         "alias         title                                                  directory             idle")
 
-    def test_rows_narrow_truncates_title(self):
+    def test_rows_narrow_shortens_directory_first(self):
+        """Under the title floor the directory column gives way (fish-style, then cut from the left)."""
         out = rows(views(str(self.home)), width=60)
-        self.assertEqual(out[1], "cc-collector  Command cen…  ~/git/command-center   9d")
+        self.assertEqual(out[1], "cc-collector  Command center…   …g/command-center    9d")
+        self.assertEqual(out[0], "standup-prep  Standup prep      ~/git/dotclaude      2d  ● ⚑")
         for line in out:
-            self.assertLessEqual(len(line), 60)
+            self.assertLessEqual(cells(line), 60)
+        cols = layout(views(str(self.home)), 60)
+        self.assertEqual((cols.title, cols.dir), (16, 17))
+        self.assertEqual(label_row(cols), "alias         title             directory          idle")
+
+    def test_widths_are_terminal_cells(self):
+        self.assertEqual(cells("⏳ 📌 ●"), 7)
+        self.assertEqual(pad("⏳", 4), "⏳  ")
+        self.assertEqual(pad("⏳xy", 3), "⏳…")
+        self.assertEqual(clip("abcdef", 4), "abc…")
+        self.assertEqual(clip("abcdef", 4, left=True), "…def")
+        self.assertEqual(clip("ab", 1), "…")
+        self.assertEqual(clip("ab", 0), "")
+        home = str(self.home)
+        v = views(home)[0]
+        v.pin.alias = "⏳⏳⏳⏳⏳⏳⏳⏳"   # 16 cells in 8 characters: still a 20-cell column, not 16
+        line = rows([v], width=100)[0]
+        self.assertTrue(line.startswith("⏳⏳⏳⏳⏳⏳⏳⏳  Standup prep"))
+
+    def test_fit_dir(self):
+        self.assertEqual(fit_dir("~/git/claude-pins", 30), "~/git/claude-pins")
+        self.assertEqual(fit_dir("~/git/claude-pins/deep/dir", 20), "~/g/c/deep/dir")     # only as far as needed
+        self.assertEqual(fit_dir("~/git/claude-pins/deep/dir", 12), "~/g/c/d/dir")
+        self.assertEqual(fit_dir("~/.config/claude-pins", 16), "~/.c/claude-pins")       # dot-directories keep two
+        self.assertEqual(fit_dir("~/git/claude-pins/deep/dir", 7), "…/d/dir")            # the end always survives
+        self.assertEqual(fit_dir("~/git/foo › wt-name", 17), "~/g/foo › wt-name")
+        self.assertEqual(fit_dir("/srv/very-long-app-name", 10), "…-app-name")
 
     def test_rows_wide_and_numbered(self):
         out = rows(views(str(self.home)), width=140, numbered=True)
@@ -54,7 +86,7 @@ class RowTests(Sandbox):
         c = Palette(True)
         out = rows(views(str(self.home)), width=100, color=c)
         self.assertIn("\x1b[32m●\x1b[0m", out[0])            # green open
-        self.assertIn("\x1b[33m26d\x1b[0m", out[2])         # yellow expiring age
+        self.assertIn("\x1b[33m 26d\x1b[0m", out[2])        # yellow expiring age
         self.assertIn("\x1b[33m⏳\x1b[0m", out[2])
         self.assertTrue(out[4].startswith("\x1b[2;9m"))     # dim + strikethrough
         plain = [re.sub(r"\x1b\[[0-9;]*m", "", l) for l in out]
@@ -64,9 +96,16 @@ class RowTests(Sandbox):
         h = str(self.home)
         self.assertEqual(display_dir(h), "~")
         self.assertEqual(display_dir(f"{h}/git/foo"), "~/git/foo")
-        self.assertEqual(display_dir(f"{h}/git/foo/.claude/worktrees/x"), "~/git/foo ⌂x")
+        self.assertEqual(display_dir(f"{h}/git/foo/.claude/worktrees/x"), "~/git/foo › x")
         self.assertEqual(display_dir("/srv/app"), "/srv/app")
         self.assertEqual(display_dir(""), "")
+
+    def test_grouped_gutter(self):
+        lines = grouped([("open", "Open", "enter"), ("open", "Open as fork", "alt-o"), ("pin", "Edit…", "alt-e"),
+                         ("pin", "Toggle keep (off)", "")])
+        self.assertEqual(lines, ["open  Open               enter", "      Open as fork       alt-o",
+                                 "pin   Edit…              alt-e", "      Toggle keep (off)"])
+        self.assertEqual(grouped([("", "Done", ""), ("", "Cancel", "")]), ["Done", "Cancel"])
 
 
 class PreviewTests(Sandbox):
@@ -87,32 +126,55 @@ class PreviewTests(Sandbox):
             "Standup prep",
             "Tuesday standup, uses jira-cards",
             "",
-            "dir       ~/git/dotclaude",
-            "branch    main  (session: main)",
-            "model     fable-5-1 · effort high · mode auto",
-            "context   ~121k (60%) · 85 msgs · 4.8M tokens",
-            "cost      est $0.07 (ccusage)",
-            "created   2026-09-06 · last 2d · pinned 2026-09-06 · expires 28d",
+            "dir        ~/git/dotclaude",
+            "branch     main",
+            "model      fable-5-1 · effort high · mode auto",
+            "context    ~121k (60%) · 4.8M tokens",
+            "cost       est $0.07 (ccusage)",
+            "transcript 85 msgs · 10 B",
+            "created    2026-09-06 · last activity 2d ago · pinned 2026-09-06 · expires 28d",
+            "session    1",
             "",
-            "you       so the pin command should also touch the transcript when opening",
-            "          a fork, right?",
-            "claude    Yes. The picker can bind keys to run a command and reload the",
-            "          list afterwards, which is how the flashes work.",
+            "you        so the pin command should also touch the transcript when",
+            "           opening a fork, right?",
+            "claude     Yes. The picker can bind keys to run a command and reload the",
+            "           list afterwards, which is how the flashes work.",
         ])
+        long = preview(view, None, "main", width=76, exchange_lines=12)
+        self.assertNotIn("…", long)
+        self.assertIn("\x1b[2m1\x1b[0m", preview(view, None, "main", width=76, color=Palette(True)))  # dim session id
+
+    def test_branch_line(self):
+        c = Palette(False)
+        self.assertEqual(branch_line("", None, True, c), "(not a git repo)")
+        self.assertEqual(branch_line("main", None, True, c), "(not a git repo) · session ran on main")
+        self.assertEqual(branch_line("main", None, False, c), "session ran on main")
+        self.assertEqual(branch_line("", "main", True, c), "main")
+        self.assertEqual(branch_line("main", "main", True, c), "main")
+        self.assertEqual(branch_line("HEAD", "main", True, c), "main")            # detached when recorded: nothing
+        self.assertEqual(branch_line("feat/x", "main", True, c), "main checked out · session ran on feat/x")
+        self.assertEqual(branch_line("feat/x", "main", True, Palette(True)),
+                         "\x1b[33mmain checked out · session ran on feat/x\x1b[0m")
+        self.assertEqual(format_size(10), "10 B"); self.assertEqual(format_size(2048), "2 KB")
+        self.assertEqual(format_size(1_300_000), "1.2 MB")
 
     def test_preview_variants(self):
         pin = Pin(alias="a", session_id="1", title="T", cwd=f"{self.home}/x", launch=Launch(model="opus", permission_mode="plan"), keep=True)
         s = self.summary()
         text = preview(View(pin, Expiry("expiring", 26 * 86400, 4), summary=s), Cost("partial", 0.0, 100, "offline", ["claude-fable-5-1"]), current_branch="feature", width=80)
-        self.assertIn("branch    feature  (session: main — differs)", text)
-        self.assertIn("model     opus · effort high · mode plan", text)
-        self.assertIn("cost      no price for fable-5-1 · npm i -g ccusage@latest", text)
+        self.assertIn("branch     feature checked out · session ran on main", text)
+        self.assertIn("model      opus · effort high · mode plan", text)
+        self.assertIn("cost       no price for fable-5-1 · npm i -g ccusage@latest", text)
         self.assertIn("expires 4d", text)
-        self.assertIn("keep      on — touched every run", text)
+        self.assertIn("keep       on — touched every run", text)
         text = preview(View(pin, Expiry("expired", 0, 0), summary=Summary(exists=False)), Cost("missing"), None, width=80)
-        self.assertIn("context   (transcript gone)", text)
-        self.assertIn("cost      install ccusage for session cost · npm i -g ccusage@latest", text)
+        self.assertIn("context    (transcript gone)", text)
+        self.assertNotIn("\ntranscript ", text)
+        self.assertIn("cost       install ccusage for session cost · npm i -g ccusage@latest", text)
         self.assertIn("expired", text)
+        s.context_tokens = 0
+        text = preview(View(pin, Expiry("ok", 100, 29.9), summary=s), None, None, width=80)
+        self.assertNotIn("context", text)                     # nothing to say: no row rather than an empty one
         text = preview(View(pin, Expiry("ok", 100, 29.9), summary=s), None, None, width=80)
         self.assertNotIn("cost", text)
         self.assertIn("expires 29d", text)
@@ -122,6 +184,7 @@ class PreviewTests(Sandbox):
         s.mtime = __import__("time").time() - 7200
         out = session_rows([(s, False), (s, True)], width=90)
         self.assertRegex(out[0], r"^Standup prep\s+~/git/dotclaude\s+2h\s+85 msgs$")
+        self.assertLessEqual(max(cells(o) for o in out), 90)
         self.assertTrue(out[1].endswith("⚑ pinned"))
 
     def test_format_tokens(self):

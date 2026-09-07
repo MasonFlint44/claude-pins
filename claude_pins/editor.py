@@ -7,7 +7,8 @@ import sys
 
 from . import config, fzf, prompt
 from .model import EFFORT_LEVELS, PERMISSION_MODES, Pin, PinError, validate_alias
-from .render import display_dir, palette, terminal_width
+from .render import crumb, display_dir, grouped, palette
+from .text import pad
 from .store import Store
 
 MODEL_CHOICES = ["fable", "opus", "sonnet", "haiku"]
@@ -62,7 +63,7 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
     color = palette(sys.stdout)
     original = store.require(alias)
     draft = original.copy()
-    cursor = 2
+    cursor = 1
 
     def dirty_fields() -> set[str]:
         return {f for _, f, k, _ in FIELDS if _get(draft, f) != _get(original, f)}
@@ -85,24 +86,18 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
 
     while True:
         dirty = dirty_fields()
-        items: list[fzf.Item] = []
-        section = None
+        table: list[tuple[str, str, str]] = []
         for sec, field, kind, hint in FIELDS:
-            if sec != section:
-                section = sec
-                items.append(fzf.Item("-", color(f"── {sec} ──", "dim")))
             star = "*" if field in dirty else " "
             req = " *" if field == "title" else ""
-            label = f"{field}{req}"
             value = _shown(draft, field, kind)
-            items.append(fzf.Item(field, f"{label:<11} {star}{value:<26} {color(hint, 'dim')}"))
-        items.append(fzf.Item("-", color("──", "dim")))
-        items.append(fzf.Item("done", "Done"))
-        items.append(fzf.Item("cancel", "Cancel"))
-        crumb = f"pins › {original.alias} › edit{' (unsaved)' if dirty else ''} › "
-        hints = color("enter change · alt-s save · esc back", "dim")
-        header = " " * max(0, terminal_width() - len("enter change · alt-s save · esc back") - 3) + hints
-        res = run(items, prompt=crumb, header=header, expect=["alt-s"], pos=cursor, info="hidden")
+            table.append((sec, f"{field}{req}", f"{star}{pad(value, 26)} {color(hint, 'dim')}"))
+        table += [("", "Done", ""), ("", "Cancel", "")]
+        ids = [f for _, f, _, _ in FIELDS] + ["done", "cancel"]
+        items = [fzf.Item(i, line) for i, line in zip(ids, grouped(table, color))]
+        prompt_text = crumb(original.alias, "edit" + (" (unsaved)" if dirty else ""))
+        header = color("enter change · alt-s save · esc back", "dim")
+        res = run(items, prompt=prompt_text, header=header, expect=["alt-s"], pos=cursor, info="hidden")
         if res is None:
             if not dirty:
                 return None
@@ -137,7 +132,7 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
         if target == "cancel":
             return None
         idx = next(i for i, (_, f, _, _) in enumerate(FIELDS) if f == target)
-        cursor = idx + 1 + len({s for s, _, _, _ in FIELDS[: idx + 1]})
+        cursor = idx + 1
         kind = FIELDS[idx][2]
         try:
             if kind == "bool":
@@ -149,11 +144,11 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
                 _set(draft, target, os.path.abspath(os.path.expanduser(value)) if value else "")
             elif kind == "choice":
                 options = list(PERMISSION_MODES if target == "permission" else EFFORT_LEVELS)
-                pick = choose(run, f"pins › {original.alias} › edit › {target} › ", options, _get(draft, target))
+                pick = choose(run, crumb(original.alias, "edit", target), options, _get(draft, target))
                 if pick is not None:
                     _set(draft, target, pick)
             elif kind == "model":
-                pick = choose(run, f"pins › {original.alias} › edit › model › ", MODEL_CHOICES + ["(type a model name…)"], _get(draft, target))
+                pick = choose(run, crumb(original.alias, "edit", "model"), MODEL_CHOICES + ["(type a model name…)"], _get(draft, target))
                 if pick == "(type a model name…)":
                     _set(draft, target, prompt.text("model", _get(draft, target) or ""))
                 elif pick is not None:

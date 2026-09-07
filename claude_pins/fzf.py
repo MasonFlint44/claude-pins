@@ -35,11 +35,26 @@ def lines_for(items: list[Item]) -> list[str]:
     return [f"{it.id}\t{it.display.replace(chr(9), ' ')}" for it in items]
 
 
+# The preview pane sits below the list and hides itself when it would get fewer than ten rows (fzf
+# measures the pane's own rows, bottom border included, and re-checks on every resize).
+PREVIEW_WINDOW = "down,55%,border-rounded,wrap,<10(hidden)"
+PREVIEW_MIN_ROWS = 10
+PREVIEW_SHARE = 55
+
+
+def preview_fits(lines: int, *, bottom_border: bool = False) -> bool:
+    """Python's copy of fzf's threshold arithmetic for PREVIEW_WINDOW, so the picker can say when the pane
+    is hidden: the pane gets 55% of the rows left after the bottom border, and hides under ten."""
+    pane = (lines - (1 if bottom_border else 0)) * PREVIEW_SHARE // 100
+    return pane >= PREVIEW_MIN_ROWS
+
+
 def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] | None = None,
                query: str = "", multi: bool = False, preview: str | None = None,
-               preview_window: str = "down,55%,border-rounded,wrap", preview_label_cmd: str | None = None,
+               preview_window: str = PREVIEW_WINDOW, preview_label_cmd: str | None = None,
                pos: int | None = None, border_label: str = "", extra: list[str] | None = None,
-               disabled: bool = False, ansi: bool = True, info: str = "inline-right") -> list[str]:
+               disabled: bool = False, ansi: bool = True, info: str = "inline-right",
+               header_lines: int = 0) -> list[str]:
     args = [binary, "--layout=reverse", "--delimiter=\t", "--with-nth=2..", "--tiebreak=index",
             "--no-sort", "--print-query", f"--info={info}", "--no-separator",
             "--pointer", ">", "--marker", "▌", "--prompt", prompt, "--cycle", "--ellipsis", "…"]
@@ -48,7 +63,9 @@ def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] 
     if not config.color_enabled():
         args.append("--color=bw")
     if header:
-        args += ["--header", header]
+        args += ["--header", header, "--header-first"]
+    if header_lines:
+        args += [f"--header-lines={header_lines}"]
     if expect:
         args += ["--expect", ",".join(expect)]
     if query:
@@ -106,17 +123,22 @@ def install_hint() -> str:
 
 def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] | None = None,
         query: str = "", multi: bool = False, preview: str | None = None,
-        preview_window: str = "down,55%,border-rounded,wrap", preview_label_cmd: str | None = None,
+        preview_window: str = PREVIEW_WINDOW, preview_label_cmd: str | None = None,
         pos: int | None = None, border_label: str = "", extra: list[str] | None = None,
-        disabled: bool = False, ansi: bool = True, info: str = "inline-right") -> Result | None:
-    """Run fzf over ``items``; None when the user pressed esc/ctrl-c."""
+        disabled: bool = False, ansi: bool = True, info: str = "inline-right",
+        header_lines: int = 0) -> Result | None:
+    """Run fzf over ``items``; None when the user pressed esc/ctrl-c.
+
+    With ``header_lines``, that many leading items are fzf's sticky header (column labels): shown like
+    rows, never matched, selected or printed back."""
     binary = fzf_bin()
     if not binary:
         return None
     lines = lines_for(items)
     args = build_args(binary, prompt=prompt, header=header, expect=expect, query=query, multi=multi,
                       preview=preview, preview_window=preview_window, preview_label_cmd=preview_label_cmd,
-                      pos=pos, border_label=border_label, extra=extra, disabled=disabled, ansi=ansi, info=info)
+                      pos=pos, border_label=border_label, extra=extra, disabled=disabled, ansi=ansi, info=info,
+                      header_lines=header_lines)
     # stderr is inherited on purpose: fzf ≤ 0.4x draws its UI there (newer builds use /dev/tty),
     # and option errors should reach the user either way.
     try:

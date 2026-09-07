@@ -13,6 +13,7 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
 from . import config
+from .text import clip
 
 WINDOW = 64 * 1024
 CACHE_FORMAT = 2
@@ -73,10 +74,8 @@ class Summary:
 
 
 def shorten(text: str, limit: int) -> str:
-    text = " ".join((text or "").split())
-    if len(text) <= limit:
-        return text
-    return text[: max(1, limit - 1)].rstrip() + "…"
+    """``text`` on one line, clipped to ``limit`` terminal cells with an ellipsis."""
+    return clip(" ".join((text or "").split()), max(1, limit))
 
 
 def _iter_records(blob: bytes, *, drop_first: bool = False, drop_last: bool = False):

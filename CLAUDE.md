@@ -29,8 +29,24 @@ reasons behind several design choices and are recorded nowhere else.
 - fzf cannot bind printable characters (they type into the query), which is why
   the help screen's reset keys are ctrl-r and ctrl-alt-r rather than `r` and `R`.
   Its own editing keys are left alone so the filter stays editable, and alt+enter
-  is avoided because Windows Terminal takes it. In `--layout=reverse` the header
-  renders on the line below the prompt, which is where the status flash goes.
+  is avoided because Windows Terminal takes it.
+- `--header-first` draws the header above the prompt, and the status flash takes
+  the header's second line (displacing the legend) so the list never moves.
+  `--header-lines=1` makes the first input line a sticky column-label row: it is
+  cut by `--with-nth` like a row but is not an item, so `start:pos` numbering,
+  multi-select and `--filter` output all skip it.
+- `--preview-window 'down,55%,<10(hidden)'` hides the pane when it would get
+  fewer than ten rows, measured on the pane itself, border rows included, as 55%
+  of the terminal rows left after fzf's bottom border (measured on 0.67: 19 rows
+  shows, 18 hides; one fewer with the expired footer). fzf re-checks on every
+  resize; Python mirrors the arithmetic in `fzf.preview_fits()` only at restart,
+  which is what the header note and the alt-v refusal are based on.
+- `--filter` mode ignores `--disabled`, so the details screen's real-fzf test
+  can only check that its options are accepted and that an empty query keeps
+  every line.
+- Emoji and other East Asian wide characters take two terminal cells, and fzf's
+  runewidth agrees, so every column width goes through `claude_pins/text.py`
+  rather than `len()`.
 - Python's `input()` cannot see escape, so the inline prompts cancel with ctrl-c.
 - Terminal automation (opening a new tab for the resumed session) was dropped on
   purpose: Ghostty's D-Bus surface offers new-window only.
@@ -60,10 +76,14 @@ bash tests/coverage.sh                 # coverage report; needs uv (dev deps liv
   them in `--filter` mode, which uses the interactive matcher. That module skips
   when no fzf ≥ 0.44 is on PATH (and fails, not skips, when `CLAUDE_PINS_TEST_FZF`
   names a bad binary), so read its verbose output before pushing. A new screen
-  must get a test there. The same module holds the one test that runs the real
-  interactive picker in a pseudo-terminal (type a query, enter, the claude stub
-  runs); keep it to one, since each step there waits on a terminal redraw. The stub-driven tests are where a hidden-field bug hid
-  for four releases: do not judge matching by them.
+  must get a test there. The same module holds the few tests that run the real
+  interactive picker in a pseudo-terminal (a query then enter launching the
+  claude stub; a 16-row terminal hiding the preview). Each step there waits on a
+  terminal redraw, so keep them few and make each prove several things; clear
+  the captured stream and wait for the new screen before typing, since fzf's
+  exit resets the tty and discards anything typed while the next fzf starts.
+  The stub-driven tests are where a hidden-field bug hid for four releases: do
+  not judge matching by them.
 - fzf support floors at 0.44.1, which lacks `transform`, `--footer`, `print`,
   `exclude` and the `result` event. The CI `fzf` job runs `tests/test_fzf_real.py`
   against 0.44.1, 0.53.0, 0.64.0 and 0.74.3; add a version there when a release

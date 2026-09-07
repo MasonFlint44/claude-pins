@@ -269,7 +269,7 @@ class CliTests(FzfSandbox):
             r = self.run_pin(*args)
             self.assertEqual((r.returncode, r.stdout), (0, ""), args)
         r = self.run_pin("_spreview", str(self.t1))
-        self.assertIn("Standup prep", r.stdout); self.assertIn("dir       ~/git/proj", r.stdout)
+        self.assertIn("Standup prep", r.stdout); self.assertIn("dir        ~/git/proj", r.stdout)
         r = self.run_pin("_spreview", str(self.root / "gone.jsonl"))
         self.assertIn("(transcript gone)", r.stdout)
         self.t1.unlink()

@@ -29,6 +29,19 @@ class PickerTests(FzfSandbox):
         a = call["argv"]
         return a[a.index(flag) + 1] if flag in a else None
 
+    def pin_rows(self, call):
+        """The plain rows after the column-label line (fzf's --header-lines=1 row, id ``-``)."""
+        lines = [plain(l) for l in call["lines"]]
+        if lines and re.match(r"^-\talias\s+title\s+(directory|dir)\s+idle$", lines[0]):
+            self.assertIn("--header-lines=1", call["argv"])
+            return lines[1:]
+        self.assertNotIn("--header-lines=1", call["argv"])
+        return lines
+
+    def labels(self, call):
+        """Palette/help/editor rows without the group gutter: ``label   key``."""
+        return [re.sub(r"^(?:\S+)?\s{2,}", "", plain(l).split("\t")[1]) for l in call["lines"]]
+
     def test_enter_opens(self):
         self.steps({"key": "", "select": ["cc-collector"]})
         r = self.run_pin()
@@ -37,10 +50,14 @@ class PickerTests(FzfSandbox):
         call = self.fzf_calls()[0]
         self.assertIn("--expect", call["argv"])
         self.assertIn("alt-t", self.arg(call, "--expect"))
-        self.assertEqual(self.arg(call, "--prompt"), "pins › ")
-        rows = [plain(l) for l in call["lines"]]
+        self.assertEqual(self.arg(call, "--prompt"), "📌 pins › ")
+        self.assertIn("--header-first", call["argv"])
+        rows = self.pin_rows(call)
         self.assertTrue(rows[0].startswith("standup-prep\t"))   # recency sort: newest first
         self.assertRegex(rows[2], r"rc-mower\s.*~\s+26d\s+⏳$")
+        header = plain(self.arg(call, "--header")).split("\n")
+        self.assertEqual(header[0], "enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help")
+        self.assertTrue(header[1].startswith("● open  ⚑ keep"))    # the legend, until a flash displaces it
 
     def test_fork_and_worktree_keys(self):
         self.steps({"key": "alt-o", "select": ["standup-prep"]})
@@ -56,14 +73,16 @@ class PickerTests(FzfSandbox):
         self.assertEqual(r.returncode, 0, r.stderr)
         calls = self.fzf_calls()
         self.assertEqual(len(calls), 2)
-        header = plain(self.arg(calls[1], "--header"))
-        self.assertIn("✓ touched rc-mower", header)
-        self.assertIn("enter open · ctrl-space actions · alt-n new · f1 help", header)
+        header = plain(self.arg(calls[1], "--header")).split("\n")
+        self.assertEqual(header[1], "✓ touched rc-mower")          # the flash takes the legend's line
+        self.assertEqual(len(header), 2)
+        self.assertIn("enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help", header[0])
         self.assertNotIn("✓", plain(self.arg(calls[0], "--header")))
         # rc-mower is now newest → first row, and the cursor is restored on it via start:pos
-        self.assertTrue(plain(calls[1]["lines"][0]).startswith("rc-mower\t"))
-        self.assertIn("start:pos(1)", " ".join(calls[1]["argv"])) if False else None
-        self.assertNotRegex(plain(calls[1]["lines"][0]), r"⏳")
+        rows = self.pin_rows(calls[1])
+        self.assertTrue(rows[0].startswith("rc-mower\t"))
+        self.assertNotIn("start:pos", " ".join(calls[1]["argv"]))   # first row is fzf's default position
+        self.assertNotRegex(rows[0], r"⏳")
 
     def test_keep_toggle_multi(self):
         self.steps({"key": "alt-k", "select": ["standup-prep", "rc-mower"]}, {"abort": True})
@@ -73,29 +92,29 @@ class PickerTests(FzfSandbox):
         self.assertFalse(self.stored()["cc-collector"]["keep"])
         header = plain(self.arg(self.fzf_calls()[1], "--header"))
         self.assertIn("✓ keep on for standup-prep, rc-mower", header)
-        self.assertRegex(plain(self.fzf_calls()[1]["lines"][0]), r"⚑")
+        self.assertRegex(self.pin_rows(self.fzf_calls()[1])[0], r"⚑")
 
     def test_unpin_and_undo(self):
         self.steps({"key": "alt-x", "select": ["cc-collector"]}, {"key": "alt-z"}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
         self.assertIn("✓ unpinned cc-collector · alt-z undo", plain(self.arg(calls[1], "--header")))
-        self.assertEqual(len(calls[1]["lines"]), 2)
+        self.assertEqual(len(self.pin_rows(calls[1])), 2)
         self.assertIn("✓ restored cc-collector (unpin)", plain(self.arg(calls[2], "--header")))
-        self.assertEqual(len(calls[2]["lines"]), 3)
+        self.assertEqual(len(self.pin_rows(calls[2])), 3)
 
     def test_expired_footer_show_prune(self):
         self.t3.unlink()
         self.steps({"key": "alt-a"}, {"key": "alt-p"}, {"abort": True})
         r = self.run_pin(input="y\n")
         calls = self.fzf_calls()
-        self.assertEqual(len(calls[0]["lines"]), 2)
+        self.assertEqual(len(self.pin_rows(calls[0])), 2)
         self.assertEqual(self.arg(calls[0], "--border-label"), " 1 expired · alt-a show · pin prune ")
-        self.assertEqual(len(calls[1]["lines"]), 3)
-        self.assertRegex(plain(calls[1]["lines"][-1]), r"rc-mower\s.*✗$")
+        self.assertEqual(len(self.pin_rows(calls[1])), 3)
+        self.assertRegex(self.pin_rows(calls[1])[-1], r"rc-mower\s.*✗$")
         self.assertIn("prune 1 expired pin(s): rc-mower", r.stdout)
         self.assertIn("✓ pruned 1 · alt-z undo", plain(self.arg(calls[2], "--header")))
-        self.assertEqual(len(calls[2]["lines"]), 2)
+        self.assertEqual(len(self.pin_rows(calls[2])), 2)
         self.assertNotIn("--border-label", calls[2]["argv"])
 
     def test_prune_nothing(self):
@@ -107,7 +126,7 @@ class PickerTests(FzfSandbox):
         self.steps({"key": "alt-s"}, {"key": "alt-s"}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
-        first = lambda c: [plain(l).split("\t")[0] for l in c["lines"]]
+        first = lambda c: [l.split("\t")[0] for l in self.pin_rows(c)]
         self.assertEqual(first(calls[0]), ["standup-prep", "cc-collector", "rc-mower"])
         self.assertEqual(first(calls[1]), ["cc-collector", "rc-mower", "standup-prep"])  # alias
         self.assertEqual(first(calls[2]), ["standup-prep", "cc-collector", "rc-mower"])  # pinned order
@@ -120,7 +139,7 @@ class PickerTests(FzfSandbox):
             self.run_pin("rm", a)
         self.steps({"abort": True})
         self.run_pin()
-        lines = [plain(l) for l in self.fzf_calls()[0]["lines"]]
+        lines = self.pin_rows(self.fzf_calls()[0])   # no label row over an empty list
         self.assertEqual(len(lines), 1)
         self.assertIn("No pins yet. alt-n pins a recent session, or run /pins:pin inside a Claude session.", lines[0])
         self.assertTrue(lines[0].startswith("-\t"))
@@ -130,12 +149,17 @@ class PickerTests(FzfSandbox):
         self.run_pin()
         calls = self.fzf_calls()
         pal = calls[1]
-        self.assertEqual(self.arg(pal, "--prompt"), "pins › standup-prep › actions › ")
-        rows = [plain(l).split("\t")[1] for l in pal["lines"]]
-        self.assertEqual(rows[0], "── open ──")
-        self.assertRegex(rows[1], r"^Open\s+enter$")
-        self.assertIn("Toggle keep (off)             alt-k", rows)
-        self.assertIn("Toggle fork mode (off)        ", rows)
+        self.assertEqual(self.arg(pal, "--prompt"), "📌 pins › standup-prep › actions › ")
+        raw = [plain(l).split("\t")[1] for l in pal["lines"]]
+        self.assertRegex(raw[0], r"^open  Open\s+enter$")                 # group name in the gutter…
+        self.assertRegex(raw[1], r"^      Open as fork\s+alt-o$")        # …only on the group's first row
+        self.assertTrue(any(r.startswith("pin   Edit…") for r in raw))
+        self.assertFalse(any("──" in r for r in raw))                     # no unselectable rows
+        self.assertFalse(any(l.startswith("-\t") for l in pal["lines"]))
+        rows = self.labels(pal)
+        self.assertIn("Details                     alt-i", rows)
+        self.assertIn("Toggle keep (off)           alt-k", rows)
+        self.assertIn("Toggle fork mode (off)", rows)
         self.assertTrue(any(r.startswith("Show expired (0)") for r in rows))
         self.assertTrue(any(r.startswith("Undo (nothing to undo)") for r in rows))
         self.assertTrue(any(r.startswith("Sort: recency") for r in rows))
@@ -145,23 +169,24 @@ class PickerTests(FzfSandbox):
         self.t3.unlink()
         self.steps({"key": "alt-a"}, {"key": "ctrl-space", "select": ["rc-mower"]}, {"abort": True}, {"abort": True})
         self.run_pin()
-        rows = [plain(l).split("\t")[1] for l in self.fzf_calls()[2]["lines"]]
+        rows = self.labels(self.fzf_calls()[2])
         self.assertFalse(any(r.startswith(("Open", "Touch")) for r in rows))
         self.assertTrue(any(r.startswith("Unpin") for r in rows))
         self.steps({"key": "ctrl-space", "select": ["standup-prep", "cc-collector"]}, {"key": "", "select": ["unpin"]}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
-        self.assertEqual(self.arg(calls[-2], "--prompt"), "pins › 2 selected › actions › ")
-        rows = [plain(l).split("\t")[1] for l in calls[-2]["lines"]]
-        self.assertFalse(any(r.startswith(("Open", "Edit")) for r in rows))
+        self.assertEqual(self.arg(calls[-2], "--prompt"), "📌 pins › 2 selected › actions › ")
+        rows = self.labels(calls[-2])
+        self.assertFalse(any(r.startswith(("Open", "Edit", "Details")) for r in rows))
         self.assertEqual(set(self.stored()), {"rc-mower"})
 
     def test_palette_open_when_already_open(self):
         ps = self.root / "ps.txt"; ps.write_text(f"claude --resume {SID1}\n")
         self.steps({"key": "ctrl-space", "select": ["standup-prep"]}, {"abort": True}, {"abort": True})
         self.run_pin(env={"CLAUDE_PINS_PS": str(ps)})
-        rows = [plain(l).split("\t")[1] for l in self.fzf_calls()[1]["lines"]]
+        rows = self.labels(self.fzf_calls()[1])
         self.assertTrue(any(r.startswith("Resume anyway (open in another tab)") for r in rows))
+        self.assertTrue(all(len(r) == len(rows[0]) for r in rows if r.endswith(("enter", "alt-o", "alt-w"))))  # keys aligned
 
     def test_help_screen_rebind_reset(self):
         self.steps({"key": "f1"}, {"key": "", "select": ["touch"]}, {"key": "ctrl-r", "select": ["touch"]},
@@ -169,14 +194,17 @@ class PickerTests(FzfSandbox):
         r = self.run_pin(input="f5\n")
         calls = self.fzf_calls()
         help_call = calls[1]
-        self.assertEqual(self.arg(help_call, "--prompt"), "pins › help › ")
-        rows = [plain(l).split("\t")[1] for l in help_call["lines"]]
-        self.assertTrue(rows[0].startswith("● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⏳ expiring  ✗ expired"))
-        self.assertIn("keymap: ~/.config/claude-pins/keys.toml", rows[1])
-        self.assertIn("Touch transcript              alt-t", rows)
+        self.assertEqual(self.arg(help_call, "--prompt"), "📌 pins › help › ")
+        header = plain(self.arg(help_call, "--header")).split("\n")
+        self.assertEqual(header[0], "enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back")
+        self.assertTrue(header[1].startswith("● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⏳ expiring  ✗ expired"))
+        self.assertEqual(header[2], "keymap: ~/.config/claude-pins/keys.toml")
+        self.assertFalse(any(l.startswith("-\t") for l in help_call["lines"]))   # every row is an action
+        rows = self.labels(help_call)
+        self.assertIn("Touch transcript      alt-t", rows)
         self.assertIn('new key for "Touch transcript"', r.stdout)
         self.assertIn("✓ Touch transcript: f5", plain(self.arg(calls[2], "--header")))
-        self.assertIn("Touch transcript              f5", [plain(l).split("\t")[1] for l in calls[2]["lines"]])
+        self.assertIn("Touch transcript      f5", self.labels(calls[2]))
         self.assertIn("✓ Touch transcript: reset to alt-t", plain(self.arg(calls[3], "--header")))
         self.assertIn("✓ keymap reset to defaults", plain(self.arg(calls[4], "--header")))
         keymap = self.home / ".config" / "claude-pins" / "keys.toml"
@@ -204,7 +232,7 @@ class PickerTests(FzfSandbox):
         r = self.run_pin(input="\n")
         calls = self.fzf_calls()
         new_call = calls[1]
-        self.assertEqual(self.arg(new_call, "--prompt"), "pins › new › ")
+        self.assertEqual(self.arg(new_call, "--prompt"), "📌 pins › new › ")
         rows = [plain(l) for l in new_call["lines"]]
         self.assertTrue(rows[0].split("\t")[0].endswith(f"{sid4}.jsonl"))
         self.assertRegex(rows[0], r"Tax prep questions\s+~/Documents\s+\d+[mh]\s+18 msgs")
@@ -213,7 +241,7 @@ class PickerTests(FzfSandbox):
         self.assertIn("tax-prep-questions", self.stored())
         self.assertEqual(self.stored()["tax-prep-questions"]["title"], "Tax prep questions")
         self.assertIn("✓ pinned as tax-prep-questions", plain(self.arg(calls[2], "--header")))
-        self.assertTrue(plain(calls[2]["lines"][0]).startswith("tax-prep-questions\t"))
+        self.assertTrue(self.pin_rows(calls[2])[0].startswith("tax-prep-questions\t"))
 
     def test_new_pin_already_pinned(self):
         self.steps({"key": "alt-n"}, {"key": "", "select": [SID1]}, {"abort": True})
@@ -233,7 +261,47 @@ class PickerTests(FzfSandbox):
         self.run_pin()
         call = self.fzf_calls()[0]
         self.assertTrue(self.arg(call, "--preview").endswith("_preview {1}"))
-        self.assertEqual(self.arg(call, "--preview-window"), "down,55%,border-rounded,wrap")
+        self.assertEqual(self.arg(call, "--preview-window"), "down,55%,border-rounded,wrap,<10(hidden)")
+        self.assertNotIn("preview hidden", plain(self.arg(call, "--header")))  # 24 rows: the pane fits
+
+    def test_preview_too_short(self):
+        """Under fzf's threshold the pane hides itself; the header says so, and alt-v cannot bring it back."""
+        self.steps({"key": "alt-v"}, {"key": "alt-v"}, {"abort": True})
+        self.run_pin(env={"LINES": "18"})
+        calls = self.fzf_calls()
+        self.assertIn("preview hidden: terminal too short", plain(self.arg(calls[0], "--header")))
+        self.assertNotIn("--preview", calls[1]["argv"])                     # off: alt-v turned it off
+        self.assertNotIn("preview hidden", plain(self.arg(calls[1], "--header")))
+        self.assertNotIn("--preview", calls[2]["argv"])                     # still off: too short to turn on
+        self.assertIn("preview needs a taller terminal · alt-i for details", plain(self.arg(calls[2], "--header")))
+        self.steps({"abort": True})
+        self.run_pin(env={"LINES": "19"})
+        self.assertNotIn("preview hidden", plain(self.arg(self.fzf_calls()[-1], "--header")))
+        self.t3.unlink()                                                    # the expired footer costs one row
+        self.steps({"abort": True})
+        self.run_pin(env={"LINES": "19"})
+        self.assertIn("preview hidden: terminal too short", plain(self.arg(self.fzf_calls()[-1], "--header")))
+
+    def test_details_screen(self):
+        self.steps({"key": "alt-i", "select": ["cc-collector"]}, {"abort": True}, {"abort": True})
+        self.run_pin()
+        calls = self.fzf_calls()
+        det = calls[1]
+        self.assertEqual(self.arg(det, "--prompt"), "📌 pins › cc-collector › details › ")
+        self.assertIn("--disabled", det["argv"])
+        self.assertEqual(plain(self.arg(det, "--header")), "enter open · esc back")
+        body = [plain(l) for l in det["lines"]]
+        self.assertTrue(all(l.startswith("-\t") for l in body))
+        self.assertEqual(body[0], "-\tCommand center collector")
+        self.assertTrue(any(l.startswith("-\tsession    " + SID2) for l in body))
+        self.assertTrue(any("you        hello there" in l for l in body))
+        self.assertEqual(len(calls), 3)                                     # esc: back to the list
+        self.assertIn("start:pos(2)", " ".join(calls[2]["argv"]))          # cursor kept; rows count from 1 under the label row
+        self.assertIsNone(self.claude_calls())
+        self.steps({"key": "alt-i", "select": ["cc-collector"]}, {"key": "", "select": ["-"]})
+        self.run_pin()
+        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID2])   # enter on the details opens
+        self.assertEqual(self.claude_calls()["cwd"], str(self.home / "git" / "cc"))
 
     def test_edit_from_picker(self):
         self.steps({"key": "alt-e", "select": ["standup-prep"]},
@@ -272,9 +340,9 @@ class PickerTests(FzfSandbox):
         self.assertIn("--preview", calls[2]["argv"])
 
     def test_help_screen_cancel_paths(self):
-        self.steps({"key": "f1"}, {"key": "", "select": ["-"]}, {"key": "ctrl-r"}, {"key": "", "select": ["touch"]},
+        self.steps({"key": "f1"}, {"key": "", "select": []}, {"key": "ctrl-r"}, {"key": "", "select": ["touch"]},
                    {"key": "", "select": ["touch"]}, {"key": "", "select": ["touch"]}, {"abort": True}, {"abort": True})
-        # 1: header row (ignored)  2: reset without a target (ignored)  3: rebind cancelled with EOF…
+        # 1: nothing selected (ignored)  2: reset without a target (ignored)  3: rebind cancelled with EOF…
         r = self.run_pin(input="ctrl-a\nn\nalt-enter\n\n")
         # …4: an editing key, declined  5: alt-enter, accepted on bare enter (default is no → stays)
         self.assertIn("ctrl-a is one of fzf's query-editing keys", r.stdout)
@@ -328,5 +396,5 @@ class PickerTests(FzfSandbox):
         self.assertIn("✗ standup-prep: transcript for session 11111111… is gone (expired) · pin unpin standup-prep",
                       self.header_after())
         self.assertIsNone(self.claude_calls())
-        rows = [plain(l) for l in self.fzf_calls()[-1]["lines"]]
+        rows = self.pin_rows(self.fzf_calls()[-1])
         self.assertFalse(any(r.startswith("standup-prep\t") for r in rows))  # the redraw already hides it

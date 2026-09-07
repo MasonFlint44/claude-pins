@@ -1,4 +1,5 @@
 import json
+import re
 import os
 
 from tests.helpers import FzfSandbox
@@ -17,26 +18,33 @@ class EditorTests(FzfSandbox):
         return {p["alias"]: p for p in json.loads(self.store_path().read_text())["pins"]}
 
     def fields(self, call):
+        """Rows without the section gutter (``identity   title *  …`` → ``title *  …``)."""
         import re
-        return [re.sub(r"\x1b\[[0-9;]*m", "", l).split("\t")[1] for l in call["lines"]]
+        return [re.sub(r"^(?:\S+)?\s{2,}", "", re.sub(r"\x1b\[[0-9;]*m", "", l).split("\t")[1]) for l in call["lines"]]
 
     def test_layout_and_dirty_marks(self):
         self.steps({"key": "", "select": ["keep"]}, {"abort": True})
         r = self.run_pin("edit", "standup-prep", input="n\n")
         calls = self.fzf_calls()
+        raw = [re.sub(r"\x1b\[[0-9;]*m", "", l).split("\t")[1] for l in calls[0]["lines"]]
+        self.assertTrue(raw[0].startswith("identity   title *      Standup prep"))   # section name in the gutter
+        self.assertTrue(raw[1].startswith("           alias        standup-prep"))   # blank for the rest of it
+        self.assertTrue(raw[3].startswith("location   cwd "))
+        self.assertFalse(any(l.startswith("-\t") for l in calls[0]["lines"]))       # every row is a field
         rows = self.fields(calls[0])
-        self.assertEqual(rows[0], "── identity ──")
-        self.assertTrue(rows[1].startswith("title *      Standup prep"))
-        self.assertTrue(rows[6].startswith("worktree     off"))
-        self.assertIn("open in a fresh worktree each time", rows[6])
-        self.assertTrue(rows[8].startswith("model        (default)"))
-        self.assertIn("claude's default model", rows[8])
-        self.assertTrue(rows[10].startswith("permission   (default)"))
+        self.assertTrue(rows[0].startswith("title *      Standup prep"))
+        self.assertTrue(rows[4].startswith("worktree     off"))
+        self.assertIn("open in a fresh worktree each time", rows[4])
+        self.assertTrue(rows[5].startswith("model        (default)"))
+        self.assertIn("claude's default model", rows[5])
+        self.assertTrue(rows[7].startswith("permission   (default)"))
         self.assertEqual(rows[-2], "Done"); self.assertEqual(rows[-1], "Cancel")
-        self.assertEqual(self.arg(calls[0], "--prompt"), "pins › standup-prep › edit › ")
+        self.assertEqual(self.arg(calls[0], "--prompt"), "📌 pins › standup-prep › edit › ")
+        self.assertEqual(self.arg(calls[0], "--header"), "enter change · alt-s save · esc back")
         # after toggling keep the form is dirty: breadcrumb + star
-        self.assertEqual(self.arg(calls[1], "--prompt"), "pins › standup-prep › edit (unsaved) › ")
-        self.assertTrue(self.fields(calls[1])[12].startswith("keep        *ON"))
+        self.assertEqual(self.arg(calls[1], "--prompt"), "📌 pins › standup-prep › edit (unsaved) › ")
+        self.assertTrue(self.fields(calls[1])[8].startswith("keep        *ON"))
+        self.assertIn("start:pos(9)", " ".join(calls[1]["argv"]))                    # cursor stays on keep
         self.assertIn("save changes? [Y/n/c]", r.stdout)
         self.assertFalse(self.stored()["standup-prep"]["keep"])  # answered n
         self.assertIn("no changes", r.stdout)
@@ -53,7 +61,7 @@ class EditorTests(FzfSandbox):
                    {"key": "", "select": ["done"]})
         r = self.run_pin("edit", "standup-prep")
         calls = self.fzf_calls()
-        self.assertEqual(self.arg(calls[1], "--prompt"), "pins › standup-prep › edit › permission › ")
+        self.assertEqual(self.arg(calls[1], "--prompt"), "📌 pins › standup-prep › edit › permission › ")
         self.assertEqual([l.split("\t")[1] for l in calls[1]["lines"]], ["default", "acceptEdits", "plan", "auto", "bypassPermissions", "(clear)"])
         self.assertEqual(self.stored()["standup-prep"]["launch"], {"permission_mode": "plan"})
 
@@ -102,7 +110,7 @@ class MenuTests(FzfSandbox):
 
     def test_menu_preview_and_fork(self):
         r = self.run_pin(input="p1\no1\n")
-        self.assertIn("dir       ~/git/proj", r.stdout)
+        self.assertIn("dir        ~/git/proj", r.stdout)
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID1, "--fork-session"])
 
     def test_menu_bad_input(self):
@@ -233,7 +241,7 @@ class EditorEdgeTests(EditorTests):
         p = self.stored()["standup-prep"]
         self.assertEqual((p["cwd"], p["launch"], p["note"]), (str(self.home / "git" / "cc"), {"model": "sonnet"}, "a note"))
         calls = self.fzf_calls()
-        self.assertEqual(self.arg(calls[2], "--prompt"), "pins › standup-prep › edit › model › ")
+        self.assertEqual(self.arg(calls[2], "--prompt"), "📌 pins › standup-prep › edit › model › ")
         self.assertEqual([l.split("\t")[1] for l in calls[2]["lines"]][:2], ["fable", "opus"])
 
     def test_cancel_paths(self):

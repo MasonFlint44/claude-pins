@@ -82,17 +82,26 @@ completion link; the store and cache below can go too.
 | open in new worktree | alt-w | | prune… | alt-p |
 | actions palette | ctrl-space | | undo | alt-z |
 | edit… | alt-e | | cycle sort | alt-s |
-| touch transcript | alt-t | | toggle preview | alt-v |
-| toggle keep | alt-k | | help / shortcuts | f1 |
-| unpin | alt-x | | multi-select | tab |
+| details | alt-i | | toggle preview | alt-v |
+| touch transcript | alt-t | | help / shortcuts | f1 |
+| toggle keep | alt-k | | multi-select | tab |
+| unpin | alt-x | | | |
 
 Esc always goes back exactly one level. Toggle fork mode and toggle worktree mode have no
 default key; both live in the palette. Every key is remappable from the f1 screen (enter rebinds,
 ctrl-r resets a row, ctrl-alt-r resets all) or by editing `~/.config/claude-pins/keys.toml`,
-whose action names are `open`, `open_fork`, `open_worktree`, `palette`, `edit`, `touch`,
-`keep`, `fork_mode`, `worktree_mode`, `unpin`, `new`, `expired`, `prune`, `undo`, `sort`,
-`preview`, `help`, `select`. fzf's own query-editing keys and alt+enter (Windows Terminal) are
-avoided on purpose. Markers: ● open · ⚑ keep · ⑂ fork · ⌂ worktree · ⏳ expiring · ✗ expired.
+whose action names are `open`, `open_fork`, `open_worktree`, `palette`, `edit`, `details`,
+`touch`, `keep`, `fork_mode`, `worktree_mode`, `unpin`, `new`, `expired`, `prune`, `undo`,
+`sort`, `preview`, `help`, `select`. fzf's own query-editing keys and alt+enter (Windows
+Terminal) are avoided on purpose. Markers: ● open · ⚑ keep · ⑂ fork · ⌂ worktree · ⏳ expiring ·
+✗ expired.
+
+The list's `idle` column is the time since the transcript was last written, which is what the
+retention clock counts. The preview pane below the list hides itself when it would get fewer
+than ten rows (the header says `preview hidden: terminal too short`); alt-i opens the same
+details on a screen of their own, with more of the last exchange, and enter there opens the pin.
+Directories shorten fish-style when the column is narrow (`~/g/c/claude-pins`), keeping the last
+component; a Claude worktree shows as `~/git/repo › name`.
 
 In the editor: enter changes the highlighted field (booleans flip, text fields prompt with the
 current value, choices open a short list with `(clear)`), alt-s saves, esc goes back and asks
