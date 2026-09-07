@@ -49,7 +49,9 @@ def palette(stream=None) -> Palette:
 
 
 def terminal_width(default: int = 100) -> int:
-    env = os.environ.get("FZF_PREVIEW_COLUMNS") or os.environ.get("COLUMNS")
+    """Columns: the preview pane's, else fzf's own (0.46+, so a reload fits the resized terminal), else the
+    shell's, else the terminal's."""
+    env = os.environ.get("FZF_PREVIEW_COLUMNS") or os.environ.get("FZF_COLUMNS") or os.environ.get("COLUMNS")
     if env and env.isdigit():
         return int(env)
     return shutil.get_terminal_size((default, 24)).columns
@@ -173,11 +175,11 @@ AGE_WIDTH = 4           # "999d"
 
 
 def layout(views: list[View], width: int, *, numbered: bool = False) -> Columns:
-    """Alias and directory are as wide as their longest value, capped near a fifth and a third of the
-    width; age and markers are fixed; the title takes what is left, and when that falls under its floor the
-    directory gives way first (its end still tells directories apart), then the alias."""
-    alias_w = min(max(cells(v.pin.alias) for v in views), max(MIN_COLUMN, width // 5))
-    dir_w = min(max(cells(display_dir(v.pin.cwd)) for v in views), max(MIN_COLUMN, width // 3))
+    """Alias and directory are as wide as their longest value (at least their label), capped near a fifth
+    and a third of the width; age and markers are fixed; the title takes what is left, and when that falls
+    under its floor the directory gives way first (its end still tells directories apart), then the alias."""
+    alias_w = min(max(max(cells(v.pin.alias) for v in views), len("alias")), max(MIN_COLUMN, width // 5))
+    dir_w = min(max(max(cells(display_dir(v.pin.cwd)) for v in views), len("dir")), max(MIN_COLUMN, width // 3))
     mark_w = max(cells(v.markers) for v in views)
     num_w = len(str(len(views))) if numbered else 0
 

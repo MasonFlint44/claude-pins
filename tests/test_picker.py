@@ -7,6 +7,7 @@ from tests.helpers import FzfSandbox
 SID1 = "11111111-1111-1111-1111-111111111111"
 SID2 = "22222222-2222-2222-2222-222222222222"
 SID3 = "33333333-3333-3333-3333-333333333333"
+SID4 = "44444444-4444-4444-4444-444444444444"
 
 
 def plain(text):
@@ -139,8 +140,10 @@ class PickerTests(FzfSandbox):
             self.run_pin("rm", a)
         self.steps({"abort": True})
         self.run_pin()
-        lines = self.pin_rows(self.fzf_calls()[0])   # no label row over an empty list
-        self.assertEqual(len(lines), 1)
+        call = self.fzf_calls()[0]
+        lines = [plain(l) for l in call["lines"]]
+        self.assertEqual(len(lines), 1)                 # the message takes the sticky row: nothing to select
+        self.assertIn("--header-lines=1", call["argv"])
         self.assertIn("No pins yet. alt-n pins a recent session, or run /pins:pin inside a Claude session.", lines[0])
         self.assertTrue(lines[0].startswith("-\t"))
 
@@ -321,7 +324,8 @@ class PickerTests(FzfSandbox):
                    {"key": "alt-t", "select": []}, {"key": "ctrl-space", "select": []}, {"abort": True})
         r = self.run_pin()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("✗ rc-mower has expired · unpin it or pin prune", self.header_after(2))
+        self.assertIn("✗ rc-mower: transcript for session 33333333… is gone (expired) · pin unpin rc-mower",
+                      self.header_after(2))
         self.assertEqual(len(self.fzf_calls()), 6)  # every empty selection just redraws
         self.assertIsNone(self.claude_calls())
 
@@ -387,6 +391,118 @@ class PickerTests(FzfSandbox):
         self.assertIn("prune cancelled", self.header_after(1))
         self.assertIn("prune cancelled", self.header_after(2))
         self.assertIn("rc-mower", self.stored())
+
+    def binds(self, call):
+        a = call["argv"]
+        return [a[i + 1] for i, x in enumerate(a) if x == "--bind"]
+
+    def run_again(self, *args, **kw):
+        """run_pin with the fzf log emptied first, so fzf_calls() holds this run only."""
+        if self.fzf_log.exists():
+            self.fzf_log.unlink()
+        return self.run_pin(*args, **kw)
+
+    def test_refresh_reloads_in_place(self):
+        """alt-r is a --bind to reload(pin _rows), not an --expect key; the row command carries the sort,
+        the expired switch and the launch width."""
+        self.steps({"key": "alt-s"}, {"key": "alt-a"}, {"abort": True})
+        self.run_pin()
+        calls = self.fzf_calls()
+        for call in calls:
+            self.assertIn("--no-clear", call["argv"])
+            self.assertNotIn("alt-r", self.arg(call, "--expect"))
+        self.assertIn("alt-r:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort recency)", self.binds(calls[0]))
+        self.assertIn("alt-r:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort alias)", self.binds(calls[1]))
+        self.assertIn("alt-r:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort alias --all)",
+                      self.binds(calls[2]))
+
+    def test_rows_subcommand_matches_the_screen(self):
+        """pin _rows prints exactly the lines the picker sent fzf, label row first, so a reload cannot drift."""
+        self.steps({"abort": True})
+        self.run_pin()
+        r = self.run_pin("_rows", "--sort", "recency")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.splitlines(), self.fzf_calls()[0]["lines"])
+        r = self.run_pin("_rows", "--sort", "alias", env={"FZF_COLUMNS": "60", "NO_COLOR": "", "CLAUDE_PINS_COLOR": "1"})
+        rows = r.stdout.splitlines()
+        self.assertRegex(plain(rows[0]), r"^-\talias\s+title\s+directory\s+idle$")
+        self.assertEqual([l.split("\t")[0] for l in rows[1:]], ["cc-collector", "rc-mower", "standup-prep"])
+        self.assertIn("\x1b[", rows[1])                                              # coloured, like _preview
+        self.assertTrue(all(len(plain(l).split("\t")[1]) <= 56 for l in rows))
+        self.t3.unlink()
+        self.assertNotIn("rc-mower", self.run_pin("_rows").stdout)
+        self.assertIn("rc-mower", self.run_pin("_rows", "--all").stdout)
+        for a in ("standup-prep", "cc-collector", "rc-mower"):
+            self.run_pin("rm", a)
+        self.assertEqual(self.run_pin("_rows").stdout.count("\n"), 1)
+        self.assertIn("-\tNo pins yet. alt-n pins", self.run_pin("_rows").stdout)
+
+    def test_version_gates(self):
+        """Older fzf: the too-short note follows focus and change; 0.46 adds the resize event (rows and note
+        re-fit on resize) and 0.54 the info command. The preview off drops the note transform."""
+        self.steps({"abort": True})
+        self.run_pin()
+        call = self.fzf_calls()[0]
+        binds = self.binds(call)
+        self.assertNotIn("--info-command", call["argv"])
+        self.assertFalse(any(b.startswith("resize:") for b in binds))
+        focus = next(b for b in binds if b.startswith("focus:"))
+        self.assertIn("transform-preview-label(", focus)
+        self.assertIn("+transform-header(h=$FZF_LINES; test -n \"$h\" || h=`stty size </dev/tty", focus)
+        self.assertIn('test "$h" -lt 19 && printf', focus)
+        change = next(b for b in binds if b.startswith("change:"))
+        self.assertTrue(change.startswith("change:transform-header("))
+        self.assertNotIn("(", change.split("transform-header(", 1)[1][:-1])       # fzf ends the action at one
+        self.steps({"key": "alt-v"}, {"abort": True})
+        self.run_again(env={"CLAUDE_PINS_FZF_STUB_VERSION": "0.53.0"})
+        calls = self.fzf_calls()
+        binds = self.binds(calls[0])
+        self.assertNotIn("--info-command", calls[0]["argv"])
+        self.assertFalse(any(b.startswith(("change:", "focus:transform-header")) for b in binds))
+        resize = next(b for b in binds if b.startswith("resize:"))
+        self.assertTrue(resize.startswith("resize:reload(COLUMNS=100 "))
+        self.assertIn(")+transform-header(", resize)
+        self.assertNotIn("transform-header", self.binds(calls[1]))                 # preview off: no note
+        self.assertEqual([b for b in self.binds(calls[1]) if b.startswith("resize:")],
+                         ["resize:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort recency)"])
+        self.steps({"abort": True})
+        self.run_pin(env={"CLAUDE_PINS_FZF_STUB_VERSION": "0.54.0"})
+        call = self.fzf_calls()[-1]
+        self.assertIn('t="$FZF_MATCH_COUNT of $n $s"', self.arg(call, "--info-command"))
+        self.t3.unlink()                                          # the expired footer costs a row: limit 20
+        self.steps({"abort": True})
+        self.run_pin()
+        self.assertIn('test "$h" -lt 20', self.binds(self.fzf_calls()[-1])[1])
+
+    def test_rebound_refresh_stays_a_bind(self):
+        self.steps({"key": "f1"}, {"key": "", "select": ["refresh"]}, {"abort": True}, {"abort": True})
+        self.run_pin(input="alt-u\n")
+        calls = self.fzf_calls()
+        self.assertIn("Refresh               alt-r", self.labels(calls[1]))
+        self.assertIn("✓ Refresh: alt-u", plain(self.arg(calls[2], "--header")))
+        self.assertIn("Refresh               alt-u", self.labels(calls[2]))
+        main = calls[3]
+        self.assertNotIn("alt-u", self.arg(main, "--expect"))
+        self.assertNotIn("alt-r", self.arg(main, "--expect"))
+        self.assertTrue(any(b.startswith("alt-u:reload(") for b in self.binds(main)))
+        self.assertFalse(any(b.startswith("alt-r:") for b in self.binds(main)))
+        self.steps({"key": "ctrl-space", "select": ["standup-prep"]}, {"key": "", "select": ["refresh"]}, {"abort": True})
+        self.run_pin()
+        calls = self.fzf_calls()
+        self.assertIn("Refresh                     alt-u", self.labels(calls[-2]))
+        self.assertEqual(len(calls), 7)                            # from the palette the restart is the refresh
+
+    def test_dispatch_sees_pins_added_after_launch(self):
+        """A pin added by another terminal and brought in by a reload opens on enter: the views are rebuilt
+        from the store when the key arrives, not taken from the list built at launch."""
+        self.make_session(SID4, cwd=str(self.home / "git" / "late"), age_days=0.5, title="Late arrival")
+        pin = os.environ["CLAUDE_PINS_EXE"]
+        self.steps({"key": "", "shell": f"{pin} add {SID4} late", "raw": [f"late\tlate  Late arrival"]})
+        r = self.run_pin()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("late", [l.split("\t")[0] for l in self.fzf_calls()[0]["lines"]])
+        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID4])
+        self.assertEqual(self.claude_calls()["cwd"], str(self.home / "git" / "late"))
 
     def test_transcript_swept_while_picker_open(self):
         """Claude's retention sweep can delete a transcript while the picker sits open: enter then flashes."""

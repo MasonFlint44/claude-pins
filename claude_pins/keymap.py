@@ -17,6 +17,7 @@ class Action:
     group: str          # open | pin | list | tool
     ellipsis: bool = False  # asks something first
     short: str = ""     # word used in the key-hint line
+    bind: str = ""      # fzf action the key runs inside fzf (a --bind), instead of an --expect key that restarts it
 
     @property
     def title(self) -> str:
@@ -41,6 +42,7 @@ ACTIONS: list[Action] = [
     Action("undo", "Undo", "alt-z", "list"),
     Action("sort", "Cycle sort", "alt-s", "list"),
     Action("preview", "Toggle preview", "alt-v", "list"),
+    Action("refresh", "Refresh", "alt-r", "list", bind="reload"),
     Action("help", "Help & shortcuts", "f1", "tool", short="help"),
     Action("select", "Multi-select", "tab", "tool"),
 ]

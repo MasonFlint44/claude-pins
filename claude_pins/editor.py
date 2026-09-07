@@ -101,6 +101,7 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
         if res is None:
             if not dirty:
                 return None
+            fzf.leave_screen()
             try:
                 raw = input(" save changes? [Y/n/c] ").strip().lower()
             except (KeyboardInterrupt, EOFError):

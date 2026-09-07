@@ -49,15 +49,67 @@ def preview_fits(lines: int, *, bottom_border: bool = False) -> bool:
     return pane >= PREVIEW_MIN_ROWS
 
 
+def min_lines(*, bottom_border: bool = False) -> int:
+    """The shortest terminal on which the pane still shows (the same arithmetic, solved for the height)."""
+    lines = PREVIEW_MIN_ROWS
+    while not preview_fits(lines, bottom_border=bottom_border):
+        lines += 1
+    return lines
+
+
+# Versions that introduced what the picker uses beyond the 0.44 floor, from fzf's CHANGELOG. Everything
+# below the floor's feature set is emitted unconditionally; these are gated on ``supports()``.
+FEATURES = {
+    "resize": (0, 46),            # the resize event, and $FZF_LINES / $FZF_COLUMNS / the count variables
+    "info-command": (0, 54),      # --info-command with $FZF_INFO
+    "transform-header": (0, 40),  # present on the floor; listed so the gate reads as a table
+}
+
+
+def supports(feature: str, version: tuple[int, ...] | None = None) -> bool:
+    version = fzf_version() if version is None else version
+    return version is not None and version >= FEATURES[feature]
+
+
+# Shell that fzf runs itself, so nothing here may start Python: the header transform fires on every
+# resize (0.46+) or on every cursor move and keystroke (0.44, where the resize event and $FZF_LINES are
+# missing and the height comes from stty), and the info command on every keystroke.
+HEADER_VAR = "CLAUDE_PINS_HEADER"      # the header text the transform re-emits
+NOTE_VAR = "CLAUDE_PINS_NOTE"          # the line it appends when the terminal is too short for the pane
+
+
+def header_transform(*, bottom_border: bool = False) -> str:
+    """A transform-header command appending the note under ``min_lines`` rows. No parentheses or
+    brackets: fzf would take the first one as the end of the action."""
+    limit = min_lines(bottom_border=bottom_border)
+    return ('h=$FZF_LINES; test -n "$h" || h=`stty size </dev/tty 2>/dev/null | cut -d" " -f1`; '
+            f'printf %s "${HEADER_VAR}"; test -n "$h" && test "$h" -lt {limit} && printf "\\n%s" "${NOTE_VAR}" || true')
+
+
+# ``3 of 5 pins · 2 selected``; ``5 pins`` when nothing is filtered out. The count variables exclude
+# the sticky label row.
+INFO_COMMAND = ('n=$FZF_TOTAL_COUNT; s=pins; test "$n" = 1 && s=pin; '
+                'if test "$FZF_MATCH_COUNT" = "$n"; then t="$n $s"; else t="$FZF_MATCH_COUNT of $n $s"; fi; '
+                'test "$FZF_SELECT_COUNT" -gt 0 && t="$t · $FZF_SELECT_COUNT selected"; printf %s "$t"')
+
+
 def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] | None = None,
                query: str = "", multi: bool = False, preview: str | None = None,
                preview_window: str = PREVIEW_WINDOW, preview_label_cmd: str | None = None,
                pos: int | None = None, border_label: str = "", extra: list[str] | None = None,
                disabled: bool = False, ansi: bool = True, info: str = "inline-right",
-               header_lines: int = 0) -> list[str]:
+               header_lines: int = 0, binds: list[tuple[str, str]] | None = None,
+               info_command: str | None = None) -> list[str]:
+    """``binds`` are (event or key, action) pairs; pairs on the same trigger are chained with ``+``,
+    since a later --bind for a trigger would replace an earlier one rather than add to it."""
+    # --no-clear leaves the alternate screen up between runs so the next screen draws over this one
+    # instead of flashing the shell in between; leave_screen() drops it at the end.
     args = [binary, "--layout=reverse", "--delimiter=\t", "--with-nth=2..", "--tiebreak=index",
-            "--no-sort", "--print-query", f"--info={info}", "--no-separator",
+            "--no-sort", "--print-query", f"--info={info}", "--no-separator", "--no-clear",
             "--pointer", ">", "--marker", "▌", "--prompt", prompt, "--cycle", "--ellipsis", "…"]
+    chains: dict[str, list[str]] = {}
+    for trigger, action in binds or []:
+        chains.setdefault(trigger, []).append(action)
     if ansi:
         args.append("--ansi")
     if not config.color_enabled():
@@ -74,12 +126,16 @@ def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] 
         args.append("--multi")
     if disabled:
         args.append("--disabled")
+    if info_command:
+        args += ["--info-command", info_command]
     if preview:
         args += ["--preview", preview, "--preview-window", preview_window]
         if preview_label_cmd:
-            args += ["--bind", f"focus:transform-preview-label({preview_label_cmd})"]
+            chains.setdefault("focus", []).insert(0, f"transform-preview-label({preview_label_cmd})")
     if pos and pos > 1:
-        args += ["--bind", f"start:pos({pos})"]
+        chains.setdefault("start", []).append(f"pos({pos})")
+    for trigger, actions in chains.items():
+        args += ["--bind", f"{trigger}:{'+'.join(actions)}"]
     if border_label:
         args += ["--border", "bottom", "--border-label", border_label, "--border-label-pos", "2:bottom"]
     if extra:
@@ -116,9 +172,33 @@ def available() -> bool:
 
 
 def install_hint() -> str:
-    return ("install fzf ≥ 0.44: curl -sSL https://github.com/junegunn/fzf/releases/download/0.67.0/"
-            "fzf-0.67.0-linux_amd64.tar.gz | tar xz -C ~/.local/bin  (or: brew install fzf)")
+    return ("install fzf ≥ 0.44: brew install fzf, your package manager, or a release tarball from "
+            "https://github.com/junegunn/fzf/releases unpacked into ~/.local/bin")
 
+
+# ---- the alternate screen -----------------------------------------------------------------------
+
+_alt_screen = False     # fzf ran with --no-clear and left the terminal on the alternate screen
+
+
+def leave_screen() -> None:
+    """Return to the normal screen if fzf left the alternate one up. fzf itself restores everything
+    else on exit (cooked mode, cursor, mouse tracking; measured on 0.44.1, 0.53.0 and 0.67.0), so this
+    one sequence is the whole restore. Idempotent; called before exec, before every text prompt, and
+    on every way out of ``main``."""
+    global _alt_screen
+    if not _alt_screen:
+        return
+    _alt_screen = False
+    seq = "\x1b[?1049l"
+    try:
+        if sys.stderr.isatty():
+            sys.stderr.write(seq); sys.stderr.flush()
+        elif sys.stdin.isatty():
+            with open("/dev/tty", "w") as tty:
+                tty.write(seq)
+    except (OSError, ValueError):
+        pass
 
 
 def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] | None = None,
@@ -126,11 +206,13 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
         preview_window: str = PREVIEW_WINDOW, preview_label_cmd: str | None = None,
         pos: int | None = None, border_label: str = "", extra: list[str] | None = None,
         disabled: bool = False, ansi: bool = True, info: str = "inline-right",
-        header_lines: int = 0) -> Result | None:
+        header_lines: int = 0, binds: list[tuple[str, str]] | None = None, info_command: str | None = None,
+        env: dict[str, str] | None = None) -> Result | None:
     """Run fzf over ``items``; None when the user pressed esc/ctrl-c.
 
     With ``header_lines``, that many leading items are fzf's sticky header (column labels): shown like
-    rows, never matched, selected or printed back."""
+    rows, never matched, selected or printed back. ``env`` adds variables for the commands fzf runs."""
+    global _alt_screen
     binary = fzf_bin()
     if not binary:
         return None
@@ -138,13 +220,15 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
     args = build_args(binary, prompt=prompt, header=header, expect=expect, query=query, multi=multi,
                       preview=preview, preview_window=preview_window, preview_label_cmd=preview_label_cmd,
                       pos=pos, border_label=border_label, extra=extra, disabled=disabled, ansi=ansi, info=info,
-                      header_lines=header_lines)
+                      header_lines=header_lines, binds=binds, info_command=info_command)
     # stderr is inherited on purpose: fzf ≤ 0.4x draws its UI there (newer builds use /dev/tty),
     # and option errors should reach the user either way.
     try:
-        p = subprocess.run(args, input="\n".join(lines) + ("\n" if lines else ""), stdout=subprocess.PIPE, text=True)
+        p = subprocess.run(args, input="\n".join(lines) + ("\n" if lines else ""), stdout=subprocess.PIPE, text=True,
+                           env={**os.environ, **env} if env else None)
     except OSError:
         return None
+    _alt_screen = True
     if p.returncode not in (0, 1):   # 130 = esc/ctrl-c, 2 = bad option
         return None
     out = p.stdout.split("\n")

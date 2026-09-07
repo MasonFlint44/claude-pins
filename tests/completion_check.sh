@@ -16,7 +16,7 @@ check() {  # check "<command line>" "<expected space-separated>"
     read -r -a COMP_WORDS <<< "$1"; COMP_CWORD=$(( ${#COMP_WORDS[@]} - 1 ))
     case "$1" in *" ") COMP_WORDS+=(""); COMP_CWORD=$(( ${#COMP_WORDS[@]} - 1 ));; esac
     COMPREPLY=()
-    _pin_complete
+    set +e; _pin_complete; set -e      # compgen exits 1 when nothing matches, which is a valid answer
     got="${COMPREPLY[*]-}"
     if [ "$got" != "$2" ]; then echo "FAIL: '$1' → '$got' (want '$2')"; exit 1; fi
     echo "ok: '$1' → '$got'"
@@ -29,4 +29,5 @@ check "pin --sort " "recency alias pinned"
 check "pin ad" "add"
 check "pin open --f" "--fork"
 check "pin rename " "standup-prep cc-collector rc-mower"
+check "pin _" ""   # the hidden helpers (_rows, _preview, …) are never offered
 echo "completion ok on bash $BASH_VERSION"

@@ -84,15 +84,15 @@ completion link; the store and cache below can go too.
 | edit… | alt-e | | cycle sort | alt-s |
 | details | alt-i | | toggle preview | alt-v |
 | touch transcript | alt-t | | help / shortcuts | f1 |
-| toggle keep | alt-k | | multi-select | tab |
-| unpin | alt-x | | | |
+| toggle keep | alt-k | | refresh | alt-r |
+| unpin | alt-x | | multi-select | tab |
 
 Esc always goes back exactly one level. Toggle fork mode and toggle worktree mode have no
 default key; both live in the palette. Every key is remappable from the f1 screen (enter rebinds,
 ctrl-r resets a row, ctrl-alt-r resets all) or by editing `~/.config/claude-pins/keys.toml`,
 whose action names are `open`, `open_fork`, `open_worktree`, `palette`, `edit`, `details`,
 `touch`, `keep`, `fork_mode`, `worktree_mode`, `unpin`, `new`, `expired`, `prune`, `undo`,
-`sort`, `preview`, `help`, `select`. fzf's own query-editing keys and alt+enter (Windows
+`sort`, `preview`, `refresh`, `help`, `select`. fzf's own query-editing keys and alt+enter (Windows
 Terminal) are avoided on purpose. Markers: ● open · ⚑ keep · ⑂ fork · ⌂ worktree · ⏳ expiring ·
 ✗ expired.
 
@@ -102,6 +102,12 @@ than ten rows (the header says `preview hidden: terminal too short`); alt-i open
 details on a screen of their own, with more of the last exchange, and enter there opens the pin.
 Directories shorten fish-style when the column is narrow (`~/g/c/claude-pins`), keeping the last
 component; a Claude worktree shows as `~/git/repo › name`.
+
+The list is read from the store every time a screen returns; alt-r re-reads it in place, for a
+picker left open while another terminal pinned something. On fzf 0.46 and newer the rows also
+re-fit themselves when the terminal is resized, and the too-short note follows the height;
+0.44 and 0.45 refit at the next screen and refresh the note on the next cursor move or
+keystroke. On 0.54 and newer the counter reads `3 of 5 pins · 2 selected`.
 
 In the editor: enter changes the highlighted field (booleans flip, text fields prompt with the
 current value, choices open a short list with `(clear)`), alt-s saves, esc goes back and asks

@@ -44,4 +44,7 @@ check "pin rename " "standup-prep cc-collector rc-mower"
 check "pin --sort " "recency alias pinned"
 check "pin add x --cwd " "PATHFILES"
 check "pin open --" "--help --version --sort --fork --resume -w --worktree --no-fzf --all --json --title --note --keep --no-keep --no-fork --no-worktree --model --effort --permission-mode --rename -y"
+# The hidden helpers (_rows, _preview, …) are never offered; the exact `pin ` list above is the check, and
+# this catches one slipping into the source another way.
+if grep -Eq '_(rows|preview|spreview|status)\b' "$here/completions/pin.zsh"; then echo "FAIL: a hidden helper is listed"; exit 1; fi
 echo "completion ok on zsh $ZSH_VERSION"

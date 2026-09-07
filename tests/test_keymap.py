@@ -9,6 +9,8 @@ class KeymapTests(Sandbox):
         self.assertEqual(km.key("palette"), "ctrl-space")
         self.assertEqual(km.key("help"), "f1")
         self.assertEqual(km.key("fork_mode"), "")
+        self.assertEqual(km.key("refresh"), "alt-r")
+        self.assertEqual({a.id for a in ACTIONS if a.bind}, {"refresh"})   # the one key that stays inside fzf
         bound = km.bound()
         self.assertEqual(len(bound), len([a for a in ACTIONS if a.key]))  # no duplicate default keys
         self.assertNotIn("alt-enter", bound)

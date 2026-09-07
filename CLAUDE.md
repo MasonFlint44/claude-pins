@@ -39,8 +39,31 @@ reasons behind several design choices and are recorded nowhere else.
   fewer than ten rows, measured on the pane itself, border rows included, as 55%
   of the terminal rows left after fzf's bottom border (measured on 0.67: 19 rows
   shows, 18 hides; one fewer with the expired footer). fzf re-checks on every
-  resize; Python mirrors the arithmetic in `fzf.preview_fits()` only at restart,
-  which is what the header note and the alt-v refusal are based on.
+  resize; Python mirrors the arithmetic in `fzf.preview_fits()` at restart for
+  the alt-v refusal, and `fzf.header_transform()` carries the same limit into
+  the shell that keeps the header note current.
+- `--no-clear` only skips leaving the alternate screen: fzf still restores cooked
+  mode, the cursor and mouse tracking on exit (measured on 0.44.1, 0.53.0 and
+  0.67.0), and the next run enters the screen itself and repaints every row.
+  So `fzf.leave_screen()`'s single `\x1b[?1049l` is the whole restore, emitted
+  before exec, before each remaining text prompt, and on every way out of
+  `cli.main`.
+- Feature versions, from fzf's CHANGELOG and gated in `fzf.supports()`: the
+  `resize` event with `$FZF_LINES`, `$FZF_COLUMNS` and the count variables
+  0.46.0; `--info-command` with `$FZF_INFO` 0.54.0; `transform-header` 0.40.0.
+  Inside a transform on 0.44 `$FZF_LINES` is empty and `tput lines` answers 24
+  whatever the size, while `stty size </dev/tty` is right, which is why the
+  header note binds to `focus,change` there and to `resize` on 0.46+.
+- The info command runs on every keystroke and the header transform on every
+  cursor move (0.44), so both are plain shell over fzf's variables; only a
+  reload may start Python (`pin _rows`).
+- fzf ends a parenthesised action at the first `)`, and a later `--bind` for a
+  trigger replaces the earlier one instead of adding to it: `build_args` merges
+  binds per trigger with `+`, and the shell snippets contain no parentheses or
+  brackets.
+- `--header-lines=1` applies to reloaded input too, the count variables exclude
+  the header row, and fzf counts a reload in as it reads it (the counter passes
+  through `3 of 4 pins`), so the pty test waits for a row, not the count.
 - `--filter` mode ignores `--disabled`, so the details screen's real-fzf test
   can only check that its options are accepted and that an empty query keeps
   every line.

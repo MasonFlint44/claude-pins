@@ -20,7 +20,7 @@ from .store import Store, load_store
 from .transcript import read_summary
 
 SUBCOMMANDS = ("add", "list", "ls", "sessions", "edit", "rename", "rm", "unpin", "undo", "prune", "touch", "doctor", "open",
-               "_preview", "_spreview", "_status", "_complete", "help")
+               "_preview", "_spreview", "_rows", "_status", "_complete", "help")
 
 
 def _global_options(p: argparse.ArgumentParser) -> None:
@@ -99,6 +99,9 @@ def build_parser() -> argparse.ArgumentParser:
     for hidden in ("_preview", "_spreview", "_status", "_complete"):
         h = sub.add_parser(hidden)
         h.add_argument("arg", nargs="?")
+    rw = sub.add_parser("_rows")
+    rw.add_argument("--sort", choices=config.SORT_ORDERS)
+    rw.add_argument("--all", action="store_true")
     sub.add_parser("help")
     return p
 
@@ -121,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             print()
             return 130
+        finally:
+            fzf.leave_screen()
     try:
         opts = parser.parse_args(argv)
     except SystemExit as e:
@@ -133,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print()
         return 130
+    finally:
+        fzf.leave_screen()      # every way out of an fzf screen, error paths included
 
 
 def dispatch(opts, parser) -> int:
@@ -145,7 +152,8 @@ def dispatch(opts, parser) -> int:
         "add": cmd_add, "list": cmd_list, "ls": cmd_list, "sessions": cmd_sessions, "edit": cmd_edit,
         "rename": cmd_rename, "rm": cmd_unpin, "unpin": cmd_unpin,
         "undo": cmd_undo, "prune": cmd_prune, "touch": cmd_touch, "doctor": cmd_doctor, "open": cmd_open,
-        "_preview": cmd_preview, "_spreview": cmd_spreview, "_status": cmd_status, "_complete": cmd_complete,
+        "_preview": cmd_preview, "_spreview": cmd_spreview, "_rows": cmd_rows, "_status": cmd_status,
+        "_complete": cmd_complete,
     }[cmd](opts)
 
 
@@ -434,6 +442,17 @@ def cmd_spreview(opts) -> int:
     if not opts.arg:
         return 0
     print(session_preview(read_summary(opts.arg), color=palette()))
+    return 0
+
+
+def cmd_rows(opts) -> int:
+    """The picker's rows for fzf's ``reload``: the sticky label row first, then ``alias<tab>display``, at the
+    width fzf reports. Colour is on unless NO_COLOR says otherwise, like ``_preview`` (stdout is a pipe)."""
+    from .keymap import Keymap
+    from .picker import list_items
+    views, _ = build_views(load_store(), include_expired=opts.all, sort=opts.sort or config.default_sort())
+    for line in fzf.lines_for(list_items(views, Keymap.load(), palette())):
+        print(line)
     return 0
 
 

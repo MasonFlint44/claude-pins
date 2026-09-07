@@ -28,7 +28,18 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   terminal is taller.
 - **Details screen** on alt-i (also in the palette): the whole preview on its own
   screen with more of the last exchange; enter opens the pin, esc goes back.
+- **No flicker between screens.** Every fzf screen draws over the previous one
+  (fzf's `--no-clear`); the shell comes back exactly once, when the tool exits
+  or hands over to claude, and for the text prompts that remain.
+- **Refresh.** alt-r re-reads the store in place, without restarting the
+  picker, for a picker left open while another terminal pinned something. Enter
+  opens a pin that arrived that way. On fzf 0.46 and newer the rows also re-fit
+  when the terminal is resized, and the too-short note follows the height; on
+  0.44 the note catches up on the next cursor move or keystroke. On 0.54 and
+  newer the counter reads `3 of 5 pins · 2 selected`.
 - `pin list` and `pin sessions` share the renderer, so their columns follow.
+- `pin doctor`'s install hint points at fzf's releases page instead of naming a
+  version that goes stale.
 
 ## 0.4.1 — 2026-09-06
 

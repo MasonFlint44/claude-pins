@@ -5,12 +5,15 @@ from __future__ import annotations
 import os
 import sys
 
+from . import fzf
+
 
 class Cancelled(Exception):
     pass
 
 
 def _ask(text: str) -> str:
+    fzf.leave_screen()      # the picker's fzf leaves its screen up between runs; input() needs the normal one
     try:
         return input(text)
     except (KeyboardInterrupt, EOFError):
@@ -21,6 +24,7 @@ def _ask(text: str) -> str:
 def choose(header: list[str], options: list[str], default: int = 1, *, stream=None) -> int:
     """Print a numbered menu, return the 1-based choice. ``default`` is used on bare enter."""
     out = stream or sys.stdout
+    fzf.leave_screen()
     for line in header:
         print(f" {line}", file=out)
     print(file=out)

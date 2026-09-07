@@ -276,6 +276,13 @@ class CliTests(FzfSandbox):
         r = self.run_pin("_preview", "a")  # transcript gone: static preview, no cost line
         self.assertIn("(transcript gone)", r.stdout); self.assertIn("expired", r.stdout)
         self.assertNotIn("cost", r.stdout)
+        r = self.run_pin("_rows")           # the only pin is expired: the sticky row carries the empty message
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.count("\n"), 1)
+        self.assertTrue(r.stdout.startswith("-\tNo pins yet."))
+        r = self.run_pin("_rows", "--all", env={"COLUMNS": "50"})
+        self.assertRegex(r.stdout, r"^-\talias\s+title\s+directory\s+idle\n")
+        self.assertRegex(r.stdout, r"\na\t.*✗\n")
 
     def test_undo_when_repinned_and_store_unwritable(self):
         self.run_pin("add", SID1, "a"); self.run_pin("rm", "a"); self.run_pin("add", SID1, "b")

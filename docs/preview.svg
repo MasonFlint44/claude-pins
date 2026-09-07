@@ -4,7 +4,7 @@
 <text x="28.8" y="26" fill="#87afaf">enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help</text>
 <text x="28.8" y="44" fill="#87afaf">● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⏳  expiring  ✗ expired</text>
 <text x="12.0" y="62" fill="#87afd7" font-weight="bold">📌  pins › </text>
-<text x="784.8" y="62" fill="#afaf87">4/4 (0)</text>
+<text x="793.2" y="62" fill="#afaf87">4 pins</text>
 <text x="28.8" y="80" fill="#87afaf">alias         title                                              directory             idle</text>
 <text x="12.0" y="98" fill="#d7005f" font-weight="bold">&gt;</text>
 <text x="28.8" y="98" fill="#e4e4e4" font-weight="bold">standup-prep  Standup prep                                       ~/git/dotclaude         0m  </text>

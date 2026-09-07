@@ -30,6 +30,19 @@ def pin_exe() -> str:
     return shlex.quote(exe)
 
 
+def list_items(views: list[View], km: Keymap, color) -> list[fzf.Item]:
+    """The main list: the sticky label row (id ``-``) first, then one row per pin, at the terminal's width.
+    Shared with ``pin _rows`` so a reload draws exactly what a restart would."""
+    width = terminal_width() - LIST_WIDTH_SLACK
+    if not views:
+        return [fzf.Item("-", color(EMPTY_MESSAGE.format(new=km.key("new") or "pin add"), "dim"))]
+    cols = layout(views, width)
+    items = [fzf.Item("-", label_row(cols, color))]
+    for v, line in zip(views, rows(views, width=width, color=color, cols=cols)):
+        items.append(fzf.Item(v.pin.alias, line))
+    return items
+
+
 @dataclass
 class State:
     sort: str
@@ -47,6 +60,7 @@ class Picker:
         self.km = keymap or Keymap.load()
         self.state = State(sort=sort or config.default_sort(), query=query, show_expired=show_expired)
         self.color = palette(sys.stdout)
+        self.fzf_version = fzf.fzf_version()
 
     # ---- helpers -------------------------------------------------------------------
 
@@ -67,13 +81,20 @@ class Picker:
         return fzf.preview_fits(terminal_height(), bottom_border=bottom_border)
 
     def expect_keys(self, *ids: str) -> tuple[list[str], dict[str, str]]:
+        """The --expect keys (each restarts fzf) for these actions; actions with a ``bind`` stay inside fzf."""
         keys, mapping = [], {}
         for i in ids:
             k = self.km.key(i)
-            if k and k != "enter" and k != "tab":
+            if k and k != "enter" and k != "tab" and not BY_ID[i].bind:
                 keys.append(k)
                 mapping[k] = i
         return keys, mapping
+
+    def rows_command(self) -> str:
+        """``pin _rows`` for fzf's reload, with the launch width as the fallback for builds without
+        $FZF_COLUMNS (the width fzf reports wins where it exists)."""
+        cmd = f"COLUMNS={terminal_width()} {pin_exe()} _rows --sort {self.state.sort}"
+        return cmd + (" --all" if self.state.show_expired else "")
 
     def reload(self) -> None:
         self.store = Store(self.store.path).load()
@@ -86,17 +107,10 @@ class Picker:
             self.reload()
             touched = touch_kept(self.store)
             views, expired = build_views(self.store, include_expired=self.state.show_expired, sort=self.state.sort)
-            width = terminal_width() - LIST_WIDTH_SLACK
-            items = []
-            if views:
-                cols = layout(views, width)
-                items.append(fzf.Item("-", label_row(cols, self.color)))
-                for v, line in zip(views, rows(views, width=width, color=self.color, cols=cols)):
-                    items.append(fzf.Item(v.pin.alias, line))
-            else:
-                items.append(fzf.Item("-", self.color(EMPTY_MESSAGE.format(new=self.km.key("new") or "pin add"), "dim")))
+            items = list_items(views, self.km, self.color)
             main_actions = ["open_fork", "open_worktree", "palette", "edit", "details", "touch", "keep", "fork_mode",
-                            "worktree_mode", "unpin", "new", "expired", "prune", "undo", "sort", "preview", "help"]
+                            "worktree_mode", "unpin", "new", "expired", "prune", "undo", "sort", "preview", "refresh",
+                            "help"]
             expect, mapping = self.expect_keys(*main_actions)
             pos = next((i + 1 for i, v in enumerate(views) if v.pin.alias == self.state.cursor), None)
             if self.state.query:
@@ -107,13 +121,28 @@ class Picker:
             elif expired and self.state.show_expired:
                 footer = f" {expired} expired shown · pin prune "
             preview_cmd = f"{pin_exe()} _preview {{1}}" if self.state.preview else None
-            notes = [self.color(LEGEND, "dim")]
-            if self.state.preview and not self.preview_fits(bottom_border=bool(footer)):
-                notes.append(self.color(TOO_SHORT_NOTE, "dim"))
             hints = self.hints("open", "palette", "edit", "new", "details", "help")
-            res = fzf.run(items, prompt=crumb(), header=self.header(hints, *notes), header_lines=1 if views else 0,
-                          expect=expect, query=self.state.query, multi=bool(views), pos=pos,
-                          preview=preview_cmd, preview_label_cmd="echo ' '{1}' '", border_label=footer)
+            note = self.color(TOO_SHORT_NOTE, "dim")
+            header = self.header(hints, self.color(LEGEND, "dim"))
+            env = {fzf.HEADER_VAR: header, fzf.NOTE_VAR: note}
+            if self.state.preview and not self.preview_fits(bottom_border=bool(footer)):
+                header += "\n" + note
+            # The list reloads in place on the refresh key and, where fzf has the event, on resize; the
+            # too-short note follows the height on resize too, or on every cursor move and keystroke
+            # where the event is missing (0.44).
+            binds: list[tuple[str, str]] = []
+            reload = f"reload({self.rows_command()})"
+            if self.km.key("refresh"):
+                binds.append((self.km.key("refresh"), reload))
+            transform = f"transform-header({fzf.header_transform(bottom_border=bool(footer))})"
+            if fzf.supports("resize", self.fzf_version):
+                binds.append(("resize", reload + ("+" + transform if self.state.preview else "")))
+            elif self.state.preview:
+                binds += [("focus", transform), ("change", transform)]
+            res = fzf.run(items, prompt=crumb(), header=header, header_lines=1, expect=expect, query=self.state.query,
+                          multi=bool(views), pos=pos, preview=preview_cmd, preview_label_cmd="echo ' '{1}' '",
+                          border_label=footer, binds=binds, env=env,
+                          info_command=fzf.INFO_COMMAND if fzf.supports("info-command", self.fzf_version) else None)
             self.state.flash = ""
             if res is None:
                 return 0
@@ -122,6 +151,9 @@ class Picker:
             if ids:
                 self.state.cursor = ids[0]
             action = mapping.get(res.key, "open") if res.key else "open"
+            # The rows may have been reloaded since launch, so the views come from the store as it is now.
+            self.reload()
+            views, _ = build_views(self.store, include_expired=True, sort=self.state.sort)
             outcome = self.dispatch(action, ids, views, bottom_border=bool(footer))
             if outcome == "quit":
                 return 0
@@ -136,7 +168,10 @@ class Picker:
             if first is None:
                 return None
             if first.expiry.expired:
-                self.state.flash = f"✗ {first.pin.alias} has expired · unpin it or pin prune"
+                alias = first.pin.alias
+                self.state.flash = (f"✗ {alias} has expired · unpin it or pin prune" if first.summary else
+                                    f"✗ {alias}: transcript for session {first.pin.session_id[:8]}… is gone (expired)"
+                                    f" · pin unpin {alias}")
                 return None
             return self.open(first, action)
         if action == "palette":
@@ -148,6 +183,8 @@ class Picker:
             return None
         if action == "help":
             self.help_screen()
+            return None
+        if action == "refresh":        # from the palette; the restart is the refresh
             return None
         if action == "new":
             self.new_pin()
@@ -390,6 +427,7 @@ class Picker:
         if not expired:
             self.state.flash = "nothing to prune"
             return
+        fzf.leave_screen()      # a text prompt follows (until 0.5.0's batch 5 makes it an fzf screen)
         print(f" prune {len(expired)} expired pin(s): {', '.join(expired)}")
         try:
             ok = prompt.yesno("unpin them? (pin undo restores)", True)

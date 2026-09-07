@@ -7,7 +7,7 @@ import shutil
 import sys
 from dataclasses import dataclass
 
-from . import config, gitutil, prompt
+from . import config, fzf, gitutil, prompt
 from .model import Pin, PinError
 from .render import Palette, palette
 from .sessions import expiry_for, find_transcript, open_session_ids
@@ -189,6 +189,7 @@ def launch(plan: Plan) -> None:
     if not exe:
         raise PinError("claude is not on PATH")
     os.chdir(plan.cwd)
+    fzf.leave_screen()
     sys.stdout.flush()
     sys.stderr.flush()
     os.execv(exe, plan.argv)
