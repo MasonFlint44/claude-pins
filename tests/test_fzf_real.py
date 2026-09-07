@@ -29,7 +29,7 @@ from unittest import mock
 from tests.helpers import FzfSandbox
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
-from claude_pins import config, fzf  # noqa: E402
+from claude_pins import config, fzf, theme  # noqa: E402
 
 REAL_FZF = os.environ.get("CLAUDE_PINS_TEST_FZF") or shutil.which("fzf")
 VERSION = fzf.fzf_version(REAL_FZF) if REAL_FZF else None
@@ -136,6 +136,11 @@ class RealFzfTests(FzfSandbox):
         self.assertIn(f"focus:transform-preview-label(echo {{1}})+transform-header({transform})", args)  # one bind per trigger
         self.assertEqual(("--info-command" in args), VERSION >= (0, 65, 2))
         self.assertEqual(any(a.startswith("resize:") for a in args), VERSION >= (0, 46))
+        self.assertIn(f"--color={theme.fzf_colors()}", args)             # every name and #rrggbb in the spec is accepted
+        with self.assertRaisesRegex(AssertionError, "rejected"):          # and the check would notice a bad one
+            filter_ids(items, "", prompt="> ", extra=["--color", "bogus:dim"])
+        os.environ["NO_COLOR"] = "1"
+        self.assertIn("--color=bw", fzf.build_args(REAL_FZF, **kw))
 
     def test_reload_rows(self):
         """What ``pin _rows`` prints for a reload is what the launch sent: the label row stays the sticky header
@@ -198,7 +203,7 @@ class RealFzfTests(FzfSandbox):
         p = self.picker()
         items, kw = self.capture(p.help_screen)
         self.assertTrue(all(i.id != "-" for i in items))
-        self.assertIn("● open", kw["header"])                          # the legend moved into the header
+        self.assertIn("🟢 open", kw["header"])                          # the legend moved into the header
         self.assertKeeps(items, kw, "f1", ["help"])                    # by key
         self.assertKeeps(items, kw, "touch", ["touch"])                # by title
         self.assertEveryRowFindable(items, kw)
@@ -352,7 +357,7 @@ class InteractiveSmokeTest(FzfSandbox):
             self.out = b""                          # each screen is a new fzf; wait for it to draw before typing
             os.write(fd, b"\x1bv")                                              # alt-v: off
             self.wait_for(fd, COUNT3)
-            self.wait_for(fd, r"● open")                                        # the legend is back on line 2
+            self.wait_for(fd, r"🟢 open")                                        # the legend is back on line 2
             self.out = b""
             os.write(fd, b"\x1bv")                                              # alt-v again: cannot turn on
             self.wait_for(fd, r"preview needs a taller terminal · alt-i for details")
@@ -364,7 +369,7 @@ class InteractiveSmokeTest(FzfSandbox):
             self.wait_for(fd, r"enter open · esc back")
             os.write(fd, b"\x1b")                                               # esc: back to the list
             self.wait_for(fd, COUNT3)
-            self.wait_for(fd, r"● open")
+            self.wait_for(fd, r"🟢 open")
             self.assertNotIn(b"\x1b[?1049l", self.raw)                          # five screens, one alternate screen
             os.write(fd, b"\x1b")                                               # esc: leave
             status = self.drain_until_exit(pid, fd)

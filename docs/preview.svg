@@ -1,74 +1,84 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="864" height="636" viewBox="0 0 864 636">
 <rect width="100%" height="100%" rx="8" fill="#1c1c1c"/>
 <g font-family="JetBrains Mono, Fira Code, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">
-<text x="28.8" y="26" fill="#87afaf">enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help</text>
-<text x="28.8" y="44" fill="#87afaf">● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⏳  expiring  ✗ expired</text>
-<text x="12.0" y="62" fill="#87afd7" font-weight="bold">📌  pins › </text>
-<text x="793.2" y="62" fill="#afaf87">4 pins</text>
-<text x="28.8" y="80" fill="#87afaf">alias         title                                              directory             idle</text>
-<text x="12.0" y="98" fill="#d7005f" font-weight="bold">&gt;</text>
-<text x="28.8" y="98" fill="#e4e4e4" font-weight="bold">standup-prep  Standup prep                                       ~/git/dotclaude         0m  </text>
-<text x="810.0" y="98" fill="#8ce99a" font-weight="bold">●</text>
-<text x="818.4" y="98" fill="#e4e4e4" font-weight="bold"> ⚑</text>
+<text x="28.8" y="26" fill="#7a7a7a">enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help</text>
+<text x="28.8" y="44" fill="#7a7a7a">🟢  open  🚩  keep  🔀  fork  🌳  worktree  ⏳  expiring  🔴  expired</text>
+<text x="12.0" y="62" fill="#d97757" font-weight="bold">📌  pins › </text>
+<text x="793.2" y="62" fill="#7a7a7a">4 pins</text>
+<text x="28.8" y="80" fill="#7a7a7a">alias         title                                            directory             idle</text>
+<text x="12.0" y="98" fill="#b1b9f9" font-weight="bold">&gt;</text>
+<text x="28.8" y="98" fill="#e4e4e4" font-weight="bold">standup-prep  Standup prep                                     </text>
+<text x="558.0" y="98" fill="#e4e4e4" font-weight="bold">~/git/dotclaude     </text>
+<text x="742.8" y="98" fill="#e4e4e4" font-weight="bold">  0m</text>
+<text x="776.4" y="98" fill="#e4e4e4" font-weight="bold">  🟢  🚩 </text>
 <text x="12.0" y="116" fill="#303030">▌</text>
 <text x="28.8" y="116" fill="#d0d0d0" font-weight="bold">insurance   </text>
-<text x="129.6" y="116" fill="#d0d0d0">  USAA restructure                                   ~/git/foo › x           1d  ⑂ ⌂  </text>
+<text x="129.6" y="116" fill="#d0d0d0">  USAA restructure                                 </text>
+<text x="558.0" y="116" fill="#7a7a7a">~/git/foo › x       </text>
+<text x="742.8" y="116" fill="#7a7a7a">  1d</text>
+<text x="776.4" y="116" fill="#d0d0d0">  🔀  🌳   </text>
 <text x="12.0" y="134" fill="#303030">▌</text>
 <text x="28.8" y="134" fill="#d0d0d0" font-weight="bold">cc-collector</text>
-<text x="129.6" y="134" fill="#d0d0d0">  Command center collector                           ~/git/command-center    9d       </text>
+<text x="129.6" y="134" fill="#d0d0d0">  Command center collector                         </text>
+<text x="558.0" y="134" fill="#7a7a7a">~/git/command-center</text>
+<text x="742.8" y="134" fill="#7a7a7a">  9d</text>
 <text x="12.0" y="152" fill="#303030">▌</text>
 <text x="28.8" y="152" fill="#d0d0d0" font-weight="bold">rc-mower    </text>
-<text x="129.6" y="152" fill="#d0d0d0">  Navimow schedule debug                             ~                     </text>
-<text x="759.6" y="152" fill="#ffd43b"> 26d</text>
-<text x="810.0" y="152" fill="#ffd43b">⏳ </text>
-<text x="12.0" y="314" fill="#5f5f5f">╭──────────────────────────────────────────</text>
-<text x="373.2" y="314" fill="#afafaf"> standup-prep </text>
-<text x="490.8" y="314" fill="#5f5f5f">──────────────────────────────────────────╮</text>
-<text x="12.0" y="332" fill="#5f5f5f">│ </text>
+<text x="129.6" y="152" fill="#d0d0d0">  Navimow schedule debug                           </text>
+<text x="558.0" y="152" fill="#7a7a7a">~                   </text>
+<text x="742.8" y="152" fill="#ffc107"> 26d</text>
+<text x="776.4" y="152" fill="#d0d0d0">  ⏳      </text>
+<text x="12.0" y="314" fill="#7a7a7a">╭────────────────────────────────────────── standup-prep ──────────────────────────────────────────╮</text>
+<text x="12.0" y="332" fill="#7a7a7a">│ </text>
 <text x="28.8" y="332" fill="#d0d0d0" font-weight="bold">Standup prep</text>
-<text x="835.2" y="332" fill="#5f5f5f"> │</text>
-<text x="12.0" y="350" fill="#5f5f5f">│ </text>
+<text x="835.2" y="332" fill="#7a7a7a"> │</text>
+<text x="12.0" y="350" fill="#7a7a7a">│ </text>
 <text x="28.8" y="350" fill="#d0d0d0">Tuesday standup, uses jira-cards                                                                </text>
-<text x="835.2" y="350" fill="#5f5f5f"> │</text>
-<text x="12.0" y="368" fill="#5f5f5f">│ </text>
-<text x="835.2" y="368" fill="#5f5f5f"> │</text>
-<text x="12.0" y="386" fill="#5f5f5f">│ </text>
-<text x="28.8" y="386" fill="#d0d0d0">dir        ~/git/dotclaude                                                                      </text>
-<text x="835.2" y="386" fill="#5f5f5f"> │</text>
-<text x="12.0" y="404" fill="#5f5f5f">│ </text>
-<text x="28.8" y="404" fill="#d0d0d0">branch     main                                                                                 </text>
-<text x="835.2" y="404" fill="#5f5f5f"> │</text>
-<text x="12.0" y="422" fill="#5f5f5f">│ </text>
-<text x="28.8" y="422" fill="#d0d0d0">model      fable-5-1 · effort high · mode auto                                                  </text>
-<text x="835.2" y="422" fill="#5f5f5f"> │</text>
-<text x="12.0" y="440" fill="#5f5f5f">│ </text>
-<text x="28.8" y="440" fill="#d0d0d0">context    ~121k (61%)                                                                          </text>
-<text x="835.2" y="440" fill="#5f5f5f"> │</text>
-<text x="12.0" y="458" fill="#5f5f5f">│ </text>
-<text x="28.8" y="458" fill="#d0d0d0">cost       est $0.07 (ccusage)                                                                  </text>
-<text x="835.2" y="458" fill="#5f5f5f"> │</text>
-<text x="12.0" y="476" fill="#5f5f5f">│ </text>
-<text x="28.8" y="476" fill="#d0d0d0">transcript 84 msgs · 36 KB                                                                      </text>
-<text x="835.2" y="476" fill="#5f5f5f"> │</text>
-<text x="12.0" y="494" fill="#5f5f5f">│ </text>
-<text x="28.8" y="494" fill="#d0d0d0">created    2026-09-01 · last activity 0m ago · pinned 2026-09-06 · expires 29d                  </text>
-<text x="835.2" y="494" fill="#5f5f5f"> │</text>
-<text x="12.0" y="512" fill="#5f5f5f">│ </text>
-<text x="28.8" y="512" fill="#d0d0d0">keep       on — touched every run                                                               </text>
-<text x="835.2" y="512" fill="#5f5f5f"> │</text>
-<text x="12.0" y="530" fill="#5f5f5f">│ </text>
-<text x="28.8" y="530" fill="#d0d0d0">session    11111111-1111-1111-1111-111111111111                                                 </text>
-<text x="835.2" y="530" fill="#5f5f5f"> │</text>
-<text x="12.0" y="548" fill="#5f5f5f">│ </text>
-<text x="835.2" y="548" fill="#5f5f5f"> │</text>
-<text x="12.0" y="566" fill="#5f5f5f">│ </text>
-<text x="28.8" y="566" fill="#d0d0d0">you        so the pin command should also touch the transcript when it opens a fork?            </text>
-<text x="835.2" y="566" fill="#5f5f5f"> │</text>
-<text x="12.0" y="584" fill="#5f5f5f">│ </text>
-<text x="28.8" y="584" fill="#d0d0d0">claude     Yes. The picker can bind keys to run a command and reload the list afterwards,       </text>
-<text x="835.2" y="584" fill="#5f5f5f"> │</text>
-<text x="12.0" y="602" fill="#5f5f5f">│ </text>
-<text x="28.8" y="602" fill="#d0d0d0">           which is how the status flashes work.                                                </text>
-<text x="835.2" y="602" fill="#5f5f5f"> │</text>
-<text x="12.0" y="620" fill="#5f5f5f">╰──────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="835.2" y="350" fill="#7a7a7a"> │</text>
+<text x="12.0" y="368" fill="#7a7a7a">│ </text>
+<text x="835.2" y="368" fill="#7a7a7a"> │</text>
+<text x="12.0" y="386" fill="#7a7a7a">│ dir       </text>
+<text x="112.8" y="386" fill="#d0d0d0"> ~/git/dotclaude                                                                      </text>
+<text x="835.2" y="386" fill="#7a7a7a"> │</text>
+<text x="12.0" y="404" fill="#7a7a7a">│ branch    </text>
+<text x="112.8" y="404" fill="#d0d0d0"> main                                                                                 </text>
+<text x="835.2" y="404" fill="#7a7a7a"> │</text>
+<text x="12.0" y="422" fill="#7a7a7a">│ model     </text>
+<text x="112.8" y="422" fill="#d0d0d0"> fable-5-1 · effort </text>
+<text x="280.8" y="422" fill="#fab219">high</text>
+<text x="314.4" y="422" fill="#d0d0d0"> · mode </text>
+<text x="381.6" y="422" fill="#ffc107">auto</text>
+<text x="835.2" y="422" fill="#7a7a7a"> │</text>
+<text x="12.0" y="440" fill="#7a7a7a">│ context   </text>
+<text x="112.8" y="440" fill="#d0d0d0"> ~121k (</text>
+<text x="180.0" y="440" fill="#fb9c28">61%</text>
+<text x="205.2" y="440" fill="#d0d0d0">)                                                                          </text>
+<text x="835.2" y="440" fill="#7a7a7a"> │</text>
+<text x="12.0" y="458" fill="#7a7a7a">│ cost      </text>
+<text x="112.8" y="458" fill="#d0d0d0"> est $0.07 (ccusage)                                                                  </text>
+<text x="835.2" y="458" fill="#7a7a7a"> │</text>
+<text x="12.0" y="476" fill="#7a7a7a">│ transcript</text>
+<text x="112.8" y="476" fill="#d0d0d0"> 84 msgs · 36 KB                                                                      </text>
+<text x="835.2" y="476" fill="#7a7a7a"> │</text>
+<text x="12.0" y="494" fill="#7a7a7a">│ created   </text>
+<text x="112.8" y="494" fill="#d0d0d0"> 2026-09-01 · last activity 0m ago · pinned 2026-09-07 · expires 29d                  </text>
+<text x="835.2" y="494" fill="#7a7a7a"> │</text>
+<text x="12.0" y="512" fill="#7a7a7a">│ keep      </text>
+<text x="112.8" y="512" fill="#d0d0d0"> on — touched every run                                                               </text>
+<text x="835.2" y="512" fill="#7a7a7a"> │</text>
+<text x="12.0" y="530" fill="#7a7a7a">│ session   </text>
+<text x="121.2" y="530" fill="#7a7a7a">11111111-1111-1111-1111-111111111111</text>
+<text x="835.2" y="530" fill="#7a7a7a"> │</text>
+<text x="12.0" y="548" fill="#7a7a7a">│ </text>
+<text x="835.2" y="548" fill="#7a7a7a"> │</text>
+<text x="12.0" y="566" fill="#7a7a7a">│ you       </text>
+<text x="112.8" y="566" fill="#d0d0d0"> so the pin command should also touch the transcript when it opens a fork?            </text>
+<text x="835.2" y="566" fill="#7a7a7a"> │</text>
+<text x="12.0" y="584" fill="#7a7a7a">│ claude    </text>
+<text x="112.8" y="584" fill="#d0d0d0"> Yes. The picker can bind keys to run a command and reload the list afterwards,       </text>
+<text x="835.2" y="584" fill="#7a7a7a"> │</text>
+<text x="12.0" y="602" fill="#7a7a7a">│           </text>
+<text x="112.8" y="602" fill="#d0d0d0"> which is how the status flashes work.                                                </text>
+<text x="835.2" y="602" fill="#7a7a7a"> │</text>
+<text x="12.0" y="620" fill="#7a7a7a">╰──────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
 </g></svg>

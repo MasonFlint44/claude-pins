@@ -13,8 +13,9 @@ from .keymap import ACTIONS, BY_ID, GROUPS, Keymap, key_warning, validate_key
 from .listing import build_views, next_sort
 from .model import Pin, PinError, kebab, next_free_alias
 from .opener import launch, plan_open, touch_kept, touch_pin
-from .render import (LEGEND, View, crumb, grouped, label_row, layout, palette, preview, rows, session_rows,
+from .render import (View, crumb, grouped, label_row, layout, legend, palette, preview, rows, session_rows,
                      terminal_height, terminal_width)
+from .theme import ERROR, SUCCESS
 from .sessions import iter_transcripts
 from .store import Store
 from .transcript import read_summary
@@ -73,7 +74,7 @@ class Picker:
         takes the second line, displacing the note that was there, so the list never moves."""
         lines = [hints, *notes]
         if self.state.flash:
-            flash = self.color(self.state.flash, "red" if self.state.flash.startswith("✗") else "green")
+            flash = self.color(self.state.flash, ERROR if self.state.flash.startswith("✗") else SUCCESS)
             lines[1:2] = [flash]
         return "\n".join(lines)
 
@@ -123,7 +124,7 @@ class Picker:
             preview_cmd = f"{pin_exe()} _preview {{1}}" if self.state.preview else None
             hints = self.hints("open", "palette", "edit", "new", "details", "help")
             note = self.color(TOO_SHORT_NOTE, "dim")
-            header = self.header(hints, self.color(LEGEND, "dim"))
+            header = self.header(hints, self.color(legend(), "dim"))
             env = {fzf.HEADER_VAR: header, fzf.NOTE_VAR: note}
             if self.state.preview and not self.preview_fits(bottom_border=bool(footer)):
                 header += "\n" + note
@@ -328,7 +329,7 @@ class Picker:
             ids = [a.id for g in GROUPS for a in ACTIONS if a.group == g]
             items = [fzf.Item(i, line) for i, line in zip(ids, grouped(table, self.color))]
             hints = self.color("enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back", "dim")
-            notes = (self.color(LEGEND, "dim"), self.color("keymap: " + config.tilde(config.keymap_file()), "dim"))
+            notes = (self.color(legend(), "dim"), self.color("keymap: " + config.tilde(config.keymap_file()), "dim"))
             res = fzf.run(items, prompt=crumb("help"), header=self.header(hints, *notes), expect=["ctrl-r", "ctrl-alt-r"],
                           info="hidden")
             self.state.flash = ""

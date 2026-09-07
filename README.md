@@ -59,14 +59,14 @@ completion link; the store and cache below can go too.
   and `--resume` are one-off overrides.
 - Claude Code deletes transcripts untouched for `cleanupPeriodDays` (default 30). A pin is only
   as durable as its transcript, so the picker shows ⏳ in the last 7 days (`CLAUDE_PINS_EXPIRE_WARN`)
-  and ✗ once the transcript is gone. Opening touches the transcript; pins with **keep** (⚑) are
+  and 🔴 once the transcript is gone. Opening touches the transcript; pins with **keep** (🚩) are
   touched on every `pin` run and never expire while you use the tool. `pin prune` unpins the
   expired ones; `pin undo` restores the last unpin or prune.
 - The cost line comes from [ccusage](https://github.com/ryoppippi/ccusage): offline first,
   and when its bundled price table has no price for a model the session used, one online run
   with a short timeout. If neither prices the model, the line says so and names the update
   command. Results are cached per transcript change.
-- A session whose id appears in a running `claude` process is marked ● and asks before
+- A session whose id appears in a running `claude` process is marked 🟢 and asks before
   resuming a second copy.
 - If the pin's directory is gone: a Claude worktree (`<repo>/.claude/worktrees/<name>`) is
   recreated on its surviving `worktree-<name>` branch or fresh off HEAD, or you pick the repo
@@ -93,8 +93,15 @@ ctrl-r resets a row, ctrl-alt-r resets all) or by editing `~/.config/claude-pins
 whose action names are `open`, `open_fork`, `open_worktree`, `palette`, `edit`, `details`,
 `touch`, `keep`, `fork_mode`, `worktree_mode`, `unpin`, `new`, `expired`, `prune`, `undo`,
 `sort`, `preview`, `refresh`, `help`, `select`. fzf's own query-editing keys and alt+enter (Windows
-Terminal) are avoided on purpose. Markers: ● open · ⚑ keep · ⑂ fork · ⌂ worktree · ⏳ expiring ·
-✗ expired.
+Terminal) are avoided on purpose. Markers: 🟢 open · 🚩 keep · 🔀 fork · 🌳 worktree · ⏳ expiring ·
+🔴 expired. On a terminal without emoji (a non-UTF-8 locale, the Linux console, `TERM=dumb`) they
+become the one-cell ● ⚑ ⑂ ⌂ ⧗ ✗ in the same colours and the 📌 leaves the prompt;
+`CLAUDE_PINS_GLYPHS=emoji` or `text` decides by hand.
+
+The colours are Claude Code's own: the prompt in clay, the pointer and matched letters in
+periwinkle, the effort and context values on the budget statusline's green-to-red ramp, the
+permission mode in the colour Claude's mode indicator gives it. Everything else is dim, so the
+look holds on light and dark terminals alike; `NO_COLOR` or `CLAUDE_PINS_COLOR=0` turns it all off.
 
 The list's `idle` column is the time since the transcript was last written, which is what the
 retention clock counts. The preview pane below the list hides itself when it would get fewer
@@ -160,7 +167,8 @@ Every run of any of these also touches the transcripts of pins with `keep`.
 | `CLAUDE_PINS_SORT` | starting sort: `recency` (default), `alias`, `pinned` |
 | `CLAUDE_PINS_EXPIRE_WARN` | days before expiry at which ⏳ shows (default 7) |
 | `CLAUDE_PINS_NO_FZF` | force the numbered menu |
-| `NO_COLOR` / `CLAUDE_PINS_COLOR=1` | never / always color |
+| `CLAUDE_PINS_GLYPHS` | `emoji` or `text` markers (default: emoji on a UTF-8 locale outside the Linux console) |
+| `NO_COLOR` / `CLAUDE_PINS_COLOR=0` / `CLAUDE_PINS_COLOR=1` | never / never / always color |
 | `CLAUDE_PINS_FZF`, `CLAUDE_PINS_CCUSAGE` | alternate binaries |
 | `CLAUDE_PINS_PS`, `CLAUDE_PINS_NOW` | test hooks: a fake process table file, a fake clock (epoch seconds) |
 

@@ -58,7 +58,35 @@ class PickerTests(FzfSandbox):
         self.assertRegex(rows[2], r"rc-mower\s.*~\s+26d\s+⏳$")
         header = plain(self.arg(call, "--header")).split("\n")
         self.assertEqual(header[0], "enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help")
-        self.assertTrue(header[1].startswith("● open  ⚑ keep"))    # the legend, until a flash displaces it
+        self.assertTrue(header[1].startswith("🟢 open  🚩 keep"))    # the legend, until a flash displaces it
+
+    def test_theme_and_glyph_switches(self):
+        """Colour on: fzf gets the token --color spec and the rows carry 24-bit codes. Off (NO_COLOR or
+        CLAUDE_PINS_COLOR=0): --color=bw and no codes. CLAUDE_PINS_GLYPHS=text drops the logo and the emoji."""
+        from claude_pins import theme
+        self.steps({"key": "esc"})
+        r = self.run_pin(env={"NO_COLOR": "", "CLAUDE_PINS_COLOR": "1"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        call = self.fzf_calls()[0]
+        self.assertIn(f"--color={theme.fzf_colors()}", call["argv"])
+        self.assertIn("prompt:#d97757", theme.fzf_colors())
+        self.assertTrue(call["lines"][3].endswith(f"\x1b[{theme.sgr(theme.WARNING)}m 26d\x1b[0m  ⏳"))  # gold idle; emoji bare
+        self.assertIn("\x1b[1m", call["lines"][1])                      # the alias is bold
+        self.assertIn("\x1b[2m", call["lines"][0])                      # the label row is dim
+        for env in ({"NO_COLOR": "1"}, {"NO_COLOR": "", "CLAUDE_PINS_COLOR": "0"}):
+            self.fzf_log.unlink()
+            self.run_pin(env=env)
+            call = self.fzf_calls()[0]
+            self.assertIn("--color=bw", call["argv"])
+            self.assertFalse(any("\x1b[" in l for l in call["lines"] + [self.arg(call, "--header")]))
+        self.fzf_log.unlink()
+        self.run_pin(env={"NO_COLOR": "", "CLAUDE_PINS_COLOR": "1", "CLAUDE_PINS_GLYPHS": "text"})
+        call = self.fzf_calls()[0]
+        self.assertEqual(self.arg(call, "--prompt"), "pins › ")
+        rows = self.pin_rows(call)
+        self.assertRegex(rows[2], r"rc-mower\s.*~\s+26d\s+⧗$")
+        self.assertIn(f"\x1b[{theme.sgr(theme.WARNING)}m⧗\x1b[0m", call["lines"][3])   # text glyphs are coloured
+        self.assertIn("● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⧗ expiring  ✗ expired", plain(self.arg(call, "--header")))
 
     def test_fork_and_worktree_keys(self):
         self.steps({"key": "alt-o", "select": ["standup-prep"]})
@@ -93,7 +121,7 @@ class PickerTests(FzfSandbox):
         self.assertFalse(self.stored()["cc-collector"]["keep"])
         header = plain(self.arg(self.fzf_calls()[1], "--header"))
         self.assertIn("✓ keep on for standup-prep, rc-mower", header)
-        self.assertRegex(self.pin_rows(self.fzf_calls()[1])[0], r"⚑")
+        self.assertRegex(self.pin_rows(self.fzf_calls()[1])[0], r"🚩")
 
     def test_unpin_and_undo(self):
         self.steps({"key": "alt-x", "select": ["cc-collector"]}, {"key": "alt-z"}, {"abort": True})
@@ -112,7 +140,7 @@ class PickerTests(FzfSandbox):
         self.assertEqual(len(self.pin_rows(calls[0])), 2)
         self.assertEqual(self.arg(calls[0], "--border-label"), " 1 expired · alt-a show · pin prune ")
         self.assertEqual(len(self.pin_rows(calls[1])), 3)
-        self.assertRegex(self.pin_rows(calls[1])[-1], r"rc-mower\s.*✗$")
+        self.assertRegex(self.pin_rows(calls[1])[-1], r"rc-mower\s.*🔴$")
         self.assertIn("prune 1 expired pin(s): rc-mower", r.stdout)
         self.assertIn("✓ pruned 1 · alt-z undo", plain(self.arg(calls[2], "--header")))
         self.assertEqual(len(self.pin_rows(calls[2])), 2)
@@ -200,7 +228,7 @@ class PickerTests(FzfSandbox):
         self.assertEqual(self.arg(help_call, "--prompt"), "📌 pins › help › ")
         header = plain(self.arg(help_call, "--header")).split("\n")
         self.assertEqual(header[0], "enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back")
-        self.assertTrue(header[1].startswith("● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⏳ expiring  ✗ expired"))
+        self.assertTrue(header[1].startswith("🟢 open  🚩 keep  🔀 fork  🌳 worktree  ⏳ expiring  🔴 expired"))
         self.assertEqual(header[2], "keymap: ~/.config/claude-pins/keys.toml")
         self.assertFalse(any(l.startswith("-\t") for l in help_call["lines"]))   # every row is an action
         rows = self.labels(help_call)
@@ -239,7 +267,7 @@ class PickerTests(FzfSandbox):
         rows = [plain(l) for l in new_call["lines"]]
         self.assertTrue(rows[0].split("\t")[0].endswith(f"{sid4}.jsonl"))
         self.assertRegex(rows[0], r"Tax prep questions\s+~/Documents\s+\d+[mh]\s+18 msgs")
-        self.assertRegex(rows[1], r"Standup prep\s+.*⚑ pinned$")
+        self.assertRegex(rows[1], r"Standup prep\s+.*🚩 pinned$")
         self.assertIn("alias (suggested from title · enter · ctrl-c cancel)", r.stdout)
         self.assertIn("tax-prep-questions", self.stored())
         self.assertEqual(self.stored()["tax-prep-questions"]["title"], "Tax prep questions")

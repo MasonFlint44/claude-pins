@@ -105,8 +105,11 @@ class MenuTests(FzfSandbox):
         self.assertIn("✓ unpinned rc-mower · z undo", r.stdout)  # touched → newest → row 1
         self.assertIn("✓ restored rc-mower (unpin)", r.stdout)
         self.assertIn("nothing to prune", r.stdout)
-        self.assertIn("● open  ⚑ keep", r.stdout)
+        self.assertIn("🟢 open  🚩 keep", r.stdout)
         self.assertIsNone(self.claude_calls())
+        r = self.run_pin(input="?\nq\n", env={"CLAUDE_PINS_GLYPHS": "text"})    # the menu shares the glyph switch
+        self.assertIn("● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⧗ expiring  ✗ expired", r.stdout)
+        self.assertNotIn("🟢", r.stdout)
 
     def test_menu_preview_and_fork(self):
         r = self.run_pin(input="p1\no1\n")
@@ -144,7 +147,7 @@ class MenuTests(FzfSandbox):
         self.t2.unlink()
         r = self.run_pin(input="a\np\ny\nz\nq\n")
         self.assertIn("1 expired · a show · p prune", r.stdout)
-        self.assertRegex(r.stdout, r"2  rc-mower\s+Navimow schedule debug\s+~\s+✗")
+        self.assertRegex(r.stdout, r"2  rc-mower\s+Navimow schedule debug\s+~\s+🔴")
         self.assertIn("✓ pruned 1 · z undo", r.stdout)
         self.assertIn("✓ restored rc-mower (prune)", r.stdout)
 

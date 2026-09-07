@@ -93,7 +93,9 @@ def no_fzf() -> bool:
 
 
 def color_enabled(stream=None) -> bool:
-    if os.environ.get("NO_COLOR"):
+    """``NO_COLOR`` or ``CLAUDE_PINS_COLOR=0`` turns colour off, ``CLAUDE_PINS_COLOR=1`` forces it on; otherwise
+    the stream decides (a pipe gets none; no stream means the caller has a terminal)."""
+    if os.environ.get("NO_COLOR") or os.environ.get("CLAUDE_PINS_COLOR") == "0":
         return False
     if os.environ.get("CLAUDE_PINS_COLOR") == "1":
         return True

@@ -27,6 +27,19 @@ from tests.helpers import Sandbox  # noqa: E402
 COLS, ROWS = 100, 34
 PALETTE = {"default": "#d0d0d0", "black": "#1c1c1c", "red": "#ff6b6b", "green": "#8ce99a", "yellow": "#ffd43b",
            "blue": "#74c0fc", "magenta": "#e599f7", "cyan": "#66d9e8", "white": "#f8f9fa", "brown": "#ffd43b"}
+DIM = "#7a7a7a"
+
+
+class Screen(pyte.Screen):
+    """pyte 0.8 keeps 24-bit colour and wide glyphs but drops SGR 2, and the picker's chrome is all dim: this
+    records dim in the unused italics slot (nothing here emits SGR 3) so the SVG can grey it."""
+
+    def select_graphic_rendition(self, *attrs):
+        super().select_graphic_rendition(*attrs)
+        if 2 in attrs:
+            self.cursor.attrs = self.cursor.attrs._replace(italics=True)
+        elif not attrs or 0 in attrs or 22 in attrs:
+            self.cursor.attrs = self.cursor.attrs._replace(italics=False)
 
 
 class Fixture(Sandbox):
@@ -38,6 +51,7 @@ def capture(keys: list[bytes]) -> pyte.Screen:
     fx = Fixture(); fx.setUp()
     os.environ.pop("NO_COLOR", None)
     os.environ["CLAUDE_PINS_NOW"] = ""
+    os.environ["CLAUDE_PINS_GLYPHS"] = "emoji"      # the snapshot is what a UTF-8 terminal shows
     home = fx.home
     s1, s2, s3, s4 = ("11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222",
                       "33333333-3333-3333-3333-333333333333", "44444444-4444-4444-4444-444444444444")
@@ -90,7 +104,7 @@ def capture(keys: list[bytes]) -> pyte.Screen:
         os.kill(pid, 9)
     except OSError:
         pass
-    screen = pyte.Screen(COLS, ROWS)
+    screen = Screen(COLS, ROWS)
     pyte.ByteStream(screen).feed(out)
     fx.tearDown()
     return screen
@@ -108,14 +122,16 @@ def to_svg(screen: pyte.Screen) -> str:
         while x < COLS:
             ch_ = row[x]
             run_start = x
-            style = (ch_.fg, ch_.bg, ch_.bold, ch_.reverse, ch_.strikethrough)
+            style = (ch_.fg, ch_.bg, ch_.bold, ch_.reverse, ch_.strikethrough, ch_.italics)
             text = ""
-            while x < COLS and (row[x].fg, row[x].bg, row[x].bold, row[x].reverse, row[x].strikethrough) == style:
-                text += row[x].data or " "
+            while x < COLS and (row[x].fg, row[x].bg, row[x].bold, row[x].reverse, row[x].strikethrough, row[x].italics) == style:
+                text += row[x].data or " "      # a wide glyph's second cell is empty: it keeps the cell count right
                 x += 1
             if not text.strip():
                 continue
             fg = PALETTE.get(style[0], "#d0d0d0") if not str(style[0]).isalnum() or style[0] in PALETTE else f"#{style[0]}" if len(str(style[0])) == 6 else "#d0d0d0"
+            if style[5] and fg == PALETTE["default"]:
+                fg = DIM
             attrs = f'fill="{fg}"'
             if style[2]:
                 attrs += ' font-weight="bold"'

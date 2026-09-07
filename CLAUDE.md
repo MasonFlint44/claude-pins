@@ -72,6 +72,15 @@ reasons behind several design choices and are recorded nowhere else.
 - Emoji and other East Asian wide characters take two terminal cells, and fzf's
   runewidth agrees, so every column width goes through `claude_pins/text.py`
   rather than `len()`.
+- In `--color`, `header:dim` keeps fzf's own colour for the element (teal on the
+  dark theme) and only adds the attribute; `header:-1:dim` is the terminal's
+  foreground dimmed, which is what reads on light and dark alike. `-1`,
+  `#rrggbb` and `preview-label` are all accepted on 0.44.1, and a bad name is
+  exit 2, so `test_options_accepted` runs the spec through every CI build.
+- pyte 0.8.2 (`docs/preview.py`) keeps 24-bit foregrounds as six hex digits and
+  gives a wide glyph two cells with the second one empty, but drops SGR 2, so
+  the generator records dim itself (in the unused italics slot) to grey the
+  chrome in the SVG.
 - Python's `input()` cannot see escape, so the inline prompts cancel with ctrl-c.
 - Terminal automation (opening a new tab for the resumed session) was dropped on
   purpose: Ghostty's D-Bus surface offers new-window only.

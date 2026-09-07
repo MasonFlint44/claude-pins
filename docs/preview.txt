@@ -1,11 +1,11 @@
   enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help
-  ● open  ⚑ keep  ⑂ fork  ⌂ worktree  ⏳ expiring  ✗ expired
+  🟢 open  🚩 keep  🔀 fork  🌳 worktree  ⏳ expiring  🔴 expired
 📌 pins ›                                                                                    4 pins
-  alias         title                                              directory             idle
-> standup-prep  Standup prep                                       ~/git/dotclaude         0m  ● ⚑
-▌ insurance     USAA restructure                                   ~/git/foo › x           1d  ⑂ ⌂
-▌ cc-collector  Command center collector                           ~/git/command-center    9d
-▌ rc-mower      Navimow schedule debug                             ~                      26d  ⏳
+  alias         title                                            directory             idle
+> standup-prep  Standup prep                                     ~/git/dotclaude         0m  🟢 🚩
+▌ insurance     USAA restructure                                 ~/git/foo › x           1d  🔀 🌳
+▌ cc-collector  Command center collector                         ~/git/command-center    9d
+▌ rc-mower      Navimow schedule debug                           ~                      26d  ⏳
 
 
 
@@ -24,7 +24,7 @@
 │ context    ~121k (61%)                                                                           │
 │ cost       est $0.07 (ccusage)                                                                   │
 │ transcript 84 msgs · 36 KB                                                                       │
-│ created    2026-09-01 · last activity 0m ago · pinned 2026-09-06 · expires 29d                   │
+│ created    2026-09-01 · last activity 0m ago · pinned 2026-09-07 · expires 29d                   │
 │ keep       on — touched every run                                                                │
 │ session    11111111-1111-1111-1111-111111111111                                                  │
 │                                                                                                  │

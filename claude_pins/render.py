@@ -1,4 +1,4 @@
-"""Terminal rendering: colors, symbols, picker rows, preview text."""
+"""Terminal rendering: picker rows, labels, preview text; colours and glyphs come from theme.py."""
 
 from __future__ import annotations
 
@@ -6,46 +6,30 @@ import os
 import shutil
 import textwrap
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from . import config
+from . import config, theme
 from .cost import Cost, format_tokens
 from .gitutil import split_worktree_path
 from .model import Pin
 from .sessions import Expiry, format_age
 from .text import cell_width, cells, clip, pad
+from .theme import ERROR, SUCCESS, WARNING, Palette, glyphs, paint_glyph, palette  # noqa: F401  (re-exported)
 from .transcript import Summary, shorten
 
-SYM_OPEN, SYM_KEEP, SYM_FORK, SYM_WORKTREE, SYM_EXPIRING, SYM_EXPIRED = "●", "⚑", "⑂", "⌂", "⏳", "✗"
-LEGEND = f"{SYM_OPEN} open  {SYM_KEEP} keep  {SYM_FORK} fork  {SYM_WORKTREE} worktree  {SYM_EXPIRING} expiring  {SYM_EXPIRED} expired"
-LOGO = "📌"
+MARKER_ORDER = ("open", "keep", "fork", "worktree", "expired", "expiring")
+
+
+def legend() -> str:
+    g = glyphs()
+    return (f"{g.open} open  {g.keep} keep  {g.fork} fork  {g.worktree} worktree  {g.expiring} expiring  "
+            f"{g.expired} expired")
 
 
 def crumb(*parts: str) -> str:
-    """The prompt breadcrumb every screen shares: ``📌 pins › alias › edit › ``."""
-    return f"{LOGO} " + "".join(f"{p} › " for p in ("pins", *parts))
-
-_CODES = {
-    "green": "32", "yellow": "33", "red": "31", "cyan": "36", "magenta": "35", "blue": "34",
-    "dim": "2", "bold": "1", "strike": "9", "reset": "0",
-}
-
-
-class Palette:
-    """ANSI coloring that turns into a no-op under ``NO_COLOR``."""
-
-    def __init__(self, enabled: bool):
-        self.enabled = enabled
-
-    def __call__(self, text: str, *styles: str) -> str:
-        if not self.enabled or not styles or not text:
-            return text
-        codes = ";".join(_CODES[s] for s in styles)
-        return f"\x1b[{codes}m{text}\x1b[0m"
-
-
-def palette(stream=None) -> Palette:
-    return Palette(config.color_enabled(stream))
+    """The prompt breadcrumb every screen shares: ``📌 pins › alias › edit › `` (no logo in the text set)."""
+    logo = glyphs().logo
+    return (f"{logo} " if logo else "") + "".join(f"{p} › " for p in ("pins", *parts))
 
 
 def terminal_width(default: int = 100) -> int:
@@ -130,23 +114,21 @@ class View:
     expiry: Expiry
     is_open: bool = False
     summary: Summary | None = None
-    markers: str = field(init=False, default="")
 
-    def __post_init__(self):
-        m = []
-        if self.is_open:
-            m.append(SYM_OPEN)
-        if self.pin.keep:
-            m.append(SYM_KEEP)
-        if self.pin.fork:
-            m.append(SYM_FORK)
-        if self.pin.worktree:
-            m.append(SYM_WORKTREE)
-        if self.expiry.expired:
-            m.append(SYM_EXPIRED)
-        elif self.expiry.expiring:
-            m.append(SYM_EXPIRING)
-        self.markers = " ".join(m)
+    def marker_names(self) -> list[str]:
+        flags = {"open": self.is_open, "keep": self.pin.keep, "fork": self.pin.fork, "worktree": self.pin.worktree,
+                 "expired": self.expiry.expired, "expiring": self.expiry.expiring and not self.expiry.expired}
+        return [n for n in MARKER_ORDER if flags[n]]
+
+    @property
+    def markers(self) -> str:
+        """The marker glyphs, in the current glyph set (``🟢 🚩`` or ``● ⚑``)."""
+        g = glyphs()
+        return " ".join(getattr(g, n) for n in self.marker_names())
+
+    def painted_markers(self, color: Palette) -> str:
+        g = glyphs()
+        return " ".join(paint_glyph(n, color, g) for n in self.marker_names())
 
     @property
     def age(self) -> str:
@@ -220,15 +202,12 @@ def rows(views: list[View], width: int | None = None, color: Palette | None = No
         title = pad(v.title, title_w)
         d = pad(fit_dir(display_dir(v.pin.cwd), dir_w), dir_w)
         age = pad(v.age, age_w, ">")
-        marks = ("  " + pad(v.markers, mark_w)) if mark_w else ""
+        marks = ("  " + v.painted_markers(color)) if v.markers else ""
         if v.expiry.expired:
-            line = color(f"{alias}  {title}  {d}  {age}", "dim", "strike") + color(marks.rstrip(), "dim")
+            line = color(f"{alias}  {title}  {d}  {age}", "dim", "strike") + marks
         else:
-            age_c = color(age, "yellow") if v.expiry.expiring else color(age, "dim")
-            marks_c = marks
-            if color.enabled and marks:
-                marks_c = marks.replace(SYM_OPEN, color(SYM_OPEN, "green")).replace(SYM_EXPIRING, color(SYM_EXPIRING, "yellow"))
-            line = f"{color(alias, 'bold')}  {title}  {color(d, 'dim')}  {age_c}{marks_c}"
+            age_c = color(age, WARNING) if v.expiry.expiring else color(age, "dim")
+            line = f"{color(alias, 'bold')}  {title}  {color(d, 'dim')}  {age_c}{marks}"
         out.append(num + line.rstrip())
     return out
 
@@ -283,7 +262,7 @@ def branch_line(recorded: str, current: str | None, cwd_exists: bool, color: Pal
         return f"(not a git repo) · session ran on {recorded}" if cwd_exists else f"session ran on {recorded}"
     if not recorded or current == recorded:
         return current
-    return color(f"{current} checked out · session ran on {recorded}", "yellow")
+    return color(f"{current} checked out · session ran on {recorded}", WARNING)
 
 
 def preview(view: View, cost: Cost | None = None, current_branch: str | None = None,
@@ -308,13 +287,15 @@ def preview(view: View, cost: Cost | None = None, current_branch: str | None = N
     if p.launch.model or s.model:
         launch.append(short_model(p.launch.model or s.model))
     if p.launch.effort or s.effort:
-        launch.append(f"effort {p.launch.effort or s.effort}")
+        effort = p.launch.effort or s.effort
+        launch.append(f"effort {color(effort, theme.effort_color(effort) or 'bold')}")
     if p.launch.permission_mode or s.permission_mode:
-        launch.append(f"mode {p.launch.permission_mode or s.permission_mode}")
+        mode = p.launch.permission_mode or s.permission_mode
+        launch.append(f"mode {color(mode, theme.mode_color(mode) or 'bold')}")
     row("model", " · ".join(launch) or "(default)")
     ctx = []
     if s.context_tokens:
-        ctx.append(f"~{format_tokens(s.context_tokens)} ({s.context_pct}%)")
+        ctx.append(f"~{format_tokens(s.context_tokens)} ({color(f'{s.context_pct}%', theme.ramp(s.context_pct))})")
     if cost and cost.total_tokens:
         ctx.append(f"{format_tokens(cost.total_tokens)} tokens")
     if ctx or not s.exists:
@@ -331,10 +312,10 @@ def preview(view: View, cost: Cost | None = None, current_branch: str | None = N
     if p.pinned_at:
         when.append(f"pinned {_date(p.pinned_at)}")
     if e.expired:
-        when.append(color("expired", "red"))
+        when.append(color("expired", ERROR))
     else:
         exp = f"expires {int(e.remaining_days)}d" if e.remaining_days >= 1 else "expires today"
-        when.append(color(exp, "yellow") if e.expiring else exp)
+        when.append(color(exp, WARNING) if e.expiring else exp)
     row("created", " · ".join(when))
     if p.keep:
         row("keep", "on — touched every run")
@@ -363,14 +344,15 @@ def session_rows(items: list[tuple[Summary, bool]], width: int | None = None, co
     now = time.time()
     dir_w = min(max(cells(display_dir(s.cwd)) for s, _ in items), max(MIN_COLUMN, width // 3))
     msgs_w = max(cells(f"{s.messages} msgs") for s, _ in items)
-    tag_w = cells(f"  {SYM_KEEP} pinned") if any(p for _, p in items) else 0
+    keep = glyphs().keep
+    tag_w = cells(f"  {keep} pinned") if any(p for _, p in items) else 0
     title_w = max(TITLE_FLOOR, width - dir_w - 2 - AGE_WIDTH - 2 - msgs_w - 2 - tag_w)
     out = []
     for s, pinned in items:
         age = pad(format_age(max(0.0, now - s.mtime)), AGE_WIDTH, ">")
         line = f"{pad(s.title, title_w)}  {color(pad(fit_dir(display_dir(s.cwd), dir_w), dir_w), 'dim')}  {color(age, 'dim')}  {pad(f'{s.messages} msgs', msgs_w, '>')}"
         if pinned:
-            line += "  " + color(f"{SYM_KEEP} pinned", "green")
+            line += "  " + color(f"{keep} pinned", SUCCESS)
         out.append(line)
     return out
 

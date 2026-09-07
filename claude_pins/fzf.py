@@ -9,7 +9,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 
-from . import config
+from . import config, theme
 
 
 @dataclass
@@ -112,8 +112,7 @@ def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] 
         chains.setdefault(trigger, []).append(action)
     if ansi:
         args.append("--ansi")
-    if not config.color_enabled():
-        args.append("--color=bw")
+    args.append("--color=bw" if not config.color_enabled() else f"--color={theme.fzf_colors()}")
     if header:
         args += ["--header", header, "--header-first"]
     if header_lines:

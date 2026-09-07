@@ -12,7 +12,8 @@ from .gitutil import current_branch, is_repo
 from .listing import build_views, next_sort
 from .model import Pin, PinError, kebab, next_free_alias
 from .opener import launch, plan_open, touch_kept, touch_pin
-from .render import LEGEND, palette, preview, rows, session_rows
+from .render import legend, palette, preview, rows, session_rows
+from .theme import ERROR, SUCCESS
 from .sessions import iter_transcripts
 from .store import Store
 from .transcript import read_summary
@@ -36,7 +37,7 @@ def run_menu(store: Store, *, query: str = "", sort: str | None = None, reason: 
         note = reason or f"install fzf ≥ 0.44 for the full picker: pin doctor"
         print(f" pins{' › ' + query if query else ''}".ljust(40) + color(f"({note})", "dim"))
         if state["flash"]:
-            print(f" {color(state['flash'], 'green')}")
+            print(f" {color(state['flash'], ERROR if state['flash'].startswith('✗') else SUCCESS)}")
             state["flash"] = ""
         if views:
             for line in rows(views, color=color, numbered=True):
@@ -100,7 +101,7 @@ def run_menu(store: Store, *, query: str = "", sort: str | None = None, reason: 
         if letter == "q":
             return 0
         if letter == "?":
-            print(f"\n  {LEGEND}\n")
+            print(f"\n  {legend()}\n")
         elif letter == "a":
             state["expired"] = not state["expired"]
         elif letter == "s":

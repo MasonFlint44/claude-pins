@@ -25,11 +25,11 @@ class CliTests(FzfSandbox):
         r = self.run_pin("list")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertRegex(r.stdout, r"standup-prep\s+Standup prep\s+~/git/proj\s+2d")
-        self.assertRegex(r.stdout, r"cc-collector\s+CC\s+~/git/cc\s+0m\s+⚑")  # keep → touched on every run
+        self.assertRegex(r.stdout, r"cc-collector\s+CC\s+~/git/cc\s+0m\s+🚩")  # keep → touched on every run
         r = self.run_pin("list", "--json")
         data = json.loads(r.stdout)
         self.assertEqual(sorted(d["alias"] for d in data), ["cc-collector", "standup-prep"])
-        self.assertEqual({d["alias"]: d["markers"] for d in data}["cc-collector"], "⚑")
+        self.assertEqual({d["alias"]: d["markers"] for d in data}["cc-collector"], "🚩")
         r = self.run_pin("rm", "standup-prep")
         self.assertIn("✓ unpinned standup-prep · pin undo", r.stdout)
         r = self.run_pin("rm", "standup-prep")
@@ -95,7 +95,7 @@ class CliTests(FzfSandbox):
         self.run_pin("add", SID2, "b")
         self.age(self.t1, 25); self.age(self.t2, 25)
         r = self.run_pin("list")  # keep pins are touched on every run
-        self.assertRegex(r.stdout, r"a\s+Standup prep\s+~/git/proj\s+0m\s+⚑")
+        self.assertRegex(r.stdout, r"a\s+Standup prep\s+~/git/proj\s+0m\s+🚩")
         self.assertRegex(r.stdout, r"b\s+Command center collector\s+~/git/cc\s+25d\s+⏳")
         r = self.run_pin("touch", "b")
         self.assertIn("✓ touched b", r.stdout)
@@ -108,7 +108,7 @@ class CliTests(FzfSandbox):
         self.assertNotIn("b ", r.stdout)
         self.assertIn("1 expired · pin list --all · pin prune", r.stdout)
         r = self.run_pin("list", "--all")
-        self.assertRegex(r.stdout, r"b\s+Command center collector\s+~/git/cc\s+✗")
+        self.assertRegex(r.stdout, r"b\s+Command center collector\s+~/git/cc\s+🔴")
         r = self.run_pin("b")
         self.assertEqual(r.returncode, 1); self.assertIn("gone (expired)", r.stderr)
         r = self.run_pin("prune", "-y")
@@ -189,7 +189,7 @@ class CliTests(FzfSandbox):
         r = self.run_pin("sessions")
         self.assertEqual(r.returncode, 0, r.stderr)
         lines = r.stdout.splitlines()
-        self.assertRegex(lines[0], rf"^{SID1[:8]}  Standup prep\s+~/git/proj\s+2d\s+2 msgs\s+⚑ pinned$")
+        self.assertRegex(lines[0], rf"^{SID1[:8]}  Standup prep\s+~/git/proj\s+2d\s+2 msgs\s+🚩 pinned$")
         self.assertRegex(lines[1], rf"^{SID2[:8]}  Command center collector\s+~/git/cc\s+9d\s+2 msgs$")
         r = self.run_pin("sessions", "collector")
         self.assertEqual(len(r.stdout.splitlines()), 1); self.assertIn(SID2[:8], r.stdout)
@@ -282,7 +282,7 @@ class CliTests(FzfSandbox):
         self.assertTrue(r.stdout.startswith("-\tNo pins yet."))
         r = self.run_pin("_rows", "--all", env={"COLUMNS": "50"})
         self.assertRegex(r.stdout, r"^-\talias\s+title\s+directory\s+idle\n")
-        self.assertRegex(r.stdout, r"\na\t.*✗\n")
+        self.assertRegex(r.stdout, r"\na\t.*🔴\n")
 
     def test_undo_when_repinned_and_store_unwritable(self):
         self.run_pin("add", SID1, "a"); self.run_pin("rm", "a"); self.run_pin("add", SID1, "b")

@@ -149,7 +149,7 @@ class OpenerTests(FzfSandbox):
         self.assertEqual(r.returncode, 0)
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID])
         r = self.run_pin("list", env={"CLAUDE_PINS_PS": str(ps)})
-        self.assertRegex(r.stdout, r"sp\s+A session\s+~/git/proj\s+\d+[md]\s+●")
+        self.assertRegex(r.stdout, r"sp\s+A session\s+~/git/proj\s+\d+[md]\s+🟢")
 
     def test_open_touches_transcript(self):
         self.pin_in(str(self.home / "git" / "proj"), age_days=20)

@@ -21,7 +21,7 @@ ENV_KEYS = [
     "CLAUDE_PINS_EXPIRE_WARN", "NO_COLOR", "CLAUDE_PINS_COLOR", "PATH", "CLAUDE_PINS_NOW",
     "CLAUDE_PINS_PS", "CLAUDE_PINS_FZF", "CLAUDE_PINS_CCUSAGE", "CLAUDE_PINS_TEST_INPUT",
     "COLUMNS", "LINES", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CLAUDE_PINS_FZF_STUB_VERSION",
-    "FZF_COLUMNS",
+    "FZF_COLUMNS", "CLAUDE_PINS_GLYPHS", "LC_ALL", "LC_CTYPE", "LANG",
 ]
 
 
@@ -76,6 +76,7 @@ class Sandbox(unittest.TestCase):
         os.environ["PATH"] = f"{self.bindir}:/usr/bin:/bin:/usr/local/bin"
         os.environ["NO_COLOR"] = "1"
         os.environ["COLUMNS"] = "100"
+        os.environ["CLAUDE_PINS_GLYPHS"] = "emoji"     # what a UTF-8 terminal gets; the text set has its own tests
         self.write_settings({})
         self.stub_claude()
 

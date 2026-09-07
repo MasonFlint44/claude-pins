@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from . import config, fzf, gitutil, prompt
 from .model import Pin, PinError
 from .render import Palette, palette
+from .theme import WARNING
 from .sessions import expiry_for, find_transcript, open_session_ids
 from .store import Store
 from .transcript import read_summary, touch
@@ -37,7 +38,7 @@ def build_argv(pin: Pin, *, fork: bool, worktree: str | None) -> list[str]:
 
 
 def _banner(text: str, color: Palette):
-    print(color(f" {text}", "yellow"), file=sys.stdout)
+    print(color(f" {text}", WARNING), file=sys.stdout)
 
 
 def _maybe_update_cwd(store: Store, pin: Pin, new_cwd: str) -> None:

@@ -37,6 +37,20 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   when the terminal is resized, and the too-short note follows the height; on
   0.44 the note catches up on the next cursor move or keystroke. On 0.65.2 and
   newer the counter reads `3 of 5 pins · 2 selected`.
+- **Theme.** Claude Code's own colours: the prompt in clay, the pointer and
+  matched letters in periwinkle, the multi-select marker in green, and the
+  chrome (hints, legend, counter, borders, labels, group names) dim rather than
+  grey, so light terminals read as well as dark ones. In the preview the effort
+  and the context percentage sit on the budget statusline's green-to-red ramp
+  and the permission mode wears the colour Claude's mode indicator gives it.
+  Flashes are green for ✓ and coral for ✗. `CLAUDE_PINS_COLOR=0` joins
+  `NO_COLOR`.
+- **Emoji markers**: 🟢 open, 🚩 keep, 🔀 fork, 🌳 worktree, ⏳ expiring,
+  🔴 expired, chosen when the locale is UTF-8 and the terminal is not the
+  Linux console or `dumb`. Elsewhere the one-cell set ● ⚑ ⑂ ⌂ ⧗ ✗ stays, now
+  in the same colours the emoji carry, and the prompt drops its 📌.
+  `CLAUDE_PINS_GLYPHS=emoji|text` overrides the detection, for the picker and
+  the numbered menu alike.
 - `pin list` and `pin sessions` share the renderer, so their columns follow.
 - `pin doctor`'s install hint points at fzf's releases page instead of naming a
   version that goes stale.
