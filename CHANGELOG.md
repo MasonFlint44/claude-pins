@@ -4,7 +4,7 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
-## 0.5.1 — unreleased
+## 0.5.1 — 2026-09-07
 
 - **A calmer top.** The marker legend and the key hints share one line when the
   terminal is wide enough (about 150 columns), legend left and hints at the right
