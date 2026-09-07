@@ -1,15 +1,19 @@
-"""Editor: a sectioned field picker over one pin. Nothing is written until save."""
+"""Editor: a sectioned field picker over one pin, with the draft in the preview pane. Nothing is written
+until save."""
 
 from __future__ import annotations
 
+import json
 import os
 import sys
+import tempfile
 
-from . import config, fzf, prompt
+from . import fzf, prompt
 from .model import EFFORT_LEVELS, PERMISSION_MODES, Pin, PinError, validate_alias
 from .render import crumb, display_dir, grouped, palette
 from .text import pad
 from .store import Store
+from .theme import ERROR
 
 MODEL_CHOICES = ["fable", "opus", "sonnet", "haiku"]
 
@@ -25,6 +29,7 @@ FIELDS = [
     ("retention", "keep", "bool", "touched every run, never expires"),
     ("retention", "fork", "bool", "open as a copy, original untouched"),
 ]
+SAVE_CHOICES = ["save", "discard", "keep editing"]
 
 
 def _get(pin: Pin, field: str):
@@ -55,6 +60,43 @@ def _shown(pin: Pin, field: str, kind: str) -> str:
     return str(v)
 
 
+def changed_fields(draft: Pin, original: Pin) -> set[str]:
+    return {f for _, f, _, _ in FIELDS if _get(draft, f) != _get(original, f)}
+
+
+def _validate(store: Store, draft: Pin, original: Pin) -> None:
+    validate_alias(draft.alias)
+    if not draft.title.strip():
+        raise PinError("title is required")
+    if draft.alias != original.alias and store.get(draft.alias) is not None:
+        raise PinError(f"alias {draft.alias} is taken")
+
+
+def _commit(store: Store, draft: Pin, original: Pin) -> str:
+    target = store.require(original.alias)
+    for _, f, _, _ in FIELDS:
+        _set(target, f, _get(draft, f))
+    store.save()
+    return draft.alias
+
+
+# ---- the draft file, read back by ``pin _preview --draft`` -------------------------------------
+
+def write_draft(path: str, draft: Pin, original: Pin) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"draft": draft.to_dict(), "original": original.to_dict()}, fh)
+
+
+def read_draft(path: str) -> tuple[Pin, set[str]]:
+    """(the draft pin, the fields that differ from the original)."""
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    draft, original = Pin.from_dict(data["draft"]), Pin.from_dict(data["original"])
+    return draft, changed_fields(draft, original)
+
+
+# ---- fzf editor --------------------------------------------------------------------------------
+
 def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
     """Interactive edit. Returns the (possibly new) alias if saved, else None."""
     if run is None and not fzf.available():
@@ -64,98 +106,100 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
     original = store.require(alias)
     draft = original.copy()
     cursor = 1
-
-    def dirty_fields() -> set[str]:
-        return {f for _, f, k, _ in FIELDS if _get(draft, f) != _get(original, f)}
+    flash = ""
+    fd, draft_path = tempfile.mkstemp(prefix="pin-draft-", suffix=".json")
+    os.close(fd)
 
     def save() -> str | None:
+        nonlocal flash
         try:
-            validate_alias(draft.alias)
-            if not draft.title.strip():
-                raise PinError("title is required")
-            if draft.alias != original.alias and store.get(draft.alias) is not None:
-                raise PinError(f"alias {draft.alias} is taken")
+            _validate(store, draft, original)
         except PinError as e:
-            print(f" ✗ {e}")
+            flash = color(f"✗ {e}", ERROR)
             return None
-        target = store.require(original.alias)
-        for _, f, _, _ in FIELDS:
-            _set(target, f, _get(draft, f))
-        store.save()
-        return draft.alias
+        return _commit(store, draft, original)
 
-    while True:
-        dirty = dirty_fields()
-        table: list[tuple[str, str, str]] = []
-        for sec, field, kind, hint in FIELDS:
-            star = "*" if field in dirty else " "
-            req = " *" if field == "title" else ""
-            value = _shown(draft, field, kind)
-            table.append((sec, f"{field}{req}", f"{star}{pad(value, 26)} {color(hint, 'dim')}"))
-        table += [("", "Done", ""), ("", "Cancel", "")]
-        ids = [f for _, f, _, _ in FIELDS] + ["done", "cancel"]
-        items = [fzf.Item(i, line) for i, line in zip(ids, grouped(table, color))]
-        prompt_text = crumb(original.alias, "edit" + (" (unsaved)" if dirty else ""))
-        header = color("enter change · alt-s save · esc back", "dim")
-        res = run(items, prompt=prompt_text, header=header, expect=["alt-s"], pos=cursor, info="hidden")
-        if res is None:
-            if not dirty:
-                return None
-            fzf.leave_screen()
-            try:
-                raw = input(" save changes? [Y/n/c] ").strip().lower()
-            except (KeyboardInterrupt, EOFError):
-                print()
-                return None
-            if raw in ("", "y", "yes"):
-                saved = save()
-                if saved:
-                    return saved
-                continue
-            if raw in ("n", "no"):
-                return None
-            continue
-        if res.key == "alt-s":
-            saved = save()
-            if saved:
-                return saved
-            continue
-        target = res.ids[0] if res.ids else "-"
-        if target == "-":
-            continue
-        if target == "done":
-            if not dirty:
-                return None
-            saved = save()
-            if saved:
-                return saved
-            continue
-        if target == "cancel":
-            return None
-        idx = next(i for i, (_, f, _, _) in enumerate(FIELDS) if f == target)
-        cursor = idx + 1
-        kind = FIELDS[idx][2]
+    try:
+        with fzf.hold_screen():
+            while True:
+                dirty = changed_fields(draft, original)
+                write_draft(draft_path, draft, original)
+                table: list[tuple[str, str, str]] = []
+                for sec, field, kind, hint in FIELDS:
+                    star = "*" if field in dirty else " "
+                    req = " *" if field == "title" else ""
+                    value = _shown(draft, field, kind)
+                    table.append((sec, f"{field}{req}", f"{star}{pad(value, 26)} {color(hint, 'dim')}"))
+                table += [("", "Done", ""), ("", "Cancel", "")]
+                ids = [f for _, f, _, _ in FIELDS] + ["done", "cancel"]
+                items = [fzf.Item(i, line) for i, line in zip(ids, grouped(table, color))]
+                prompt_text = crumb(original.alias, "edit" + (" (unsaved)" if dirty else ""))
+                header = color("enter change · alt-s save · esc back", "dim") + (f"\n{flash}" if flash else "")
+                flash = ""
+                res = run(items, prompt=prompt_text, header=header, expect=["alt-s"], pos=cursor, info="hidden",
+                          preview=f"{fzf.pin_exe()} _preview --draft {draft_path}", extra=["--preview-label", " draft "])
+                if res is None:
+                    if not dirty:
+                        return None
+                    try:
+                        pick = prompt.choose(["save changes?"], SAVE_CHOICES, 1, crumb=crumb(original.alias, "edit", "unsaved"))
+                    except prompt.Cancelled:
+                        return None
+                    if pick == 1:
+                        saved = save()
+                        if saved:
+                            return saved
+                        continue
+                    if pick == 2:
+                        return None
+                    continue
+                if res.key == "alt-s":
+                    saved = save()
+                    if saved:
+                        return saved
+                    continue
+                target = res.ids[0] if res.ids else "-"
+                if target == "-":
+                    continue
+                if target == "done":
+                    if not dirty:
+                        return None
+                    saved = save()
+                    if saved:
+                        return saved
+                    continue
+                if target == "cancel":
+                    return None
+                idx = next(i for i, (_, f, _, _) in enumerate(FIELDS) if f == target)
+                cursor = idx + 1
+                kind = FIELDS[idx][2]
+                field_crumb = crumb(original.alias, "edit", target)
+                try:
+                    if kind == "bool":
+                        _set(draft, target, not _get(draft, target))
+                    elif kind == "text":
+                        _set(draft, target, prompt.text(target, _get(draft, target) or "", crumb=field_crumb))
+                    elif kind == "dir":
+                        value = prompt.directory(_get(draft, target) or "", crumb=field_crumb)
+                        _set(draft, target, os.path.abspath(os.path.expanduser(value)) if value else "")
+                    elif kind == "choice":
+                        options = list(PERMISSION_MODES if target == "permission" else EFFORT_LEVELS)
+                        pick = choose(run, field_crumb, options, _get(draft, target))
+                        if pick is not None:
+                            _set(draft, target, pick)
+                    elif kind == "model":
+                        pick = choose(run, field_crumb, MODEL_CHOICES + ["(type a model name…)"], _get(draft, target))
+                        if pick == "(type a model name…)":
+                            _set(draft, target, prompt.text("model", _get(draft, target) or "", crumb=field_crumb))
+                        elif pick is not None:
+                            _set(draft, target, pick)
+                except prompt.Cancelled:
+                    continue
+    finally:
         try:
-            if kind == "bool":
-                _set(draft, target, not _get(draft, target))
-            elif kind == "text":
-                _set(draft, target, prompt.text(target, _get(draft, target) or ""))
-            elif kind == "dir":
-                value = prompt.text("cwd (tab completes)", _get(draft, target) or "")
-                _set(draft, target, os.path.abspath(os.path.expanduser(value)) if value else "")
-            elif kind == "choice":
-                options = list(PERMISSION_MODES if target == "permission" else EFFORT_LEVELS)
-                pick = choose(run, crumb(original.alias, "edit", target), options, _get(draft, target))
-                if pick is not None:
-                    _set(draft, target, pick)
-            elif kind == "model":
-                pick = choose(run, crumb(original.alias, "edit", "model"), MODEL_CHOICES + ["(type a model name…)"], _get(draft, target))
-                if pick == "(type a model name…)":
-                    _set(draft, target, prompt.text("model", _get(draft, target) or ""))
-                elif pick is not None:
-                    _set(draft, target, pick)
-        except prompt.Cancelled:
-            continue
+            os.unlink(draft_path)
+        except OSError:
+            pass
 
 
 def choose(run, crumb: str, options: list[str], current: str | None) -> str | None:
@@ -168,44 +212,37 @@ def choose(run, crumb: str, options: list[str], current: str | None) -> str | No
     return res.ids[0]
 
 
+# ---- plain editor ------------------------------------------------------------------------------
+
 def edit_pin_plain(store: Store, alias: str) -> str | None:
     """The same form as a numbered text menu, for terminals without fzf."""
     color = palette(sys.stdout)
     original = store.require(alias)
     draft = original.copy()
     while True:
-        dirty = {f for _, f, _, _ in FIELDS if _get(draft, f) != _get(original, f)}
-        print(f"\n pins › {original.alias} › edit{' (unsaved)' if dirty else ''}")
-        section = None
+        dirty = changed_fields(draft, original)
+        print(f"\n {crumb(original.alias, 'edit' + (' (unsaved)' if dirty else '')).rstrip(' ›')}")
+        table = []
         for i, (sec, field, kind, hint) in enumerate(FIELDS, 1):
-            if sec != section:
-                section = sec
-                print(color(f"  ── {sec} ──", "dim"))
             star = "*" if field in dirty else " "
-            print(f"  {i:>2}  {field + (' *' if field == 'title' else ''):<11} {star}{_shown(draft, field, kind):<26} {color(hint, 'dim')}".rstrip())
+            label = f"{i:>2}  {field}{' *' if field == 'title' else ''}"
+            table.append((sec, label, f"{star}{pad(_shown(draft, field, kind), 26)} {color(hint, 'dim')}"))
+        for line in grouped(table, color):
+            print(f"  {line}")
         print(color("\n  N change field · s save · q cancel", "dim"))
         try:
-            raw = input(" > ").strip().lower()
-        except (KeyboardInterrupt, EOFError):
-            print()
+            raw = prompt._ask(" > ").strip().lower()
+        except prompt.Cancelled:
             return None
         if raw == "q":
             return None
         if raw == "s":
             try:
-                validate_alias(draft.alias)
-                if not draft.title.strip():
-                    raise PinError("title is required")
-                if draft.alias != original.alias and store.get(draft.alias) is not None:
-                    raise PinError(f"alias {draft.alias} is taken")
+                _validate(store, draft, original)
             except PinError as e:
                 print(f" ✗ {e}")
                 continue
-            target = store.require(original.alias)
-            for _, f, _, _ in FIELDS:
-                _set(target, f, _get(draft, f))
-            store.save()
-            return draft.alias
+            return _commit(store, draft, original)
         if not raw.isdigit() or not 1 <= int(raw) <= len(FIELDS):
             continue
         _, field, kind, _ = FIELDS[int(raw) - 1]
@@ -215,15 +252,12 @@ def edit_pin_plain(store: Store, alias: str) -> str | None:
             elif kind in ("text", "model"):
                 _set(draft, field, prompt.text(field, _get(draft, field) or ""))
             elif kind == "dir":
-                value = prompt.text("cwd", _get(draft, field) or "")
+                value = prompt.directory(_get(draft, field) or "")
                 _set(draft, field, os.path.abspath(os.path.expanduser(value)) if value else "")
             elif kind == "choice":
                 options = list(PERMISSION_MODES if field == "permission" else EFFORT_LEVELS)
-                for i, o in enumerate(options, 1):
-                    print(f"  {i}) {o}")
-                print("  0) (clear)")
-                pick = prompt.text(f"{field} [0-{len(options)}]", "")
-                if pick.isdigit() and 0 <= int(pick) <= len(options):
-                    _set(draft, field, options[int(pick) - 1] if int(pick) else "")
+                pick = prompt.choose([field], options + ["(clear)"], options.index(_get(draft, field)) + 1
+                                     if _get(draft, field) in options else len(options) + 1)
+                _set(draft, field, options[pick - 1] if pick <= len(options) else "")
         except prompt.Cancelled:
             continue

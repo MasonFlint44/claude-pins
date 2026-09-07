@@ -266,22 +266,34 @@ def branch_line(recorded: str, current: str | None, cwd_exists: bool, color: Pal
 
 
 def preview(view: View, cost: Cost | None = None, current_branch: str | None = None,
-            width: int | None = None, color: Palette | None = None, *, exchange_lines: int = 3) -> str:
+            width: int | None = None, color: Palette | None = None, *, exchange_lines: int = 3,
+            changed: set[str] | None = None) -> str:
     """The preview pane. ``current_branch`` is the branch checked out now (None = not a repo).
-    ``exchange_lines`` caps each side of the last exchange; the details screen asks for more."""
+    ``exchange_lines`` caps each side of the last exchange; the details screen asks for more.
+    ``changed`` (the editor's draft) names the fields that differ from the saved pin: their rows are
+    marked with ``*`` in warning gold, and the alias, keep and opens rows always show."""
     width = width or terminal_width(80)
     color = color or Palette(False)
     p, s, e = view.pin, view.summary or Summary(exists=False), view.expiry
+    draft = changed is not None
     lines: list[str] = []
 
-    def row(label: str, value: str):
-        lines.append(f"{color(pad(label, LABEL_WIDTH), 'dim')} {value}")
+    def marked(*fields: str) -> bool:
+        return draft and any(f in changed for f in fields)
 
-    lines.append(color(view.title, "bold"))
-    if p.note:
-        lines.append(p.note)
+    def row(label: str, value: str, *fields: str):
+        if marked(*fields):
+            lines.append(f"{color(pad(label + '*', LABEL_WIDTH), WARNING)} {value}")
+        else:
+            lines.append(f"{color(pad(label, LABEL_WIDTH), 'dim')} {value}")
+
+    lines.append((color("* ", WARNING) if marked("title") else "") + color(view.title, "bold"))
+    if p.note or marked("note"):
+        lines.append((color("* ", WARNING) if marked("note") else "") + (p.note or "(no note)"))
     lines.append("")
-    row("dir", display_dir(p.cwd) or "(unknown)")
+    if draft:
+        row("alias", p.alias, "alias")
+    row("dir", display_dir(p.cwd) or "(unknown)", "cwd")
     row("branch", branch_line(s.git_branch, current_branch, bool(p.cwd and os.path.isdir(p.cwd)), color))
     launch = []
     if p.launch.model or s.model:
@@ -292,7 +304,7 @@ def preview(view: View, cost: Cost | None = None, current_branch: str | None = N
     if p.launch.permission_mode or s.permission_mode:
         mode = p.launch.permission_mode or s.permission_mode
         launch.append(f"mode {color(mode, theme.mode_color(mode) or 'bold')}")
-    row("model", " · ".join(launch) or "(default)")
+    row("model", " · ".join(launch) or "(default)", "model", "effort", "permission")
     ctx = []
     if s.context_tokens:
         ctx.append(f"~{format_tokens(s.context_tokens)} ({color(f'{s.context_pct}%', theme.ramp(s.context_pct))})")
@@ -317,8 +329,11 @@ def preview(view: View, cost: Cost | None = None, current_branch: str | None = N
         exp = f"expires {int(e.remaining_days)}d" if e.remaining_days >= 1 else "expires today"
         when.append(color(exp, WARNING) if e.expiring else exp)
     row("created", " · ".join(when))
-    if p.keep:
-        row("keep", "on — touched every run")
+    if p.keep or draft:
+        row("keep", "on — touched every run" if p.keep else "off", "keep")
+    if draft:
+        opens = [t for flag, t in ((p.fork, "as a fork"), (p.worktree, "in a fresh worktree")) if flag]
+        row("opens", " · ".join(opens) or "(default)", "fork", "worktree")
     if p.session_id:
         row("session", color(p.session_id, "dim"))
     if s.last_prompt or s.last_answer:

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from . import config, fzf, gitutil, prompt
 from .model import Pin, PinError
-from .render import Palette, palette
+from .render import Palette, crumb, palette
 from .theme import WARNING
 from .sessions import expiry_for, find_transcript, open_session_ids
 from .store import Store
@@ -37,14 +37,28 @@ def build_argv(pin: Pin, *, fork: bool, worktree: str | None) -> list[str]:
     return argv
 
 
+_notes: list[str] = []      # what was said while a screen was held, printed once the shell is back
+
+
 def _banner(text: str, color: Palette):
-    print(color(f" {text}", WARNING), file=sys.stdout)
+    """A line for the user. While the picker holds the alternate screen a print would vanish under the
+    next screen, so it waits for ``take_notes()`` (launch prints them, a cancel flashes them)."""
+    if fzf.screen_held():
+        _notes.append(text)
+    else:
+        print(color(f" {text}", WARNING), file=sys.stdout)
+
+
+def take_notes() -> list[str]:
+    notes = list(_notes)
+    _notes.clear()
+    return notes
 
 
 def _maybe_update_cwd(store: Store, pin: Pin, new_cwd: str) -> None:
     if new_cwd == pin.cwd:
         return
-    if prompt.yesno("update pin cwd?", True):
+    if prompt.yesno("update pin cwd?", True, crumb=crumb(pin.alias, "open")):
         pin.cwd = new_cwd
         store.save()
 
@@ -72,7 +86,7 @@ def resolve_directory(store: Store, pin: Pin, color: Palette) -> str | None:
     options.append(("choose another directory", "choose"))
     options.append(("unpin", "unpin"))
     try:
-        idx = prompt.choose(header, [o[0] for o in options], 1)
+        idx = prompt.choose(header, [o[0] for o in options], 1, crumb=crumb(pin.alias, "open"))
     except prompt.Cancelled:
         return None
     action = options[idx - 1][1]
@@ -97,10 +111,11 @@ def resolve_directory(store: Store, pin: Pin, color: Palette) -> str | None:
         return home
     if action == "choose":
         try:
-            chosen = prompt.pick_directory()
+            typed = prompt.directory("", crumb=crumb(pin.alias, "open", "directory"))
         except prompt.Cancelled:
             return None
-        if not chosen:
+        chosen = os.path.abspath(os.path.expanduser(typed)) if typed else ""
+        if not chosen or not os.path.isdir(chosen):
             _banner("not a directory; cancelled", color)
             return None
         _banner(f"→ opening in {config.tilde(chosen)}", color)
@@ -109,7 +124,7 @@ def resolve_directory(store: Store, pin: Pin, color: Palette) -> str | None:
     if action == "unpin":
         store.unpin(pin.alias)
         store.save()
-        print(f" ✓ unpinned {pin.alias} · pin undo restores it")
+        _banner(f"✓ unpinned {pin.alias} · pin undo restores it", color)
         return None
     return None
 
@@ -131,7 +146,7 @@ def check_branch(pin: Pin, cwd: str, recorded: str, color: Palette) -> bool:
         header.append("(working tree has changes, so checkout is not offered)")
     options.append(("cancel", "cancel"))
     try:
-        idx = prompt.choose(header, [o[0] for o in options], 1)
+        idx = prompt.choose(header, [o[0] for o in options], 1, crumb=crumb(pin.alias, "open"))
     except prompt.Cancelled:
         return False
     action = options[idx - 1][1]
@@ -167,7 +182,8 @@ def plan_open(store: Store, pin: Pin, *, fork: bool | None = None, worktree: str
     if interactive and pin.session_id in open_session_ids():
         try:
             idx = prompt.choose([f"{pin.alias} is already open in another tab"],
-                                ["resume anyway (a second claude on the same session)", "cancel"], 2)
+                                ["resume anyway (a second claude on the same session)", "cancel"], 2,
+                                crumb=crumb(pin.alias, "open"))
         except prompt.Cancelled:
             return None
         if idx != 1:
@@ -190,7 +206,9 @@ def launch(plan: Plan) -> None:
     if not exe:
         raise PinError("claude is not on PATH")
     os.chdir(plan.cwd)
-    fzf.leave_screen()
+    fzf.leave_screen(force=True)
+    for note in take_notes():
+        print(note)
     sys.stdout.flush()
     sys.stderr.flush()
     os.execv(exe, plan.argv)

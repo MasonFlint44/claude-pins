@@ -237,13 +237,20 @@ class CliTests(FzfSandbox):
 
     def test_prune_asks(self):
         self.run_pin("add", SID1, "a"); self.t1.unlink()
-        r = self.run_pin("prune", input="n\n")
+        plain = {"CLAUDE_PINS_NO_FZF": "1"}
+        r = self.run_pin("prune", input="n\n", env=plain)
         self.assertEqual(r.returncode, 1); self.assertIn("1 expired: a", r.stdout)
         self.assertEqual(self.run_pin("_complete").stdout.split(), ["a"])
-        r = self.run_pin("prune", input="")
+        r = self.run_pin("prune", input="", env=plain)
         self.assertEqual(r.returncode, 130)  # ctrl-c / EOF at the question
-        r = self.run_pin("prune", input="\n")  # enter takes the default: yes
-        self.assertEqual(r.returncode, 0); self.assertIn("✓ pruned 1", r.stdout)
+        self.steps({"abort": True})                                  # with fzf the question is a screen: esc
+        r = self.run_pin("prune")
+        self.assertEqual(r.returncode, 130)
+        argv = self.fzf_calls()[0]["argv"]
+        self.assertEqual(argv[argv.index("--prompt") + 1], "📌 pins › prune › ")
+        self.steps({"key": "", "select": ["yes"]})
+        r = self.run_pin("prune")
+        self.assertEqual(r.returncode, 0); self.assertIn("✓ pruned 1", r.stdout)   # printed after the screen is gone
         r = self.run_pin("touch", "a")
         self.assertEqual(r.returncode, 1); self.assertIn("no pin named a", r.stderr)
         self.run_pin("undo")

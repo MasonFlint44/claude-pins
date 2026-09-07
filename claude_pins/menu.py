@@ -117,9 +117,9 @@ def run_menu(store: Store, *, query: str = "", sort: str | None = None, reason: 
             dead = [x.pin.alias for x in all_views if x.expiry.expired]
             if not dead:
                 state["flash"] = "nothing to prune"; continue
-            print(f" prune {len(dead)} expired pin(s): {', '.join(dead)}")
             try:
-                if prompt.yesno("unpin them? (pin undo restores)", True):
+                if prompt.yesno("unpin them? (pin undo restores)", True,
+                                notes=[f"prune {len(dead)} expired pin(s): {', '.join(dead)}"]):
                     store.unpin_many(dead, kind="prune"); store.save()
                     state["flash"] = f"✓ pruned {len(dead)} · z undo"
             except prompt.Cancelled:

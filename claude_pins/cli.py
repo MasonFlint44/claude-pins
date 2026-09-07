@@ -20,7 +20,7 @@ from .store import Store, load_store
 from .transcript import read_summary
 
 SUBCOMMANDS = ("add", "list", "ls", "sessions", "edit", "rename", "rm", "unpin", "undo", "prune", "touch", "doctor", "open",
-               "_preview", "_spreview", "_rows", "_status", "_complete", "help")
+               "_preview", "_spreview", "_rows", "_dirs", "_status", "_complete", "help")
 
 
 def _global_options(p: argparse.ArgumentParser) -> None:
@@ -96,9 +96,11 @@ def build_parser() -> argparse.ArgumentParser:
     o.add_argument("--fork", action="store_true"); o.add_argument("--resume", action="store_true")
     o.add_argument("-w", "--worktree", nargs="?", const="", metavar="NAME")
 
-    for hidden in ("_preview", "_spreview", "_status", "_complete"):
+    for hidden in ("_preview", "_spreview", "_dirs", "_status", "_complete"):
         h = sub.add_parser(hidden)
         h.add_argument("arg", nargs="?")
+        if hidden == "_preview":
+            h.add_argument("--draft", metavar="FILE")
     rw = sub.add_parser("_rows")
     rw.add_argument("--sort", choices=config.SORT_ORDERS)
     rw.add_argument("--all", action="store_true")
@@ -125,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
             print()
             return 130
         finally:
-            fzf.leave_screen()
+            fzf.leave_screen(force=True)
     try:
         opts = parser.parse_args(argv)
     except SystemExit as e:
@@ -139,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
         print()
         return 130
     finally:
-        fzf.leave_screen()      # every way out of an fzf screen, error paths included
+        fzf.leave_screen(force=True)      # every way out of an fzf screen, error paths included
 
 
 def dispatch(opts, parser) -> int:
@@ -152,7 +154,7 @@ def dispatch(opts, parser) -> int:
         "add": cmd_add, "list": cmd_list, "ls": cmd_list, "sessions": cmd_sessions, "edit": cmd_edit,
         "rename": cmd_rename, "rm": cmd_unpin, "unpin": cmd_unpin,
         "undo": cmd_undo, "prune": cmd_prune, "touch": cmd_touch, "doctor": cmd_doctor, "open": cmd_open,
-        "_preview": cmd_preview, "_spreview": cmd_spreview, "_rows": cmd_rows, "_status": cmd_status,
+        "_preview": cmd_preview, "_spreview": cmd_spreview, "_rows": cmd_rows, "_dirs": cmd_dirs, "_status": cmd_status,
         "_complete": cmd_complete,
     }[cmd](opts)
 
@@ -160,7 +162,9 @@ def dispatch(opts, parser) -> int:
 # ---- picker / matching -------------------------------------------------------------------------
 
 def _use_fzf(opts) -> bool:
-    return not getattr(opts, "no_fzf", False) and fzf.available()
+    if getattr(opts, "no_fzf", False):
+        os.environ["CLAUDE_PINS_NO_FZF"] = "1"      # so the prompts the menu reaches stay plain too
+    return fzf.available()
 
 
 def run_query(opts) -> int:
@@ -374,7 +378,8 @@ def cmd_prune(opts) -> int:
     if not opts.yes:
         from . import prompt
         try:
-            if not prompt.yesno("unpin them? (pin undo restores)", True):
+            from .render import crumb
+            if not prompt.yesno("unpin them? (pin undo restores)", True, crumb=crumb("prune")):
                 return 1
         except prompt.Cancelled:
             return 130
@@ -422,6 +427,8 @@ def cmd_doctor(opts) -> int:
 # ---- hidden helpers -----------------------------------------------------------------------------
 
 def cmd_preview(opts) -> int:
+    if opts.draft:
+        return cmd_draft_preview(opts.draft)
     if not opts.arg or opts.arg == "-":
         return 0
     store = load_store()
@@ -435,6 +442,29 @@ def cmd_preview(opts) -> int:
         stream_preview(view, lambda: session_cost(pin.session_id, pin.transcript), branch, color=palette())
     else:
         print(preview(view, None, branch, color=palette()))
+    return 0
+
+
+def cmd_draft_preview(path: str) -> int:
+    """The editor's pane: the unsaved draft, read from the file the editor keeps current, with the
+    changed rows marked. No cost lookup: the draft cannot change it and the pane redraws on every move."""
+    from .editor import read_draft
+    from .listing import view_for
+    try:
+        pin, changed = read_draft(path)
+    except (OSError, ValueError, KeyError):
+        return 0
+    view = view_for(pin, set())
+    branch = current_branch(pin.cwd) if pin.cwd and os.path.isdir(pin.cwd) and is_repo(pin.cwd) else None
+    print(preview(view, None, branch, color=palette(), changed=changed))
+    return 0
+
+
+def cmd_dirs(opts) -> int:
+    """The directory field's list for fzf's ``reload``: the typed directory, then its completions."""
+    from .prompt import directory_rows
+    for line in fzf.lines_for([fzf.Item(r, r) for r in directory_rows(opts.arg or "")]):
+        print(line)
     return 0
 
 

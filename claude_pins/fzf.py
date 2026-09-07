@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -142,6 +144,12 @@ def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] 
     return args
 
 
+def pin_exe() -> str:
+    """How a command fzf runs (preview, reload) re-enters this tool, shell-quoted."""
+    exe = os.environ.get("CLAUDE_PINS_EXE") or os.path.abspath(sys.argv[0])
+    return shlex.quote(exe)
+
+
 def fzf_bin() -> str | None:
     override = os.environ.get("CLAUDE_PINS_FZF")
     if override:
@@ -178,15 +186,36 @@ def install_hint() -> str:
 # ---- the alternate screen -----------------------------------------------------------------------
 
 _alt_screen = False     # fzf ran with --no-clear and left the terminal on the alternate screen
+_held = 0               # depth of hold_screen(): screens that want the next fzf to draw over this one
 
 
-def leave_screen() -> None:
-    """Return to the normal screen if fzf left the alternate one up. fzf itself restores everything
-    else on exit (cooked mode, cursor, mouse tracking; measured on 0.44.1, 0.53.0 and 0.67.0), so this
-    one sequence is the whole restore. Idempotent; called before exec, before every text prompt, and
-    on every way out of ``main``."""
+@contextlib.contextmanager
+def hold_screen():
+    """Keep the alternate screen up between the fzf runs inside this block (the picker's loop, the
+    editor's), so they draw over each other; leaving the outermost block returns to the normal screen.
+    A prompt run outside any hold (``pin prune``, ``pin edit``) drops the screen as soon as it ends,
+    so what the command prints afterwards is seen."""
+    global _held
+    _held += 1
+    try:
+        yield
+    finally:
+        _held -= 1
+        if _held == 0:
+            leave_screen()
+
+
+def screen_held() -> bool:
+    return _held > 0
+
+
+def leave_screen(*, force: bool = False) -> None:
+    """Return to the normal screen if fzf left the alternate one up and no screen holds it (``force``
+    ignores holds: exec and every way out of ``main``). fzf itself restores everything else on exit
+    (cooked mode, cursor, mouse tracking; measured on 0.44.1, 0.53.0 and 0.67.0), so this one sequence
+    is the whole restore. Idempotent."""
     global _alt_screen
-    if not _alt_screen:
+    if not _alt_screen or (_held and not force):
         return
     _alt_screen = False
     seq = "\x1b[?1049l"

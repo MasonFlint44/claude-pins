@@ -118,14 +118,14 @@ class RealFzfTests(FzfSandbox):
         keys = [a.key for a in ACTIONS if a.key and a.key not in ("enter", "tab") and not a.bind]
         transform = fzf.header_transform(bottom_border=True)
         binds = [("focus", f"transform-header({transform})"), ("change", f"transform-header({transform})"),
-                 ("alt-r", "reload(printf 'L\\na\\tb\\n')")]
+                 ("change", f"reload({fzf.pin_exe()} _dirs {{q}})"), ("alt-r", "reload(printf 'L\\na\\tb\\n')")]
         if fzf.supports("resize", VERSION):
             binds.append(("resize", f"reload(true)+transform-header({transform})"))
         kw = dict(prompt="📌 pins › ", header="h\nflash\nnote", expect=keys, query="x", multi=True, preview="echo {1}",
                   preview_label_cmd="echo {1}", pos=2, border_label=" 2 expired ", disabled=True, header_lines=1,
                   binds=binds, info_command=fzf.INFO_COMMAND if fzf.supports("info-command", VERSION) else None,
                   extra=["--bind", "alt-t:change-header(✓ touched)+reload(true)", "--bind", "enter:become(echo {1})",
-                         "--expect", "ctrl-r,ctrl-alt-r"])
+                         "--expect", "ctrl-r,ctrl-alt-r", "--preview-label", " draft "])
         items = [fzf.Item("-", "label"), fzf.Item("a", "b")]
         self.assertEqual(filter_ids(items, "x", **kw), [])  # accepted, nothing matches "x" against "b"
         self.assertEqual(filter_ids(items, "", **kw), ["a"])  # the header line is neither matched nor printed
@@ -229,6 +229,41 @@ class RealFzfTests(FzfSandbox):
         self.assertKeeps(items, kw, "son", ["sonnet"])
         self.assertKeeps(items, kw, "clear", [""])
 
+    def test_prompt_screens(self):
+        """The prompts fzf draws: a text field is the query line over no rows, a directory field the query
+        line over ``pin _dirs`` rows reloading on change, a yes/no and a choice are two- and n-row lists."""
+        from claude_pins import prompt
+        with mock.patch.object(fzf, "run", self.recorder):
+            with self.assertRaises(prompt.Cancelled):
+                prompt.text("title", "Standup prep", crumb="📌 pins › a › edit › title › ")
+        items, kw = self.calls[-1]
+        self.assertEqual(items, [])
+        self.assertEqual(kw["query"], "Standup prep"); self.assertTrue(kw["disabled"])
+        self.assertEqual(filter_ids(items, "", **kw), [])                  # accepted; nothing to print but the query
+        (self.home / "git" / "alpha").mkdir(); (self.home / "git" / "alps").mkdir()
+        r = self.run_pin("_dirs", "~/git/al")
+        self.assertEqual(r.stdout, "~/git/alpha/\t~/git/alpha/\n~/git/alps/\t~/git/alps/\n")
+        with mock.patch.object(fzf, "run", self.recorder):
+            with self.assertRaises(prompt.Cancelled):
+                prompt.directory("~/git/al", crumb="📌 pins › a › edit › cwd › ")
+        items, kw = self.calls[-1]
+        self.assertEqual([i.id for i in items], ["~/git/alpha/", "~/git/alps/"])
+        self.assertTrue(any(t == "change" and "_dirs {q}" in a for t, a in kw["binds"]))
+        self.assertEqual(filter_ids(items, "", **kw), ["~/git/alpha/", "~/git/alps/"])   # the bind is accepted
+        with mock.patch.object(fzf, "run", self.recorder):
+            with self.assertRaises(prompt.Cancelled):
+                prompt.yesno("unpin them?", False, crumb="📌 pins › prune › ", notes=["prune 1 expired pin(s): a"])
+        items, kw = self.calls[-1]
+        self.assertEqual(kw["pos"], 2)
+        self.assertKeeps(items, kw, "yes", ["1"]); self.assertKeeps(items, kw, "no", ["2"])
+        self.assertEveryRowFindable(items, kw)
+        with mock.patch.object(fzf, "run", self.recorder):
+            with self.assertRaises(prompt.Cancelled):
+                prompt.choose(["save changes?"], ["save", "discard", "keep editing"], 1)
+        items, kw = self.calls[-1]
+        self.assertKeeps(items, kw, "keep", ["3"])
+        self.assertEveryRowFindable(items, kw)
+
 
 @unittest.skipIf(SKIP, SKIP)
 class InteractiveSmokeTest(FzfSandbox):
@@ -299,12 +334,16 @@ class InteractiveSmokeTest(FzfSandbox):
                 return status
         self.fail("the picker did not exit")
 
-    def spawn(self, rows: int, cols: int = 100) -> tuple[int, int]:
+    def spawn(self, rows: int, cols: int = 100, *args: str) -> tuple[int, int]:
         from tests.helpers import PIN
+        size = struct.pack("HHHH", rows, cols, 0, 0)
         pid, fd = pty.fork()
         if pid == 0:  # the picker; its exec of the claude stub inherits the terminal
-            os.execv(sys.executable, [sys.executable, str(PIN)])
-        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+            fcntl.ioctl(0, termios.TIOCSWINSZ, size)     # before exec, so Python never sees the default size
+            # os.environ, not the C environ: an earlier test's ``import readline`` exported the real
+            # terminal's LINES and COLUMNS there, and the picker would size itself by them
+            os.execve(sys.executable, [sys.executable, str(PIN), *args], dict(os.environ))
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, size)
         return pid, fd
 
     def test_query_then_enter_resumes_the_match(self):
@@ -382,6 +421,40 @@ class InteractiveSmokeTest(FzfSandbox):
         self.assertEqual(status, 0)
         self.assertIsNone(self.claude_calls())
         self.assertScreenRestoredOnce()
+
+    def test_editor_field_on_the_query_line(self):
+        """``pin edit`` in a terminal: the form with the draft in its pane, the title typed on fzf's query line
+        (enter over an empty list exits 1 and still prints the query), the star on the row and the mark in
+        the pane, alt-s to save, and the shell back exactly once with the confirmation printed on it."""
+        pid, fd = self.spawn(30, 100, "edit", "standup")
+        try:
+            self.wait_for(fd, r"standup › edit ›")
+            self.wait_for(fd, r"opens\s+\(default\)")                            # the draft pane
+            self.out = b""
+            os.write(fd, b"\r")                                                  # enter: the title field (row 1)
+            screen = self.wait_for(fd, r"enter save · esc cancel · ctrl-u clear")
+            self.assertIn("standup › edit › title ›", screen)
+            self.wait_for(fd, r"title › Standup prep")                          # prefilled on the query line
+            self.out = b""
+            os.write(fd, b" (Tue)\r")
+            self.wait_for(fd, r"edit \(unsaved\) ›")
+            self.wait_for(fd, r"\*Standup prep \(Tue\)")                         # the row's star
+            self.wait_for(fd, r"\* Standup prep \(Tue\)")                        # the pane's mark
+            self.assertNotIn(b"\x1b[?1049l", self.raw)
+            os.write(fd, b"\x1bs")                                               # alt-s
+            status = self.drain_until_exit(pid, fd)
+        finally:
+            try:
+                os.kill(pid, 9)
+            except OSError:
+                pass
+            os.close(fd)
+        self.assertEqual(status, 0, plain(self.out.decode("utf-8", "replace"))[-800:])
+        self.assertScreenRestoredOnce()
+        after = self.raw[self.raw.rfind(b"\x1b[?1049l"):].decode("utf-8", "replace")
+        self.assertIn("✓ saved standup", after)                                 # printed once the shell is back
+        r = self.run_pin("list", "--json")
+        self.assertIn("Standup prep (Tue)", r.stdout)
 
 
 if __name__ == "__main__":

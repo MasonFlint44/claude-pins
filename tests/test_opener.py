@@ -15,6 +15,13 @@ def git(*args, cwd):
 
 
 class OpenerTests(FzfSandbox):
+    """The opener's tiers, driven through the plain prompts (piped stdin); OpenerScreenTests below run the
+    same prompts as fzf screens."""
+
+    def setUp(self):
+        super().setUp()
+        os.environ["CLAUDE_PINS_NO_FZF"] = "1"
+
     def repo(self, path: Path) -> Path:
         path.mkdir(parents=True, exist_ok=True)
         git("init", "-q", "-b", "main", cwd=path)
@@ -250,3 +257,96 @@ class OpenerTests(FzfSandbox):
         (self.bindir / "claude").unlink()
         r = self.run_pin("sp")
         self.assertEqual(r.returncode, 1); self.assertIn("claude is not on PATH", r.stderr)
+
+
+class OpenerScreenTests(FzfSandbox):
+    """With fzf in use, every question on the way to claude is an fzf screen: choices are lists, the
+    directory is the query line over completions, and what the opener says arrives once the shell is back."""
+
+    def setUp(self):
+        super().setUp()
+        self.make_session(SID, cwd=str(self.home / "Documents" / "old"))
+        self.run_pin("add", SID, "sp")
+        shutil.rmtree(self.home / "Documents" / "old")
+
+    def arg(self, call, flag):
+        a = call["argv"]
+        return a[a.index(flag) + 1] if flag in a else None
+
+    def stored(self):
+        return {p["alias"]: p for p in json.loads(self.store_path().read_text())["pins"]}
+
+    def test_missing_dir_menu_then_home(self):
+        self.steps({"key": "", "select": ["open in ~"]}, {"key": "", "select": ["yes"]})
+        r = self.run_pin("sp")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        calls = self.fzf_calls()
+        menu, ask = calls
+        self.assertEqual(self.arg(menu, "--prompt"), "📌 pins › sp › open › ")
+        self.assertEqual(plain(self.arg(menu, "--header")).split("\n"),
+                         ["enter choose · esc cancel", "sp: directory ~/Documents/old is missing"])
+        self.assertEqual([l.split("\t")[1] for l in menu["lines"]],
+                         ["open in ~ (session context won't match this directory)", "choose another directory", "unpin"])
+        self.assertEqual(plain(self.arg(ask, "--header")).split("\n")[-1], "update pin cwd?")
+        self.assertEqual(self.stored()["sp"]["cwd"], str(self.home))
+        self.assertEqual(self.claude_calls()["cwd"], str(self.home))
+        # the banner was held back until the screen was gone, so it is the last thing before claude
+        self.assertEqual(r.stdout.strip(), "→ opening in ~ · session context won't match this directory")
+
+    def test_directory_screen_and_unpin(self):
+        other = self.home / "git" / "elsewhere"; other.mkdir(parents=True)
+        self.steps({"key": "", "select": ["choose another"]}, {"query": "~/git/else", "raw": ["~/git/elsewhere/\t~/git/elsewhere/"]},
+                   {"key": "", "select": ["no"]})
+        r = self.run_pin("sp")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        dirs = self.fzf_calls()[1]
+        self.assertEqual(self.arg(dirs, "--prompt"), "📌 pins › sp › open › directory › ")
+        self.assertIn("--disabled", dirs["argv"])
+        self.assertTrue(any("_dirs {q}" in a for a in dirs["argv"]))
+        self.assertEqual(self.claude_calls()["cwd"], str(other))
+        self.assertEqual(self.stored()["sp"]["cwd"], str(self.home / "Documents" / "old"))   # declined the update
+        self.steps({"key": "", "select": ["choose another"]}, {"query": "/no/such/dir"})
+        r = self.run_pin("sp")
+        self.assertEqual(r.returncode, 1); self.assertIn("not a directory; cancelled", r.stdout)
+        self.steps({"key": "", "select": ["choose another"]}, {"abort": True})
+        r = self.run_pin("sp")
+        self.assertEqual(r.returncode, 1); self.assertEqual(r.stdout, "")
+        self.steps({"key": "", "select": ["unpin"]})
+        r = self.run_pin("sp")
+        self.assertEqual(r.returncode, 1); self.assertIn("✓ unpinned sp · pin undo restores it", r.stdout)
+        self.assertEqual(self.stored(), {})
+
+    def test_notes_reach_the_picker_flash(self):
+        """From the picker the opener's screens run under the held screen: on a cancel what it said joins
+        the flash instead of vanishing under the next screen."""
+        self.steps({"key": "", "select": ["sp"]}, {"key": "", "select": ["unpin"]}, {"abort": True})
+        r = self.run_pin()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(r.stdout, "")
+        calls = self.fzf_calls()
+        self.assertIn("✓ unpinned sp · pin undo restores it · cancelled", plain(self.arg(calls[-1], "--header")))
+        self.assertEqual(self.stored(), {})
+
+    def test_already_open_and_branch_screens(self):
+        repo = self.home / "git" / "foo"; repo.mkdir(parents=True)
+        git("init", "-q", "-b", "main", cwd=repo); git("commit", "-q", "--allow-empty", "-m", "init", cwd=repo)
+        git("branch", "feature", cwd=repo)
+        shutil.rmtree(self.project_dir(str(self.home / "Documents" / "old")))    # the session moves to the repo
+        self.make_session(SID, cwd=str(repo), branch="feature")
+        self.run_pin("edit", "sp", "--cwd", str(repo))
+        ps = self.root / "ps.txt"; ps.write_text(f"claude --resume {SID}\n")
+        self.steps({"key": "", "select": ["resume anyway"]}, {"key": "", "select": ["checkout feature"]})
+        r = self.run_pin("sp", env={"CLAUDE_PINS_PS": str(ps)})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        calls = self.fzf_calls()
+        self.assertIn("sp is already open in another tab", plain(self.arg(calls[0], "--header")))
+        self.assertIn("start:pos(2)", " ".join(calls[0]["argv"]))                 # default: cancel
+        self.assertIn("is on main, the session was on feature", plain(self.arg(calls[1], "--header")))
+        self.assertEqual(git("branch", "--show-current", cwd=repo), "feature")
+        self.assertEqual(r.stdout.strip(), "→ checked out feature")
+        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID])
+
+
+def plain(text):
+    import re
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)

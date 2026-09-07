@@ -116,12 +116,21 @@ re-fit themselves when the terminal is resized, and the too-short note follows t
 0.44 and 0.45 refit at the next screen and refresh the note on the next cursor move or
 keystroke. On 0.65.2 and newer the counter reads `3 of 5 pins · 2 selected`.
 
-In the editor: enter changes the highlighted field (booleans flip, text fields prompt with the
-current value, choices open a short list with `(clear)`), alt-s saves, esc goes back and asks
-`save changes? [Y/n/c]` when something changed. In the no-fzf menu a bare letter is a list
-action and letter+number a row action: `N` open, `oN` fork, `wN` worktree, `tN` touch, `eN`
-edit, `xN` unpin, `pN` preview, `n` new, `a` show expired, `p` prune, `z` undo, `s` sort,
-`?` legend, `q` quit.
+In the editor the pane shows the pin as it would be saved, changed rows marked `*`. Enter
+changes the highlighted field: booleans flip, choices open a short list with `(clear)`, and a
+text field is typed on the query line under a `📌 pins › alias › edit › title ›` breadcrumb with
+the current value already there (enter saves, esc cancels, ctrl-u clears). The directory field
+lists completions of what is typed underneath; enter takes the highlighted one, or the text
+when nothing matches. alt-s saves; esc goes back and offers save / discard / keep editing when
+something changed. Every other question on the way (a new pin's alias, a key to rebind, prune,
+a missing directory, a branch mismatch, a session already open) is an fzf screen too: nothing
+drops to a text prompt while fzf is in use.
+
+Without fzf the same questions are readline prompts with the current value pre-filled (ctrl-c
+cancels a field) and numbered lists. In the no-fzf menu a bare letter is a list action and
+letter+number a row action: `N` open, `oN` fork, `wN` worktree, `tN` touch, `eN` edit, `xN`
+unpin, `pN` preview, `n` new, `a` show expired, `p` prune, `z` undo, `s` sort, `?` legend,
+`q` quit.
 
 ## Command line
 

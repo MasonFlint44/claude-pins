@@ -51,6 +51,19 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   in the same colours the emoji carry, and the prompt drops its 📌.
   `CLAUDE_PINS_GLYPHS=emoji|text` overrides the detection, for the picker and
   the numbered menu alike.
+- **Editor and prompts.** No text prompt interrupts the picker any more: a
+  text field is typed on fzf's query line under a `📌 pins › alias › edit ›
+  title ›` breadcrumb with the current value in place (enter saves, esc
+  cancels, ctrl-u clears); the directory field lists completions of what is
+  typed and reloads them as you type; a new pin's alias, a key to rebind, the
+  prune question, and the opener's missing-directory, branch and already-open
+  questions are short lists. The editor's pane renders the unsaved draft with
+  changed rows marked `*`, and esc with changes offers save / discard / keep
+  editing. What the opener says on the way (a recreated worktree, an unpin)
+  is printed once the shell is back, or joins the flash when the open is
+  cancelled. Without fzf the same questions are readline prompts with the
+  value pre-filled and numbered lists; the plain editor shares the breadcrumb
+  and the gutter grouping.
 - `pin list` and `pin sessions` share the renderer, so their columns follow.
 - `pin doctor`'s install hint points at fzf's releases page instead of naming a
   version that goes stale.

@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import os
-import shlex
 import sys
 from dataclasses import dataclass
 
 from . import config, fzf, prompt
 from .editor import edit_pin
+from .fzf import pin_exe
 from .keymap import ACTIONS, BY_ID, GROUPS, Keymap, key_warning, validate_key
 from .listing import build_views, next_sort
 from .model import Pin, PinError, kebab, next_free_alias
-from .opener import launch, plan_open, touch_kept, touch_pin
+from .opener import launch, plan_open, take_notes, touch_kept, touch_pin
 from .render import (View, crumb, grouped, label_row, layout, legend, palette, preview, rows, session_rows,
                      terminal_height, terminal_width)
 from .theme import ERROR, SUCCESS
@@ -23,12 +23,6 @@ from .transcript import read_summary
 EMPTY_MESSAGE = "No pins yet. {new} pins a recent session, or run /pins:pin inside a Claude session."
 TOO_SHORT_NOTE = "preview hidden: terminal too short"
 LIST_WIDTH_SLACK = 4        # fzf's pointer and marker columns plus a little room at the right edge
-
-
-def pin_exe() -> str:
-    """How the preview command re-enters this tool."""
-    exe = os.environ.get("CLAUDE_PINS_EXE") or os.path.abspath(sys.argv[0])
-    return shlex.quote(exe)
 
 
 def list_items(views: list[View], km: Keymap, color) -> list[fzf.Item]:
@@ -103,7 +97,12 @@ class Picker:
     # ---- main picker ----------------------------------------------------------------
 
     def run(self) -> int:
-        """Loop until the user opens a pin (exec) or leaves (esc)."""
+        """Loop until the user opens a pin (exec) or leaves (esc). Every screen along the way draws over
+        the previous one; the normal screen comes back when the loop ends."""
+        with fzf.hold_screen():
+            return self.loop()
+
+    def loop(self) -> int:
         while True:
             self.reload()
             touched = touch_kept(self.store)
@@ -254,7 +253,9 @@ class Picker:
             self.state.flash = f"✗ {e}"
             return None
         if plan is None:
-            self.state.flash = "cancelled"
+            # what the opener said on the way (a recreated worktree, an unpin) would be lost under the
+            # next screen, so it joins the flash
+            self.state.flash = " · ".join([*take_notes(), "cancelled"])
             return None
         launch(plan)
         return "quit"
@@ -350,14 +351,16 @@ class Picker:
 
     def rebind(self, action_id: str) -> None:
         label = BY_ID[action_id].label
+        where = crumb("help", label)
+        note = "e.g. alt-t, f5; empty unbinds"
         while True:
             try:
-                key = prompt.text(f'new key for "{label}" (e.g. alt-t, f5; empty unbinds)', self.km.key(action_id))
+                key = prompt.text(f'new key for "{label}"', self.km.key(action_id), crumb=where, note=note)
             except prompt.Cancelled:
                 return
             err = validate_key(key)
             if err:
-                print(f" ✗ {err}")
+                note = self.color(f"✗ {err}", "bold")
                 continue
             conflicts = self.km.conflicts(action_id, key)
             warn = key_warning(key)
@@ -367,9 +370,8 @@ class Picker:
             if warn:
                 notes.append(warn)
             if notes:
-                print(" " + " · ".join(notes))
                 try:
-                    if not prompt.yesno("bind anyway?", False):
+                    if not prompt.yesno("bind anyway?", False, crumb=where, notes=notes):
                         continue
                 except prompt.Cancelled:
                     return
@@ -403,9 +405,10 @@ class Picker:
             self.state.cursor = pinned[summary.session_id]
             return
         suggestion = next_free_alias(kebab(summary.title), self.store.aliases())
+        note = "suggested from the title"
         while True:
             try:
-                alias = prompt.text("alias (suggested from title · enter · ctrl-c cancel)", suggestion) or suggestion
+                alias = prompt.text("alias", suggestion, crumb=crumb("new", "alias"), note=note) or suggestion
             except prompt.Cancelled:
                 return
             pin = Pin(alias=alias, session_id=summary.session_id, title=summary.title, cwd=summary.cwd,
@@ -413,7 +416,7 @@ class Picker:
             try:
                 self.store.add(pin)
             except PinError as e:
-                print(f" ✗ {e}")
+                note = self.color(f"✗ {e}", "bold")
                 continue
             self.store.save()
             self.state.cursor = alias
@@ -428,10 +431,9 @@ class Picker:
         if not expired:
             self.state.flash = "nothing to prune"
             return
-        fzf.leave_screen()      # a text prompt follows (until 0.5.0's batch 5 makes it an fzf screen)
-        print(f" prune {len(expired)} expired pin(s): {', '.join(expired)}")
         try:
-            ok = prompt.yesno("unpin them? (pin undo restores)", True)
+            ok = prompt.yesno("unpin them? (pin undo restores)", True, crumb=crumb("prune"),
+                              notes=[f"prune {len(expired)} expired pin(s): {', '.join(expired)}"])
         except prompt.Cancelled:
             ok = False
         if not ok:

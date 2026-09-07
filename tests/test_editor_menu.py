@@ -23,8 +23,8 @@ class EditorTests(FzfSandbox):
         return [re.sub(r"^(?:\S+)?\s{2,}", "", re.sub(r"\x1b\[[0-9;]*m", "", l).split("\t")[1]) for l in call["lines"]]
 
     def test_layout_and_dirty_marks(self):
-        self.steps({"key": "", "select": ["keep"]}, {"abort": True})
-        r = self.run_pin("edit", "standup-prep", input="n\n")
+        self.steps({"key": "", "select": ["keep"]}, {"abort": True}, {"key": "", "select": ["discard"]})
+        r = self.run_pin("edit", "standup-prep")
         calls = self.fzf_calls()
         raw = [re.sub(r"\x1b\[[0-9;]*m", "", l).split("\t")[1] for l in calls[0]["lines"]]
         self.assertTrue(raw[0].startswith("identity   title *      Standup prep"))   # section name in the gutter
@@ -45,13 +45,20 @@ class EditorTests(FzfSandbox):
         self.assertEqual(self.arg(calls[1], "--prompt"), "📌 pins › standup-prep › edit (unsaved) › ")
         self.assertTrue(self.fields(calls[1])[8].startswith("keep        *ON"))
         self.assertIn("start:pos(9)", " ".join(calls[1]["argv"]))                    # cursor stays on keep
-        self.assertIn("save changes? [Y/n/c]", r.stdout)
-        self.assertFalse(self.stored()["standup-prep"]["keep"])  # answered n
+        draft = self.arg(calls[0], "--preview")
+        self.assertRegex(draft, r" _preview --draft \S+pin-draft-\S+\.json$")        # the pane renders the draft
+        self.assertEqual(self.arg(calls[0], "--preview-label"), " draft ")
+        self.assertFalse(os.path.exists(draft.split()[-1]))                          # and the file is gone on exit
+        ask = calls[2]                                                                # esc with changes: a list
+        self.assertEqual(self.arg(ask, "--prompt"), "📌 pins › standup-prep › edit › unsaved › ")
+        self.assertIn("save changes?", self.arg(ask, "--header"))
+        self.assertEqual([l.split("\t")[1] for l in ask["lines"]], ["save", "discard", "keep editing"])
+        self.assertFalse(self.stored()["standup-prep"]["keep"])  # discarded
         self.assertIn("no changes", r.stdout)
 
     def test_dirty_esc_saves_on_enter(self):
-        self.steps({"key": "", "select": ["fork"]}, {"abort": True})
-        r = self.run_pin("edit", "standup-prep", input="\n")
+        self.steps({"key": "", "select": ["fork"]}, {"abort": True}, {"key": "", "select": ["save"]})
+        r = self.run_pin("edit", "standup-prep")
         self.assertTrue(self.stored()["standup-prep"]["fork"])
         self.assertIn("✓ saved standup-prep", r.stdout)
 
@@ -67,14 +74,18 @@ class EditorTests(FzfSandbox):
 
     def test_rename_and_alias_taken(self):
         self.make_session(SID2, title="Other"); self.run_pin("add", SID2, "other")
-        self.steps({"key": "", "select": ["alias"]}, {"key": "alt-s"}, {"key": "", "select": ["alias"]}, {"key": "alt-s"})
-        r = self.run_pin("edit", "standup-prep", input="other\nsp\n")
-        self.assertIn("✗ alias other is taken", r.stdout)
+        self.steps({"key": "", "select": ["alias"]}, {"query": "other"}, {"key": "alt-s"},
+                   {"key": "", "select": ["alias"]}, {"query": "sp"}, {"key": "alt-s"})
+        r = self.run_pin("edit", "standup-prep")
+        calls = self.fzf_calls()
+        self.assertEqual(self.arg(calls[1], "--prompt"), "📌 pins › standup-prep › edit › alias › ")
+        self.assertEqual(self.arg(calls[1], "--query"), "standup-prep")
+        self.assertIn("✗ alias other is taken", self.arg(calls[3], "--header"))     # the form says why it stayed
         self.assertIn("sp", self.stored()); self.assertNotIn("standup-prep", self.stored())
 
     def test_cancel_row(self):
-        self.steps({"key": "", "select": ["note"]}, {"key": "", "select": ["cancel"]})
-        r = self.run_pin("edit", "standup-prep", input="a note\n")
+        self.steps({"key": "", "select": ["note"]}, {"query": "a note"}, {"key": "", "select": ["cancel"]})
+        r = self.run_pin("edit", "standup-prep")
         self.assertEqual(self.stored()["standup-prep"]["note"], "")
 
     def arg(self, call, flag):
@@ -214,9 +225,13 @@ class MenuTests(FzfSandbox):
         self.assertIn("no sessions found", r.stdout)
 
     def test_plain_editor_fields(self):
-        # cwd (4), model as free text (6), effort by number (7 → 2), clear it again (7 → 0), keep (9), save
-        r = self.run_pin("edit", "standup-prep", input="4\n~/git/cc\n6\nclaude-opus-5\n7\n2\n7\n0\n9\ns\n")
+        # cwd (4), model as free text (6), effort by number (7 → 2), clear it again (7 → 5), keep (9), save
+        r = self.run_pin("edit", "standup-prep", input="4\n~/git/cc\n6\nclaude-opus-5\n7\n2\n7\n5\n9\ns\n")
         self.assertIn("✓ saved standup-prep", r.stdout)
+        self.assertIn("📌 pins › standup-prep › edit (unsaved)", r.stdout)               # the plain form shares the crumb
+        self.assertRegex(r.stdout, r"identity    1  title \*      Standup prep")           # and the gutter grouping
+        self.assertRegex(r.stdout, r"\n              2  alias")
+        self.assertIn("  1) low", r.stdout); self.assertIn("  5) (clear)", r.stdout)     # numbered choices
         p = self.stored()["standup-prep"]
         self.assertEqual(p["cwd"], str(self.home / "git" / "cc"))
         self.assertEqual(p["launch"], {"model": "claude-opus-5"})
@@ -236,37 +251,60 @@ class MenuTests(FzfSandbox):
 
 class EditorEdgeTests(EditorTests):
     def test_dir_model_and_text_fields(self):
-        self.steps({"key": "", "select": ["cwd"]}, {"key": "", "select": ["model"]}, {"key": "", "select": ["(type a model name…)"]},
+        (self.home / "git" / "cc").mkdir(parents=True)
+        self.steps({"key": "", "select": ["cwd"]}, {"query": "~/git/c", "raw": ["~/git/cc/\t~/git/cc/"]},   # a reloaded row
+                   {"key": "", "select": ["model"]}, {"key": "", "select": ["(type a model name…)"]}, {"query": "claude-x"},
                    {"key": "", "select": ["model"]}, {"key": "", "select": ["sonnet"]},
-                   {"key": "", "select": ["note"]}, {"key": "", "select": ["done"]})
-        r = self.run_pin("edit", "standup-prep", input="~/git/cc\nclaude-x\na note\n")
+                   {"key": "", "select": ["note"]}, {"query": "a note"}, {"key": "", "select": ["done"]})
+        r = self.run_pin("edit", "standup-prep")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         p = self.stored()["standup-prep"]
         self.assertEqual((p["cwd"], p["launch"], p["note"]), (str(self.home / "git" / "cc"), {"model": "sonnet"}, "a note"))
         calls = self.fzf_calls()
-        self.assertEqual(self.arg(calls[2], "--prompt"), "📌 pins › standup-prep › edit › model › ")
-        self.assertEqual([l.split("\t")[1] for l in calls[2]["lines"]][:2], ["fable", "opus"])
+        dirs = calls[1]                                                   # the directory field: query line over completions
+        self.assertEqual(self.arg(dirs, "--prompt"), "📌 pins › standup-prep › edit › cwd › ")
+        self.assertEqual(self.arg(dirs, "--query"), str(self.home / "git" / "proj"))
+        self.assertIn("--disabled", dirs["argv"])
+        self.assertTrue(any(b.startswith("change:reload(") and b.endswith(" _dirs {q})") for b in self.binds(dirs)))
+        self.assertEqual([l.split("\t")[0] for l in dirs["lines"]], [str(self.home / "git" / "proj") + "/"])
+        self.assertEqual(self.arg(calls[3], "--prompt"), "📌 pins › standup-prep › edit › model › ")
+        self.assertEqual([l.split("\t")[1] for l in calls[3]["lines"]][:2], ["fable", "opus"])
+        self.assertEqual(self.arg(calls[4], "--prompt"), "📌 pins › standup-prep › edit › model › ")
+        self.assertIsNone(self.arg(calls[4], "--query"))                   # nothing to prefill: no --query
+        self.assertIn("--disabled", calls[8]["argv"])                       # note: the same query-line screen
+        self.fzf_log.unlink()                                               # typed text wins when nothing is listed
+        self.steps({"key": "", "select": ["cwd"]}, {"query": "/no/such/place"}, {"key": "", "select": ["done"]})
+        self.run_pin("edit", "standup-prep")
+        self.assertEqual(self.stored()["standup-prep"]["cwd"], "/no/such/place")
+
+    def binds(self, call):
+        a = call["argv"]
+        return [a[i + 1] for i, x in enumerate(a) if x == "--bind"]
 
     def test_cancel_paths(self):
         # choice screen aborted, field prompt cancelled with EOF, then esc with nothing dirty
-        self.steps({"key": "", "select": ["effort"]}, {"abort": True}, {"key": "", "select": ["title"]}, {"abort": True})
-        r = self.run_pin("edit", "standup-prep", input="")
+        self.steps({"key": "", "select": ["effort"]}, {"abort": True}, {"key": "", "select": ["title"]}, {"abort": True},
+                   {"abort": True})
+        r = self.run_pin("edit", "standup-prep")
         self.assertIn("no changes", r.stdout)
-        # dirty + esc: 'c' goes back to the form, then done with the change kept
-        self.steps({"key": "", "select": ["keep"]}, {"abort": True}, {"key": "", "select": ["done"]})
-        r = self.run_pin("edit", "standup-prep", input="c\n")
+        # dirty + esc: 'keep editing' goes back to the form, then done with the change kept
+        self.steps({"key": "", "select": ["keep"]}, {"abort": True}, {"key": "", "select": ["keep editing"]},
+                   {"key": "", "select": ["done"]})
+        r = self.run_pin("edit", "standup-prep")
         self.assertTrue(self.stored()["standup-prep"]["keep"])
-        # dirty + esc + EOF at the question: nothing saved
-        self.steps({"key": "", "select": ["fork"]}, {"abort": True})
-        r = self.run_pin("edit", "standup-prep", input="")
+        # dirty + esc + esc at the question: nothing saved
+        self.steps({"key": "", "select": ["fork"]}, {"abort": True}, {"abort": True})
+        r = self.run_pin("edit", "standup-prep")
         self.assertFalse(self.stored()["standup-prep"]["fork"])
         # done with nothing dirty is a no-op; a header row selection is ignored; save failure keeps editing
         self.steps({"key": "", "select": ["-"]}, {"key": "", "select": ["done"]})
         r = self.run_pin("edit", "standup-prep")
         self.assertIn("no changes", r.stdout)
-        self.steps({"key": "", "select": ["title"]}, {"key": "alt-s"}, {"key": "", "select": ["cancel"]})
-        r = self.run_pin("edit", "standup-prep", input="\n")
-        self.assertIn("✗ title is required", r.stdout); self.assertEqual(self.stored()["standup-prep"]["title"], "Standup prep")
+        self.fzf_log.unlink()
+        self.steps({"key": "", "select": ["title"]}, {"query": ""}, {"key": "alt-s"}, {"key": "", "select": ["cancel"]})
+        r = self.run_pin("edit", "standup-prep")
+        self.assertIn("✗ title is required", self.arg(self.fzf_calls()[3], "--header"))
+        self.assertEqual(self.stored()["standup-prep"]["title"], "Standup prep")
 
 
 class MenuRaceTests(FzfSandbox):
@@ -302,3 +340,83 @@ class MenuRaceTests(FzfSandbox):
         proc.stdin.write("q\n"); proc.stdin.flush()
         self.assertEqual(proc.wait(timeout=10), 0)
         self.assertIsNone(self.claude_calls())
+
+
+class PlainTerminalTests(FzfSandbox):
+    """The plain editor in a pseudo-terminal, which is the only place readline's pre-fill and ctrl-c can be
+    seen: piped stdin (the MenuTests above) bypasses readline altogether."""
+
+    def setUp(self):
+        super().setUp()
+        os.environ["CLAUDE_PINS_NO_FZF"] = "1"
+        os.environ["TERM"] = "xterm-256color"
+        self.make_session(SID1, age_days=2, title="Standup prep")
+        self.run_pin("add", SID1, "standup-prep")
+
+    def tearDown(self):
+        os.environ.pop("TERM", None)
+        super().tearDown()
+
+    def stored(self):
+        return {p["alias"]: p for p in json.loads(self.store_path().read_text())["pins"]}
+
+    def test_prefill_and_ctrl_c(self):
+        import pty, select, sys, time
+        try:
+            import readline
+        except ImportError:
+            self.skipTest("no readline")
+        if getattr(readline, "backend", "readline") != "readline":
+            self.skipTest(f"readline backend is {readline.backend}: pre-fill is GNU readline's")
+        from tests.helpers import PIN
+        pid, fd = pty.fork()
+        if pid == 0:
+            os.execve(sys.executable, [sys.executable, str(PIN), "edit", "standup-prep"], dict(os.environ))
+        out = b""
+
+        def wait_for(pattern: str) -> str:
+            nonlocal out
+            deadline = time.time() + 15
+            while time.time() < deadline:
+                text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", out.decode("utf-8", "replace"))
+                if re.search(pattern, text):
+                    return text
+                r, _, _ = select.select([fd], [], [], 0.1)
+                if r:
+                    try:
+                        out += os.read(fd, 65536)
+                    except OSError:
+                        break
+            self.fail(f"{pattern!r} never appeared:\n{out.decode('utf-8', 'replace')[-600:]}")
+
+        try:
+            wait_for(r"📌 pins › standup-prep › edit\r?\n")
+            wait_for(r" > ")
+            os.write(fd, b"1\r")
+            wait_for(r"title: Standup prep")                    # the value is pre-filled, not just shown
+            os.write(fd, b" (Tue)\r")
+            wait_for(r"edit \(unsaved\)")
+            wait_for(r"title \*\s+\*Standup prep \(Tue\)")
+            os.write(fd, b"2\r")
+            wait_for(r"alias: standup-prep")
+            os.write(fd, b"\x03")                               # ctrl-c: the field is cancelled, the form stays
+            wait_for(r"alias: standup-prep\r?\n[\s\S]*edit \(unsaved\)")
+            os.write(fd, b"s\r")
+            wait_for(r"✓ saved standup-prep")
+            deadline = time.time() + 15
+            while time.time() < deadline:
+                done, status = os.waitpid(pid, os.WNOHANG)
+                if done:
+                    break
+                time.sleep(0.05)
+            else:
+                self.fail("pin did not exit")
+        finally:
+            try:
+                os.kill(pid, 9)
+            except OSError:
+                pass
+            os.close(fd)
+        self.assertEqual(status, 0)
+        self.assertEqual(self.stored()["standup-prep"]["title"], "Standup prep (Tue)")
+        self.assertEqual(self.stored()["standup-prep"]["alias"], "standup-prep")

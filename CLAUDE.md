@@ -46,8 +46,8 @@ reasons behind several design choices and are recorded nowhere else.
   mode, the cursor and mouse tracking on exit (measured on 0.44.1, 0.53.0 and
   0.67.0), and the next run enters the screen itself and repaints every row.
   So `fzf.leave_screen()`'s single `\x1b[?1049l` is the whole restore, emitted
-  before exec, before each remaining text prompt, and on every way out of
-  `cli.main`.
+  when the outermost screen hold ends, after a prompt run outside any hold,
+  before exec, and on every way out of `cli.main`.
 - Feature versions, from fzf's CHANGELOG and gated in `fzf.supports()`: the
   `resize` event with `$FZF_LINES`, `$FZF_COLUMNS` and the count variables
   0.46.0; `--info-command` with `$FZF_INFO` 0.54.0, gated at 0.65.2 because
@@ -81,7 +81,22 @@ reasons behind several design choices and are recorded nowhere else.
   gives a wide glyph two cells with the second one empty, but drops SGR 2, so
   the generator records dim itself (in the unused italics slot) to grey the
   chrome in the SVG.
-- Python's `input()` cannot see escape, so the inline prompts cancel with ctrl-c.
+- Enter on an fzf run with no input lines exits 1 and still prints the query
+  (0.44.1 through 0.74.3; the editor pty test types a title that way), which is
+  what makes a text field one `--disabled --query` screen with no rows.
+- fzf leaves its alternate screen up under `--no-clear`, so anything printed
+  between two screens is drawn over by the next one. The picker and editor hold
+  the screen (`fzf.hold_screen()`) and route messages through headers and
+  flashes; the opener queues its banners for the moment the shell is back
+  (`launch()` after the restore, or the cancel flash). A prompt run outside a
+  hold (`pin prune`, `pin edit`) drops the screen as soon as it ends so the
+  command's output is seen.
+- Python's `input()` cannot see escape, so the plain prompts (no fzf) cancel
+  with ctrl-c; piped stdin bypasses readline, so its pre-fill is only tested in
+  a pseudo-terminal. Importing readline exports the real terminal's `LINES` and
+  `COLUMNS` into the C environment, which `os.execv` passes on but
+  `os.environ` does not know about, so the pty tests exec with `os.environ`
+  (a picker sized by them would omit the too-short note).
 - Terminal automation (opening a new tab for the resumed session) was dropped on
   purpose: Ghostty's D-Bus surface offers new-window only.
 
