@@ -1,33 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="864" height="636" viewBox="0 0 864 636">
 <rect width="100%" height="100%" rx="8" fill="#1c1c1c"/>
 <g font-family="JetBrains Mono, Fira Code, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" xml:space="preserve">
-<text x="28.8" y="26" fill="#7a7a7a">enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help</text>
-<text x="28.8" y="44" fill="#7a7a7a">🟢  open  🚩  keep  🔀  fork  🌳  worktree  ⏳  expiring  🔴  expired</text>
-<text x="12.0" y="62" fill="#d97757" font-weight="bold">📌  pins › </text>
-<text x="793.2" y="62" fill="#7a7a7a">4 pins</text>
-<text x="28.8" y="80" fill="#7a7a7a">alias         title                                            directory             idle</text>
-<text x="12.0" y="98" fill="#b1b9f9" font-weight="bold">&gt;</text>
-<text x="28.8" y="98" fill="#e4e4e4" font-weight="bold">standup-prep  Standup prep                                     </text>
-<text x="558.0" y="98" fill="#e4e4e4" font-weight="bold">~/git/dotclaude     </text>
-<text x="742.8" y="98" fill="#e4e4e4" font-weight="bold">  0m</text>
-<text x="776.4" y="98" fill="#e4e4e4" font-weight="bold">  🟢  🚩 </text>
-<text x="12.0" y="116" fill="#303030">▌</text>
-<text x="28.8" y="116" fill="#d0d0d0" font-weight="bold">insurance   </text>
-<text x="129.6" y="116" fill="#d0d0d0">  USAA restructure                                 </text>
-<text x="558.0" y="116" fill="#7a7a7a">~/git/foo › x       </text>
-<text x="742.8" y="116" fill="#7a7a7a">  1d</text>
-<text x="776.4" y="116" fill="#d0d0d0">  🔀  🌳   </text>
-<text x="12.0" y="134" fill="#303030">▌</text>
-<text x="28.8" y="134" fill="#d0d0d0" font-weight="bold">cc-collector</text>
-<text x="129.6" y="134" fill="#d0d0d0">  Command center collector                         </text>
-<text x="558.0" y="134" fill="#7a7a7a">~/git/command-center</text>
-<text x="742.8" y="134" fill="#7a7a7a">  9d</text>
+<text x="28.8" y="26" fill="#7a7a7a">🟢  open  🚩  keep  🔀  fork  🌳  worktree  ⏳  expiring  🔴  expired</text>
+<text x="28.8" y="44" fill="#7a7a7a">enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help</text>
+<text x="12.0" y="80" fill="#d97757" font-weight="bold">📌  pins › </text>
+<text x="793.2" y="80" fill="#7a7a7a">4 pins</text>
+<text x="28.8" y="116" fill="#7a7a7a">alias         title                                            directory             idle</text>
+<text x="12.0" y="134" fill="#b1b9f9" font-weight="bold">&gt;</text>
+<text x="28.8" y="134" fill="#e4e4e4" font-weight="bold">standup-prep  Standup prep                                     </text>
+<text x="558.0" y="134" fill="#e4e4e4" font-weight="bold">~/git/dotclaude     </text>
+<text x="742.8" y="134" fill="#e4e4e4" font-weight="bold">  0m</text>
+<text x="776.4" y="134" fill="#e4e4e4" font-weight="bold">  🟢  🚩 </text>
 <text x="12.0" y="152" fill="#303030">▌</text>
-<text x="28.8" y="152" fill="#d0d0d0" font-weight="bold">rc-mower    </text>
-<text x="129.6" y="152" fill="#d0d0d0">  Navimow schedule debug                           </text>
-<text x="558.0" y="152" fill="#7a7a7a">~                   </text>
-<text x="742.8" y="152" fill="#ffc107"> 26d</text>
-<text x="776.4" y="152" fill="#d0d0d0">  ⏳      </text>
+<text x="28.8" y="152" fill="#d0d0d0" font-weight="bold">insurance   </text>
+<text x="129.6" y="152" fill="#d0d0d0">  USAA restructure                                 </text>
+<text x="558.0" y="152" fill="#7a7a7a">~/git/foo › x       </text>
+<text x="742.8" y="152" fill="#7a7a7a">  1d</text>
+<text x="776.4" y="152" fill="#d0d0d0">  🔀  🌳   </text>
+<text x="12.0" y="170" fill="#303030">▌</text>
+<text x="28.8" y="170" fill="#d0d0d0" font-weight="bold">cc-collector</text>
+<text x="129.6" y="170" fill="#d0d0d0">  Command center collector                         </text>
+<text x="558.0" y="170" fill="#7a7a7a">~/git/command-center</text>
+<text x="742.8" y="170" fill="#7a7a7a">  9d</text>
+<text x="12.0" y="188" fill="#303030">▌</text>
+<text x="28.8" y="188" fill="#d0d0d0" font-weight="bold">rc-mower    </text>
+<text x="129.6" y="188" fill="#d0d0d0">  Navimow schedule debug                           </text>
+<text x="558.0" y="188" fill="#7a7a7a">~                   </text>
+<text x="742.8" y="188" fill="#ffc107"> 26d</text>
+<text x="776.4" y="188" fill="#d0d0d0">  ⏳      </text>
 <text x="12.0" y="314" fill="#7a7a7a">╭────────────────────────────────────────── standup-prep ──────────────────────────────────────────╮</text>
 <text x="12.0" y="332" fill="#7a7a7a">│ </text>
 <text x="28.8" y="332" fill="#d0d0d0" font-weight="bold">Standup prep</text>

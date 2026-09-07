@@ -28,8 +28,7 @@ def use_fzf() -> bool:
 
 
 def _header(hints: str, notes: list[str]) -> str:
-    color = palette(sys.stdout)
-    return "\n".join([color(hints, "dim"), *notes])
+    return fzf.Header(hints, extra=tuple(notes), color=palette(sys.stdout)).text()
 
 
 def _ask(text: str) -> str:
@@ -197,7 +196,8 @@ def directory(default: str = "", *, crumb: str | None = None, note: str = "") ->
     text as typed, "" for none; the caller expands and checks it."""
     if use_fzf():
         items = [fzf.Item(r, r) for r in directory_rows(default)]
-        reload = f"reload({fzf.pin_exe()} _dirs {{q}})"
+        gap = " --gap" if fzf.supports("sticky-under-prompt") else ""
+        reload = f"reload({fzf.pin_exe()} _dirs{gap} {{q}})"
         res = fzf.run(items, prompt=crumb or default_crumb("directory"),
                       header=_header(TEXT_HINTS, [note] if note else []), query=default, disabled=True,
                       info="hidden", binds=[("change", reload)])

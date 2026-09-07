@@ -56,7 +56,8 @@ def filter_ids(items: list[fzf.Item], text: str, **kw) -> list[str]:
     that one option is dropped; the interactive picker prints whole lines and the tests parse ids from them.
     """
     kw = {k: v for k, v in kw.items() if k not in ("query", "env")}
-    args = [a for a in fzf.build_args(REAL_FZF, **kw) if a != "--no-sort"] + ["--filter", text]
+    items, kw["header_lines"] = fzf.sticky(items, kw.get("header_lines", 0), VERSION)   # as ``fzf.run`` does
+    args = [a for a in fzf.build_args(REAL_FZF, version=VERSION, **kw) if a != "--no-sort"] + ["--filter", text]
     rows = "\n".join(fzf.lines_for(items)) + "\n"
     p = subprocess.run(args, input=rows, capture_output=True, text=True)
     if p.returncode not in (0, 1):
@@ -119,9 +120,10 @@ class RealFzfTests(FzfSandbox):
         keys = [a.key for a in ACTIONS if a.key and a.key not in ("enter", "tab") and not a.bind]
         transform = fzf.header_transform(bottom_border=True)
         binds = [("focus", f"transform-header({transform})"), ("change", f"transform-header({transform})"),
-                 ("change", f"reload({fzf.pin_exe()} _dirs {{q}})"), ("alt-r", "reload(printf 'L\\na\\tb\\n')")]
+                 ("change", f"reload({fzf.pin_exe()} _dirs --gap {{q}})"), ("alt-r", "reload(printf 'L\\na\\tb\\n')")]
         if fzf.supports("resize", VERSION):
             binds.append(("resize", f"reload(true)+transform-header({transform})"))
+        self.assertEqual(fzf.header_binds(bottom_border=True, version=VERSION)[0][1], f"transform-header({transform})")
         kw = dict(prompt="📌 pins › ", header="h\nflash\nnote", expect=keys, query="x", multi=True, preview="echo {1}",
                   preview_label_cmd="echo {1}", pos=2, border_label=" 2 expired ", disabled=True, header_lines=1,
                   binds=binds, info_command=fzf.INFO_COMMAND if fzf.supports("info-command", VERSION) else None,
@@ -130,9 +132,12 @@ class RealFzfTests(FzfSandbox):
         items = [fzf.Item("-", "label"), fzf.Item("a", "b")]
         self.assertEqual(filter_ids(items, "x", **kw), [])  # accepted, nothing matches "x" against "b"
         self.assertEqual(filter_ids(items, "", **kw), ["a"])  # the header line is neither matched nor printed
-        args = fzf.build_args(REAL_FZF, **kw)
+        args = fzf.build_args(REAL_FZF, version=VERSION, **kw)
         for opt in ("--header-first", "--header-lines=1", "--disabled", "--no-clear"):
             self.assertIn(opt, args)
+        self.assertEqual(("--with-shell" in args), VERSION >= (0, 51))
+        if "--with-shell" in args:
+            self.assertEqual(args[args.index("--with-shell") + 1], "sh -c")
         self.assertEqual(args[args.index("--preview-window") + 1], "down,55%,border-rounded,wrap,<10(hidden)")
         self.assertIn(f"focus:transform-preview-label(echo {{1}})+transform-header({transform})", args)  # one bind per trigger
         self.assertEqual(("--info-command" in args), VERSION >= (0, 65, 2))
@@ -142,6 +147,46 @@ class RealFzfTests(FzfSandbox):
             filter_ids(items, "", prompt="> ", extra=["--color", "bogus:dim"])
         os.environ["NO_COLOR"] = "1"
         self.assertIn("--color=bw", fzf.build_args(REAL_FZF, **kw))
+
+    def test_header_transform(self):
+        """The header transform, run by this fzf: legend and hints on one line from 153 columns (four cells
+        between them), stacked below that with the legend first, the extra line, and the status line as the
+        flash, the too-short note under 20 rows, or a space. Python's launch-time layout is the same text."""
+        from claude_pins.render import legend
+        from claude_pins.theme import Palette
+        hints = "enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help"
+        note = "preview hidden: terminal too short"
+        cases = [(fzf.Header(hints, legend=legend(), note=note, color=Palette(True)), (153, 30), (152, 30), (200, 19)),
+                 (fzf.Header(hints, legend=legend(), extra=("keymap: ~/k.toml",), status="✓ saved", color=Palette(True)),
+                  (160, 30), (150, 30)),
+                 (fzf.Header("enter run · esc back"), (200, 30), (40, 12))]
+        for header, *sizes in cases:
+            for cols, lines in sizes:
+                # the transform bound to start, with the size fzf reports; --filter prints the header nowhere,
+                # so it goes through a file
+                out = self.home / "header.txt"
+                env = {**os.environ, **header.env(), "FZF_COLUMNS": str(cols), "FZF_LINES": str(lines)}
+                snippet = fzf.header_transform(bottom_border=True)
+                self.assertNotIn("(", snippet); self.assertNotIn("[", snippet)
+                p = subprocess.run(["sh", "-c", snippet], env=env, capture_output=True, text=True)
+                self.assertEqual(p.stderr, "")
+                self.assertEqual(p.stdout, header.text(cols, lines, bottom_border=True), f"{cols}x{lines}")
+                out.write_text(p.stdout)
+                # and fzf accepts the same text as its --header (colour codes included)
+                items = [fzf.Item("a", "b")]
+                self.assertEqual(filter_ids(items, "", prompt="> ", header=p.stdout), ["a"])
+        h = cases[0][0]
+        wide, narrow = plain(h.text(153, 30)).split("\n"), plain(h.text(152, 30)).split("\n")
+        self.assertEqual(len(wide), 2); self.assertEqual(len(narrow), 3)
+        self.assertTrue(wide[0].startswith("🟢 open") and wide[0].endswith("f1 help"))
+        self.assertIn("🔴 expired    enter open", wide[0])                       # exactly four cells between
+        self.assertEqual(wide[1], " ")
+        self.assertEqual(narrow[:2], [plain(legend()), hints])
+        self.assertEqual(plain(h.text(200, 19, bottom_border=True)).split("\n")[-1], note)
+        self.assertEqual(plain(h.text(200, 20, bottom_border=True)).split("\n")[-1], " ")
+        self.assertEqual(plain(cases[1][0].text(150, 30)).split("\n"), [plain(legend()), hints, "keymap: ~/k.toml", "✓ saved"])
+        self.assertEqual(plain(cases[1][0].text(160, 30)).split("\n")[1:], ["keymap: ~/k.toml", "✓ saved"])
+        self.assertEqual(cases[2][0].text(200, 30), "enter run · esc back\n ")     # hints alone stay left
 
     def test_reload_rows(self):
         """What ``pin _rows`` prints for a reload is what the launch sent: the label row stays the sticky header
@@ -157,6 +202,11 @@ class RealFzfTests(FzfSandbox):
         self.assertKeeps(items, kw, "", ["cc-collector", "rc-mower", "standup"])
         self.assertKeeps(items, kw, "alias", [])
         self.assertEveryRowFindable(items, kw)
+        r = self.run_pin("_rows", "--sort", "alias", "--gap", env={"FZF_COLUMNS": "100"})
+        self.assertEqual(r.stdout.splitlines()[0], "-\t ")                      # the gap row a 0.63+ reload keeps
+        self.assertEqual(r.stdout.splitlines()[1:], lines)
+        gap_items, n = fzf.sticky(items, 1, VERSION)                              # what this build's run() sends
+        self.assertEqual((gap_items[0], n), (fzf.GAP_ROW, 2) if VERSION >= (0, 63) else (items[0], 1))
 
     def test_main_picker(self):
         items, kw = self.capture(lambda: self.picker().run())
@@ -244,12 +294,14 @@ class RealFzfTests(FzfSandbox):
         (self.home / "git" / "alpha").mkdir(); (self.home / "git" / "alps").mkdir()
         r = self.run_pin("_dirs", "~/git/al")
         self.assertEqual(r.stdout, "~/git/alpha/\t~/git/alpha/\n~/git/alps/\t~/git/alps/\n")
+        self.assertEqual(self.run_pin("_dirs", "--gap", "~/git/al").stdout, "-\t \n" + r.stdout)
         with mock.patch.object(fzf, "run", self.recorder):
             with self.assertRaises(prompt.Cancelled):
                 prompt.directory("~/git/al", crumb="📌 pins › a › edit › cwd › ")
         items, kw = self.calls[-1]
         self.assertEqual([i.id for i in items], ["~/git/alpha/", "~/git/alps/"])
-        self.assertTrue(any(t == "change" and "_dirs {q}" in a for t, a in kw["binds"]))
+        gap = " --gap" if fzf.supports("sticky-under-prompt") else ""              # decided by the fzf on PATH here
+        self.assertTrue(any(t == "change" and f"_dirs{gap} {{q}}" in a for t, a in kw["binds"]))
         self.assertEqual(filter_ids(items, "", **kw), ["~/git/alpha/", "~/git/alps/"])   # the bind is accepted
         with mock.patch.object(fzf, "run", self.recorder):
             with self.assertRaises(prompt.Cancelled):
@@ -302,12 +354,18 @@ class InteractiveSmokeTest(FzfSandbox):
         self.assertEqual(self.raw.count(b"\x1b[?1049l"), 1, "the alternate screen was left more than once")
         self.assertGreater(self.raw.rfind(b"\x1b[?1049l"), self.raw.rfind(b"\x1b[?1049h"))
 
-    def wait_for(self, fd: int, pattern: str, timeout: float = 15.0) -> str:
-        """Read the terminal until ``pattern`` shows in the colour-stripped stream, or fail with what came."""
+    def wait_for(self, fd: int, pattern: str, timeout: float = 15.0, *, fresh: bool = False) -> str:
+        """Read the terminal until ``pattern`` shows in the colour-stripped stream, or fail with what came.
+        ``fresh`` matches only what came after the last alternate-screen entry, that is the newest fzf's
+        drawing: a screen keeps drawing for a moment after the key that ends it (its header transform
+        redraws on 0.44), and that tail would satisfy a wait meant for the next screen."""
         deadline = time.time() + timeout
         while time.time() < deadline:
-            if re.search(pattern, plain(self.out.decode("utf-8", "replace"))):
-                return plain(self.out.decode("utf-8", "replace"))
+            out = self.out
+            if fresh:
+                out = out[out.rfind(b"\x1b[?1049h"):] if b"\x1b[?1049h" in out else b""
+            if re.search(pattern, plain(out.decode("utf-8", "replace"))):
+                return plain(out.decode("utf-8", "replace"))
             r, _, _ = select.select([fd], [], [], 0.1)
             if r:
                 try:
@@ -396,20 +454,22 @@ class InteractiveSmokeTest(FzfSandbox):
             self.assertNotIn("session    " + SID3, screen)                     # no pane drawn
             self.out = b""                          # each screen is a new fzf; wait for it to draw before typing
             os.write(fd, b"\x1bv")                                              # alt-v: off
-            self.wait_for(fd, COUNT3)
-            self.wait_for(fd, r"🟢 open")                                        # the legend is back on line 2
+            self.wait_for(fd, COUNT3, fresh=True)
+            screen = self.wait_for(fd, r"🟢 open", fresh=True)                  # the legend stays on line 1
+            self.assertNotIn("preview hidden", screen)                          # the status line is blank again
             self.out = b""
             os.write(fd, b"\x1bv")                                              # alt-v again: cannot turn on
-            self.wait_for(fd, r"preview needs a taller terminal · alt-i for details")
-            self.wait_for(fd, COUNT3)
+            self.wait_for(fd, r"preview needs a taller terminal · alt-i for details", fresh=True)
+            self.wait_for(fd, COUNT3, fresh=True)
             self.out = b""
             os.write(fd, b"\x1bi")                                              # alt-i: the details screen
-            self.wait_for(fd, r"details ›")
-            self.wait_for(fd, r"session\s+" + SID3)
-            self.wait_for(fd, r"enter open · esc back")
+            self.wait_for(fd, r"details ›", fresh=True)
+            self.wait_for(fd, r"session\s+" + SID3, fresh=True)
+            self.wait_for(fd, r"enter open · esc back", fresh=True)
+            self.out = b""
             os.write(fd, b"\x1b")                                               # esc: back to the list
-            self.wait_for(fd, COUNT3)
-            self.wait_for(fd, r"🟢 open")
+            self.wait_for(fd, COUNT3, fresh=True)
+            self.wait_for(fd, r"🟢 open", fresh=True)
             self.assertNotIn(b"\x1b[?1049l", self.raw)                          # five screens, one alternate screen
             os.write(fd, b"\x1b")                                               # esc: leave
             status = self.drain_until_exit(pid, fd)
@@ -433,14 +493,14 @@ class InteractiveSmokeTest(FzfSandbox):
             self.wait_for(fd, r"opens\s+\(default\)")                            # the draft pane
             self.out = b""
             os.write(fd, b"\r")                                                  # enter: the title field (row 1)
-            screen = self.wait_for(fd, r"enter save · esc cancel · ctrl-u clear")
+            screen = self.wait_for(fd, r"enter save · esc cancel · ctrl-u clear", fresh=True)
             self.assertIn("standup › edit › title ›", screen)
-            self.wait_for(fd, r"title › Standup prep")                          # prefilled on the query line
+            self.wait_for(fd, r"title › Standup prep", fresh=True)              # prefilled on the query line
             self.out = b""
             os.write(fd, b" (Tue)\r")
-            self.wait_for(fd, r"edit \(unsaved\) ›")
-            self.wait_for(fd, r"\*Standup prep \(Tue\)")                         # the row's star
-            self.wait_for(fd, r"\* Standup prep \(Tue\)")                        # the pane's mark
+            self.wait_for(fd, r"edit \(unsaved\) ›", fresh=True)
+            self.wait_for(fd, r"\*Standup prep \(Tue\)", fresh=True)             # the row's star
+            self.wait_for(fd, r"\* Standup prep \(Tue\)", fresh=True)            # the pane's mark
             self.assertNotIn(b"\x1b[?1049l", self.raw)
             os.write(fd, b"\x1bs")                                               # alt-s
             status = self.drain_until_exit(pid, fd)

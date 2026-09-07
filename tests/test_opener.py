@@ -284,10 +284,10 @@ class OpenerScreenTests(FzfSandbox):
         menu, ask = calls
         self.assertEqual(self.arg(menu, "--prompt"), "📌 pins › sp › open › ")
         self.assertEqual(plain(self.arg(menu, "--header")).split("\n"),
-                         ["enter choose · esc cancel", "sp: directory ~/Documents/old is missing"])
+                         ["enter choose · esc cancel", "sp: directory ~/Documents/old is missing", " "])
         self.assertEqual([l.split("\t")[1] for l in menu["lines"]],
                          ["open in ~ (session context won't match this directory)", "choose another directory", "unpin"])
-        self.assertEqual(plain(self.arg(ask, "--header")).split("\n")[-1], "update pin cwd?")
+        self.assertEqual(plain(self.arg(ask, "--header")).split("\n")[-2:], ["update pin cwd?", " "])
         self.assertEqual(self.stored()["sp"]["cwd"], str(self.home))
         self.assertEqual(self.claude_calls()["cwd"], str(self.home))
         # the banner was held back until the screen was gone, so it is the last thing before claude

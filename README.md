@@ -103,18 +103,23 @@ periwinkle, the effort and context values on the budget statusline's green-to-re
 permission mode in the colour Claude's mode indicator gives it. Everything else is dim, so the
 look holds on light and dark terminals alike; `NO_COLOR` or `CLAUDE_PINS_COLOR=0` turns it all off.
 
-The list's `idle` column is the time since the transcript was last written, which is what the
-retention clock counts. The preview pane below the list hides itself when it would get fewer
-than ten rows (the header says `preview hidden: terminal too short`); alt-i opens the same
+Above the prompt sit the marker legend and the key hints, on one line when the terminal is
+wide enough (about 150 columns) and stacked otherwise, then a status line that carries the
+last action's result for one screen. The list's `idle` column is the time since the transcript
+was last written, which is what the retention clock counts. The preview pane below the list
+hides itself when it would get fewer than ten rows (the status line says `preview hidden:
+terminal too short`); alt-i opens the same
 details on a screen of their own, with more of the last exchange, and enter there opens the pin.
 Directories shorten fish-style when the column is narrow (`~/g/c/claude-pins`), keeping the last
 component; a Claude worktree shows as `~/git/repo › name`.
 
 The list is read from the store every time a screen returns; alt-r re-reads it in place, for a
 picker left open while another terminal pinned something. On fzf 0.46 and newer the rows also
-re-fit themselves when the terminal is resized, and the too-short note follows the height;
-0.44 and 0.45 refit at the next screen and refresh the note on the next cursor move or
-keystroke. On 0.65.2 and newer the counter reads `3 of 5 pins · 2 selected`.
+re-fit themselves when the terminal is resized, and the header follows the width and the
+height; 0.44 and 0.45 refit the rows at the next screen and the header on the next cursor
+move or keystroke. On 0.63 and newer a blank row separates the prompt from the list; before
+that fzf draws the column labels above the prompt. On 0.65.2 and newer the counter reads
+`3 of 5 pins · 2 selected`.
 
 In the editor the pane shows the pin as it would be saved, changed rows marked `*`. Enter
 changes the highlighted field: booleans flip, choices open a short list with `(clear)`, and a

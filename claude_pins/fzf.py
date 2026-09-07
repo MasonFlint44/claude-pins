@@ -12,6 +12,7 @@ import sys
 from dataclasses import dataclass, field
 
 from . import config, theme
+from .text import cells
 
 
 @dataclass
@@ -63,6 +64,9 @@ def min_lines(*, bottom_border: bool = False) -> int:
 # below the floor's feature set is emitted unconditionally; these are gated on ``supports()``.
 FEATURES = {
     "resize": (0, 46),            # the resize event, and $FZF_LINES / $FZF_COLUMNS / the count variables
+    "with-shell": (0, 51),        # --with-shell; before it the snippets below run under the user's $SHELL
+    "sticky-under-prompt": (0, 63),   # --header-lines rows stay at the list's top under --header-first; until
+                                      # 0.62 they moved above the prompt with the header (no changelog entry)
     "info-command": (0, 65, 2),   # --info-command is 0.54.0, but inline-right cut its last cell until 0.65.2
     "transform-header": (0, 40),  # present on the floor; listed so the gate reads as a table
 }
@@ -74,18 +78,98 @@ def supports(feature: str, version: tuple[int, ...] | None = None) -> bool:
 
 
 # Shell that fzf runs itself, so nothing here may start Python: the header transform fires on every
-# resize (0.46+) or on every cursor move and keystroke (0.44, where the resize event and $FZF_LINES are
-# missing and the height comes from stty), and the info command on every keystroke.
-HEADER_VAR = "CLAUDE_PINS_HEADER"      # the header text the transform re-emits
-NOTE_VAR = "CLAUDE_PINS_NOTE"          # the line it appends when the terminal is too short for the pane
+# resize (0.46+) or on every cursor move and keystroke (0.44, where the resize event, $FZF_LINES and
+# $FZF_COLUMNS are missing and the size comes from stty), and the info command on every keystroke.
+# It is POSIX sh; --with-shell keeps it under sh from 0.51, before that it runs under $SHELL.
+HINTS_VAR = "CLAUDE_PINS_HINTS"
+HINTS_CELLS_VAR = "CLAUDE_PINS_HINTS_CELLS"
+LEGEND_VAR = "CLAUDE_PINS_LEGEND"
+LEGEND_CELLS_VAR = "CLAUDE_PINS_LEGEND_CELLS"
+EXTRA_VAR = "CLAUDE_PINS_EXTRA"        # lines under the legend and hints (the help screen's keymap path)
+STATUS_VAR = "CLAUDE_PINS_STATUS"      # the line above the prompt: a flash, else a space
+NOTE_VAR = "CLAUDE_PINS_NOTE"          # what takes the status line when the terminal is too short for the pane
+HEADER_GAP = 4          # the least space between the legend and the hints on one line
+HEADER_MARGIN = 4       # fzf's two-cell header indent plus the two cells it cuts at the right edge (measured)
+
+
+@dataclass
+class Header:
+    """The lines above the prompt (fzf's --header-first): the legend on the left and the hints
+    right-justified on one line when the width allows ``HEADER_GAP`` between them, else the legend
+    over the hints (hints alone stay left); then ``extra``; then the status line, which is the flash
+    for one screen, the too-short note, or a space that keeps the prompt off the header. ``text()``
+    is the launch-time layout and ``header_transform()`` the same arithmetic in shell, fed by ``env()``,
+    so fzf re-fits the header itself on resize (or on every keystroke on 0.44). A header line holding
+    one space is kept where a trailing newline would be dropped."""
+    hints: str
+    legend: str = ""
+    extra: tuple[str, ...] = ()
+    status: str = " "
+    note: str = ""
+    color: theme.Palette | None = None
+
+    def _dim(self, text: str) -> str:
+        return self.color(text, "dim") if self.color else text
+
+    def env(self) -> dict[str, str]:
+        return {HINTS_VAR: self._dim(self.hints), HINTS_CELLS_VAR: str(cells(self.hints)),
+                LEGEND_VAR: self._dim(self.legend), LEGEND_CELLS_VAR: str(cells(self.legend)),
+                EXTRA_VAR: "\n".join(self.extra), STATUS_VAR: self.status, NOTE_VAR: self.note}
+
+    def text(self, columns: int | None = None, lines: int | None = None, *, bottom_border: bool = False) -> str:
+        if columns is None or lines is None:
+            from .render import terminal_height, terminal_width
+            columns = terminal_width() if columns is None else columns
+            lines = terminal_height() if lines is None else lines
+        out = []
+        pad = columns - cells(self.legend) - cells(self.hints) - HEADER_MARGIN
+        if self.legend and pad >= HEADER_GAP:
+            out.append(self._dim(self.legend) + " " * pad + self._dim(self.hints))
+        elif self.legend:
+            out += [self._dim(self.legend), self._dim(self.hints)]
+        else:
+            out.append(self._dim(self.hints))
+        out += self.extra
+        short = self.note and lines < min_lines(bottom_border=bottom_border)
+        out.append(self.note if short else self.status)
+        return "\n".join(out)
 
 
 def header_transform(*, bottom_border: bool = False) -> str:
-    """A transform-header command appending the note under ``min_lines`` rows. No parentheses or
-    brackets: fzf would take the first one as the end of the action."""
+    """``Header.text()`` as a transform-header command over ``Header.env()``. No parentheses or brackets:
+    fzf would take the first one as the end of the action."""
     limit = min_lines(bottom_border=bottom_border)
-    return ('h=$FZF_LINES; test -n "$h" || h=`stty size </dev/tty 2>/dev/null | cut -d" " -f1`; '
-            f'printf %s "${HEADER_VAR}"; test -n "$h" && test "$h" -lt {limit} && printf "\\n%s" "${NOTE_VAR}" || true')
+    size = 'stty size </dev/tty 2>/dev/null'
+    return (f'c=$FZF_COLUMNS; h=$FZF_LINES; test -n "$c" || c=`{size} | cut -d" " -f2`; '
+            f'test -n "$h" || h=`{size} | cut -d" " -f1`; '
+            f'p=`expr "$c" - "${LEGEND_CELLS_VAR}" - "${HINTS_CELLS_VAR}" - {HEADER_MARGIN} 2>/dev/null`; '
+            f'if test -n "${LEGEND_VAR}" && test -n "$p" && test "$p" -ge {HEADER_GAP}; '
+            f'then printf "%s%*s%s\\n" "${LEGEND_VAR}" "$p" "" "${HINTS_VAR}"; '
+            f'elif test -n "${LEGEND_VAR}"; then printf "%s\\n%s\\n" "${LEGEND_VAR}" "${HINTS_VAR}"; '
+            f'else printf "%s\\n" "${HINTS_VAR}"; fi; '
+            f'test -n "${EXTRA_VAR}" && printf "%s\\n" "${EXTRA_VAR}"; '
+            f's=${STATUS_VAR}; test -n "${NOTE_VAR}" && test -n "$h" && test "$h" -lt {limit} && s=${NOTE_VAR}; '
+            f'printf %s "$s"')
+
+
+def header_binds(*, bottom_border: bool = False, version: tuple[int, ...] | None = None) -> list[tuple[str, str]]:
+    """The binds that keep a header current: on resize where fzf has the event, else on every cursor move
+    and keystroke (0.44), where the transform reads the size from stty."""
+    transform = f"transform-header({header_transform(bottom_border=bottom_border)})"
+    if supports("resize", version):
+        return [("resize", transform)]
+    return [("focus", transform), ("change", transform)]
+
+
+GAP_ROW = Item("-", " ")    # a blank sticky row: the gap between the prompt and the list
+
+
+def sticky(items: list[Item], header_lines: int, version: tuple[int, ...] | None) -> tuple[list[Item], int]:
+    """The items with the gap row ahead of the sticky ones, on builds that draw sticky rows under the
+    prompt (0.63+; before that they sit above it, and 0.53 crashes on enter over sticky rows alone)."""
+    if version and supports("sticky-under-prompt", version):
+        return [GAP_ROW, *items], header_lines + 1
+    return items, header_lines
 
 
 # ``3 of 5 pins · 2 selected``; ``5 pins`` when nothing is filtered out. The count variables exclude
@@ -101,9 +185,10 @@ def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] 
                pos: int | None = None, border_label: str = "", extra: list[str] | None = None,
                disabled: bool = False, ansi: bool = True, info: str = "inline-right",
                header_lines: int = 0, binds: list[tuple[str, str]] | None = None,
-               info_command: str | None = None) -> list[str]:
+               info_command: str | None = None, version: tuple[int, ...] | None = None) -> list[str]:
     """``binds`` are (event or key, action) pairs; pairs on the same trigger are chained with ``+``,
-    since a later --bind for a trigger would replace an earlier one rather than add to it."""
+    since a later --bind for a trigger would replace an earlier one rather than add to it. ``version``
+    gates the options above the 0.44 floor."""
     # --no-clear leaves the alternate screen up between runs so the next screen draws over this one
     # instead of flashing the shell in between; leave_screen() drops it at the end.
     args = [binary, "--layout=reverse", "--delimiter=\t", "--with-nth=2..", "--tiebreak=index",
@@ -114,6 +199,8 @@ def build_args(binary: str, *, prompt: str, header: str = "", expect: list[str] 
         chains.setdefault(trigger, []).append(action)
     if ansi:
         args.append("--ansi")
+    if version and supports("with-shell", version):
+        args += ["--with-shell", "sh -c"]     # the snippets are POSIX sh; fzf would run them under $SHELL
     args.append("--color=bw" if not config.color_enabled() else f"--color={theme.fzf_colors()}")
     if header:
         args += ["--header", header, "--header-first"]
@@ -239,16 +326,19 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
     """Run fzf over ``items``; None when the user pressed esc/ctrl-c.
 
     With ``header_lines``, that many leading items are fzf's sticky header (column labels): shown like
-    rows, never matched, selected or printed back. ``env`` adds variables for the commands fzf runs."""
+    rows, never matched, selected or printed back; the gap row goes ahead of them where the build draws
+    them under the prompt. ``env`` adds variables for the commands fzf runs."""
     global _alt_screen
     binary = fzf_bin()
     if not binary:
         return None
+    version = fzf_version(binary)
+    items, header_lines = sticky(items, header_lines, version)
     lines = lines_for(items)
     args = build_args(binary, prompt=prompt, header=header, expect=expect, query=query, multi=multi,
                       preview=preview, preview_window=preview_window, preview_label_cmd=preview_label_cmd,
                       pos=pos, border_label=border_label, extra=extra, disabled=disabled, ansi=ansi, info=info,
-                      header_lines=header_lines, binds=binds, info_command=info_command)
+                      header_lines=header_lines, binds=binds, info_command=info_command, version=version)
     # stderr is inherited on purpose: fzf ≤ 0.4x draws its UI there (newer builds use /dev/tty),
     # and option errors should reach the user either way.
     try:

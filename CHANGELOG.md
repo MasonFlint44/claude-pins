@@ -4,6 +4,23 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
+## 0.5.1 — unreleased
+
+- **A calmer top.** The marker legend and the key hints share one line when the
+  terminal is wide enough (about 150 columns), legend left and hints at the right
+  edge, and stack with the legend first otherwise; fzf re-fits them on resize
+  (on 0.44 and 0.45 on the next cursor move or keystroke). A status line then
+  separates them from the prompt: it carries a flash for one screen, or the
+  too-short note, and is blank the rest of the time, so the legend no longer
+  disappears when something is confirmed. On fzf 0.63 and newer a blank row
+  separates the prompt from the column labels (and from the list on every other
+  screen); older builds draw the labels above the prompt, which is where fzf put
+  them all along, and get no extra row. The blank line above the prompt is on
+  every screen, the editor and the prompts included.
+- fzf runs the picker's shell snippets under `sh` (`--with-shell`, fzf 0.51 and
+  newer) instead of the login shell, so a fish user's picker no longer depends
+  on the snippets being fish-compatible.
+
 ## 0.5.0 — 2026-09-07
 
 The picker's look is new, the editor lives inside fzf, and nothing flickers or

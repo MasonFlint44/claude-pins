@@ -141,8 +141,11 @@ class ReadmeTests(Sandbox):
 
     def test_env_knobs_documented(self):
         src = "".join(p.read_text() for p in (REPO / "claude_pins").glob("*.py"))
-        # EXE, HEADER and NOTE are plumbing between pin and the fzf it runs, not knobs
-        knobs = set(re.findall(r"CLAUDE_PINS_[A-Z_]+", src)) - {"CLAUDE_PINS_EXE", "CLAUDE_PINS_HEADER", "CLAUDE_PINS_NOTE"}
+        # EXE and the header pieces are plumbing between pin and the fzf it runs, not knobs
+        from claude_pins import fzf
+        plumbing = {"CLAUDE_PINS_EXE", fzf.HINTS_VAR, fzf.HINTS_CELLS_VAR, fzf.LEGEND_VAR, fzf.LEGEND_CELLS_VAR,
+                    fzf.EXTRA_VAR, fzf.STATUS_VAR, fzf.NOTE_VAR}
+        knobs = set(re.findall(r"CLAUDE_PINS_[A-Z_]+", src)) - plumbing
         readme = (REPO / "README.md").read_text()
         for k in sorted(knobs):
             self.assertIn(k, readme, f"{k} undocumented")

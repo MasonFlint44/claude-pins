@@ -8,7 +8,7 @@ Reads the next step from ``$CLAUDE_PINS_FZF_SCRIPT`` (JSON lines). Each step:
   {"shell": "cmd", ...}                                       → run that first (another terminal at work)
   {"raw": ["id\tdisplay", ...], ...}                          → print these lines as the selection, as a
                                                                 reloaded list would (they need not be in the input)
-Every invocation appends {"argv": [...], "lines": [...]} to ``$CLAUDE_PINS_FZF_LOG``.
+Every invocation appends {"argv": [...], "lines": [...], "env": {CLAUDE_PINS_*}} to ``$CLAUDE_PINS_FZF_LOG``.
 ``--version`` reports ``$CLAUDE_PINS_FZF_STUB_VERSION`` (default 0.44.1), so a test can pick the branch of
 every version gate.
 """
@@ -27,7 +27,8 @@ def main():
     log = os.environ.get("CLAUDE_PINS_FZF_LOG")
     if log:
         with open(log, "a") as fh:
-            fh.write(json.dumps({"argv": argv, "lines": lines}) + "\n")
+            env = {k: v for k, v in os.environ.items() if k.startswith("CLAUDE_PINS_")}
+            fh.write(json.dumps({"argv": argv, "lines": lines, "env": env}) + "\n")
     script = os.environ.get("CLAUDE_PINS_FZF_SCRIPT")
     steps = []
     if script and os.path.exists(script):

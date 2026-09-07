@@ -101,9 +101,12 @@ def build_parser() -> argparse.ArgumentParser:
         h.add_argument("arg", nargs="?")
         if hidden == "_preview":
             h.add_argument("--draft", metavar="FILE")
+        if hidden == "_dirs":
+            h.add_argument("--gap", action="store_true")
     rw = sub.add_parser("_rows")
     rw.add_argument("--sort", choices=config.SORT_ORDERS)
     rw.add_argument("--all", action="store_true")
+    rw.add_argument("--gap", action="store_true", help="print the blank sticky row first (fzf 0.63+)")
     sub.add_parser("help")
     return p
 
@@ -461,9 +464,11 @@ def cmd_draft_preview(path: str) -> int:
 
 
 def cmd_dirs(opts) -> int:
-    """The directory field's list for fzf's ``reload``: the typed directory, then its completions."""
+    """The directory field's list for fzf's ``reload``: the gap row with ``--gap``, the typed directory,
+    then its completions."""
     from .prompt import directory_rows
-    for line in fzf.lines_for([fzf.Item(r, r) for r in directory_rows(opts.arg or "")]):
+    items = [fzf.Item(r, r) for r in directory_rows(opts.arg or "")]
+    for line in fzf.lines_for([fzf.GAP_ROW, *items] if opts.gap else items):
         print(line)
     return 0
 
@@ -476,12 +481,14 @@ def cmd_spreview(opts) -> int:
 
 
 def cmd_rows(opts) -> int:
-    """The picker's rows for fzf's ``reload``: the sticky label row first, then ``alias<tab>display``, at the
-    width fzf reports. Colour is on unless NO_COLOR says otherwise, like ``_preview`` (stdout is a pipe)."""
+    """The picker's rows for fzf's ``reload``: the sticky rows first (the gap row with ``--gap``, then the
+    labels), then ``alias<tab>display``, at the width fzf reports. Colour is on unless NO_COLOR says
+    otherwise, like ``_preview`` (stdout is a pipe)."""
     from .keymap import Keymap
     from .picker import list_items
     views, _ = build_views(load_store(), include_expired=opts.all, sort=opts.sort or config.default_sort())
-    for line in fzf.lines_for(list_items(views, Keymap.load(), palette())):
+    items = list_items(views, Keymap.load(), palette())
+    for line in fzf.lines_for([fzf.GAP_ROW, *items] if opts.gap else items):
         print(line)
     return 0
 

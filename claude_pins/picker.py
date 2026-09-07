@@ -61,16 +61,19 @@ class Picker:
 
     def hints(self, *ids: str) -> str:
         parts = [self.km.hint(i) for i in ids if self.km.hint(i)]
-        return self.color(" · ".join(parts), "dim")
+        return " · ".join(parts)
 
-    def header(self, hints: str, *notes: str) -> str:
-        """The lines above the prompt (fzf's --header-first): hints first, then the screen's notes. A flash
-        takes the second line, displacing the note that was there, so the list never moves."""
-        lines = [hints, *notes]
+    def header(self, hints: str, *extra: str, legend: str = "", note: str = "") -> fzf.Header:
+        """This screen's lines above the prompt. A flash takes the status line for one screen (over the
+        too-short ``note``, which is about the same thing); otherwise the status line is blank."""
+        flash = ""
         if self.state.flash:
             flash = self.color(self.state.flash, ERROR if self.state.flash.startswith("✗") else SUCCESS)
-            lines[1:2] = [flash]
-        return "\n".join(lines)
+        return fzf.Header(hints, legend=legend, extra=extra, status=flash or " ", note="" if flash else note,
+                          color=self.color)
+
+    def header_binds(self, *, bottom_border: bool = False) -> list[tuple[str, str]]:
+        return fzf.header_binds(bottom_border=bottom_border, version=self.fzf_version)
 
     def preview_fits(self, *, bottom_border: bool) -> bool:
         return fzf.preview_fits(terminal_height(), bottom_border=bottom_border)
@@ -89,6 +92,8 @@ class Picker:
         """``pin _rows`` for fzf's reload, with the launch width as the fallback for builds without
         $FZF_COLUMNS (the width fzf reports wins where it exists)."""
         cmd = f"COLUMNS={terminal_width()} {pin_exe()} _rows --sort {self.state.sort}"
+        if fzf.supports("sticky-under-prompt", self.fzf_version):
+            cmd += " --gap"
         return cmd + (" --all" if self.state.show_expired else "")
 
     def reload(self) -> None:
@@ -122,26 +127,22 @@ class Picker:
                 footer = f" {expired} expired shown · pin prune "
             preview_cmd = f"{pin_exe()} _preview {{1}}" if self.state.preview else None
             hints = self.hints("open", "palette", "edit", "new", "details", "help")
-            note = self.color(TOO_SHORT_NOTE, "dim")
-            header = self.header(hints, self.color(legend(), "dim"))
-            env = {fzf.HEADER_VAR: header, fzf.NOTE_VAR: note}
-            if self.state.preview and not self.preview_fits(bottom_border=bool(footer)):
-                header += "\n" + note
+            note = self.color(TOO_SHORT_NOTE, "dim") if self.state.preview else ""
+            header = self.header(hints, legend=legend(), note=note)
             # The list reloads in place on the refresh key and, where fzf has the event, on resize; the
-            # too-short note follows the height on resize too, or on every cursor move and keystroke
-            # where the event is missing (0.44).
+            # header re-fits (legend and hints on one line or two, the too-short note) on resize too, or
+            # on every cursor move and keystroke where the event is missing (0.44).
             binds: list[tuple[str, str]] = []
             reload = f"reload({self.rows_command()})"
             if self.km.key("refresh"):
                 binds.append((self.km.key("refresh"), reload))
-            transform = f"transform-header({fzf.header_transform(bottom_border=bool(footer))})"
             if fzf.supports("resize", self.fzf_version):
-                binds.append(("resize", reload + ("+" + transform if self.state.preview else "")))
-            elif self.state.preview:
-                binds += [("focus", transform), ("change", transform)]
-            res = fzf.run(items, prompt=crumb(), header=header, header_lines=1, expect=expect, query=self.state.query,
+                binds.append(("resize", reload))
+            binds += self.header_binds(bottom_border=bool(footer))
+            res = fzf.run(items, prompt=crumb(), header=header.text(bottom_border=bool(footer)), header_lines=1,
+                          expect=expect, query=self.state.query,
                           multi=bool(views), pos=pos, preview=preview_cmd, preview_label_cmd="echo ' '{1}' '",
-                          border_label=footer, binds=binds, env=env,
+                          border_label=footer, binds=binds, env=header.env(),
                           info_command=fzf.INFO_COMMAND if fzf.supports("info-command", self.fzf_version) else None)
             self.state.flash = ""
             if res is None:
@@ -297,8 +298,7 @@ class Picker:
                 table.append((group, label, self.color(self.km.key(a.id), "dim")))
                 ids.append(a.id)
         items = [fzf.Item(i, line) for i, line in zip(ids, grouped(table, self.color))]
-        hints = self.color("enter run · esc back", "dim")
-        res = fzf.run(items, prompt=prompt, header=self.header(hints), expect=[], info="hidden")
+        res = fzf.run(items, prompt=prompt, header=self.header("enter run · esc back").text(), expect=[], info="hidden")
         if res is None or not res.ids or res.ids[0] == "-":
             return None
         return res.ids[0]
@@ -314,9 +314,8 @@ class Picker:
         cost = session_cost(pin.session_id, pin.transcript) if view.summary and view.summary.exists else None
         text = preview(view, cost, branch, width=terminal_width() - LIST_WIDTH_SLACK, color=self.color, exchange_lines=12)
         items = [fzf.Item("-", line) for line in text.split("\n")]
-        hints = self.color("enter open · esc back", "dim")
-        res = fzf.run(items, prompt=crumb(pin.alias, "details"), header=self.header(hints), expect=[], disabled=True,
-                      info="hidden")
+        res = fzf.run(items, prompt=crumb(pin.alias, "details"), header=self.header("enter open · esc back").text(),
+                      expect=[], disabled=True, info="hidden")
         if res is None:
             return None
         return self.open(view, "open")
@@ -329,10 +328,10 @@ class Picker:
                      for a in ACTIONS if a.group == g]
             ids = [a.id for g in GROUPS for a in ACTIONS if a.group == g]
             items = [fzf.Item(i, line) for i, line in zip(ids, grouped(table, self.color))]
-            hints = self.color("enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back", "dim")
-            notes = (self.color(legend(), "dim"), self.color("keymap: " + config.tilde(config.keymap_file()), "dim"))
-            res = fzf.run(items, prompt=crumb("help"), header=self.header(hints, *notes), expect=["ctrl-r", "ctrl-alt-r"],
-                          info="hidden")
+            hints = "enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back"
+            header = self.header(hints, self.color("keymap: " + config.tilde(config.keymap_file()), "dim"), legend=legend())
+            res = fzf.run(items, prompt=crumb("help"), header=header.text(), expect=["ctrl-r", "ctrl-alt-r"],
+                          info="hidden", binds=self.header_binds(), env=header.env())
             self.state.flash = ""
             if res is None:
                 return
@@ -394,8 +393,7 @@ class Picker:
             return
         items = [fzf.Item(s.path, line)
                  for (s, _), line in zip(pairs, session_rows(pairs, width=terminal_width() - LIST_WIDTH_SLACK, color=self.color))]
-        hints = self.color("enter pin · esc back", "dim")
-        res = fzf.run(items, prompt=crumb("new"), header=self.header(hints), expect=[],
+        res = fzf.run(items, prompt=crumb("new"), header=self.header("enter pin · esc back").text(), expect=[],
                       preview=f"{pin_exe()} _spreview {{1}}", preview_label_cmd="echo ' session '")
         if res is None or not res.ids:
             return

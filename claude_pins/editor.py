@@ -134,7 +134,7 @@ def edit_pin(store: Store, alias: str, *, run=None) -> str | None:
                 ids = [f for _, f, _, _ in FIELDS] + ["done", "cancel"]
                 items = [fzf.Item(i, line) for i, line in zip(ids, grouped(table, color))]
                 prompt_text = crumb(original.alias, "edit" + (" (unsaved)" if dirty else ""))
-                header = color("enter change · alt-s save · esc back", "dim") + (f"\n{flash}" if flash else "")
+                header = fzf.Header("enter change · alt-s save · esc back", status=flash or " ", color=color).text()
                 flash = ""
                 res = run(items, prompt=prompt_text, header=header, expect=["alt-s"], pos=cursor, info="hidden",
                           preview=f"{fzf.pin_exe()} _preview --draft {draft_path}", extra=["--preview-label", " draft "])
@@ -206,7 +206,8 @@ def choose(run, crumb: str, options: list[str], current: str | None) -> str | No
     """Short fzf list with ``(clear)``. Returns "" for clear, None when cancelled."""
     items = [fzf.Item(o, o) for o in options] + [fzf.Item("", "(clear)")]
     pos = (options.index(current) + 1) if current in options else None
-    res = run(items, prompt=crumb, header="", expect=[], pos=pos, info="hidden")
+    header = fzf.Header(prompt.LIST_HINTS, color=palette(sys.stdout)).text()
+    res = run(items, prompt=crumb, header=header, expect=[], pos=pos, info="hidden")
     if res is None or not res.ids:
         return None
     return res.ids[0]

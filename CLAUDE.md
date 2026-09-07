@@ -30,18 +30,28 @@ reasons behind several design choices and are recorded nowhere else.
   the help screen's reset keys are ctrl-r and ctrl-alt-r rather than `r` and `R`.
   Its own editing keys are left alone so the filter stays editable, and alt+enter
   is avoided because Windows Terminal takes it.
-- `--header-first` draws the header above the prompt, and the status flash takes
-  the header's second line (displacing the legend) so the list never moves.
-  `--header-lines=1` makes the first input line a sticky column-label row: it is
-  cut by `--with-nth` like a row but is not an item, so `start:pos` numbering,
-  multi-select and `--filter` output all skip it.
+- `--header-first` draws the header above the prompt. Its last line is a status
+  line (the flash, the too-short note, or a space: fzf drops a trailing newline
+  in `--header` but keeps a line holding a space), so a flash never displaces
+  the legend and the list never moves. The legend and the hints share one line
+  when the width allows four cells between them (about 153 columns) and stack
+  otherwise; that choice needs the width fzf has, so `fzf.Header.text()` lays
+  out the launch and the same arithmetic in `fzf.header_transform()` re-fits it.
+  `--header-lines=N` makes the first N input lines sticky rows (the blank gap
+  row, the column labels): cut by `--with-nth` like rows but not items, so
+  `start:pos` numbering, multi-select and `--filter` output all skip them.
+  Until 0.62 `--header-first` moves those rows above the prompt too (bisected on
+  downloaded builds; the changelog does not say), and 0.53 crashes on enter over
+  sticky rows alone, so the gap row is gated to 0.63+ and older builds keep the
+  labels above the prompt.
 - `--preview-window 'down,55%,<10(hidden)'` hides the pane when it would get
   fewer than ten rows, measured on the pane itself, border rows included, as 55%
   of the terminal rows left after fzf's bottom border (measured on 0.67: 19 rows
   shows, 18 hides; one fewer with the expired footer). fzf re-checks on every
   resize; Python mirrors the arithmetic in `fzf.preview_fits()` at restart for
   the alt-v refusal, and `fzf.header_transform()` carries the same limit into
-  the shell that keeps the header note current.
+  the shell that keeps the header note current. Header lines do not enter it:
+  fzf sizes the pane from the terminal height alone.
 - `--no-clear` only skips leaving the alternate screen: fzf still restores cooked
   mode, the cursor and mouse tracking on exit (measured on 0.44.1, 0.53.0 and
   0.67.0), and the next run enters the screen itself and repaints every row.
@@ -52,19 +62,24 @@ reasons behind several design choices and are recorded nowhere else.
   `resize` event with `$FZF_LINES`, `$FZF_COLUMNS` and the count variables
   0.46.0; `--info-command` with `$FZF_INFO` 0.54.0, gated at 0.65.2 because
   `--info=inline-right` cut its last cell before that (`3 pin…`, seen on
-  0.64.0); `transform-header` 0.40.0.
-  Inside a transform on 0.44 `$FZF_LINES` is empty and `tput lines` answers 24
-  whatever the size, while `stty size </dev/tty` is right, which is why the
-  header note binds to `focus,change` there and to `resize` on 0.46+.
+  0.64.0); `transform-header` 0.40.0; `--with-shell` 0.51.0; sticky rows
+  under the prompt 0.63.0.
+  Inside a transform on 0.44 `$FZF_LINES` and `$FZF_COLUMNS` are empty and
+  `tput lines` answers 24 whatever the size, while `stty size </dev/tty` is
+  right, which is why the header transform binds to `focus,change` there and
+  to `resize` on 0.46+.
 - The info command runs on every keystroke and the header transform on every
   cursor move (0.44), so both are plain shell over fzf's variables; only a
-  reload may start Python (`pin _rows`).
+  reload may start Python (`pin _rows`, `pin _dirs`, both told `--gap` rather
+  than asking fzf its version). fzf runs them under `$SHELL`, and they are
+  POSIX sh (`expr`, `printf "%*s"`), so `--with-shell "sh -c"` is passed where
+  fzf has it; below 0.51 a fish login shell would break them.
 - fzf ends a parenthesised action at the first `)`, and a later `--bind` for a
   trigger replaces the earlier one instead of adding to it: `build_args` merges
   binds per trigger with `+`, and the shell snippets contain no parentheses or
   brackets.
-- `--header-lines=1` applies to reloaded input too, the count variables exclude
-  the header row, and fzf counts a reload in as it reads it (the counter passes
+- `--header-lines` applies to reloaded input too, the count variables exclude
+  the sticky rows, and fzf counts a reload in as it reads it (the counter passes
   through `3 of 4 pins`), so the pty test waits for a row, not the count.
 - `--filter` mode ignores `--disabled`, so the details screen's real-fzf test
   can only check that its options are accepted and that an empty query keeps
@@ -134,6 +149,10 @@ bash tests/coverage.sh                 # coverage report; needs uv (dev deps liv
   terminal redraw, so keep them few and make each prove several things; clear
   the captured stream and wait for the new screen before typing, since fzf's
   exit resets the tty and discards anything typed while the next fzf starts.
+  A screen keeps drawing for a moment after the key that ends it (its header
+  transform redraws on 0.44), and that tail satisfied waits meant for the next
+  screen, so `wait_for(fresh=True)` matches only what came after the newest
+  alternate-screen entry.
   The stub-driven tests are where a hidden-field bug hid for four releases: do
   not judge matching by them.
 - fzf support floors at 0.44.1, which lacks `transform`, `--footer`, `print`,

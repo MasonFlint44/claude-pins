@@ -57,8 +57,9 @@ class PickerTests(FzfSandbox):
         self.assertTrue(rows[0].startswith("standup-prep\t"))   # recency sort: newest first
         self.assertRegex(rows[2], r"rc-mower\s.*~\s+26d\s+⏳$")
         header = plain(self.arg(call, "--header")).split("\n")
-        self.assertEqual(header[0], "enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help")
-        self.assertTrue(header[1].startswith("🟢 open  🚩 keep"))    # the legend, until a flash displaces it
+        self.assertTrue(header[0].startswith("🟢 open  🚩 keep"))    # the legend first, over the hints (100 columns)
+        self.assertEqual(header[1], "enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help")
+        self.assertEqual(header[2:], [" "])                            # the status line, blank: a gap above the prompt
 
     def test_theme_and_glyph_switches(self):
         """Colour on: fzf gets the token --color spec and the rows carry 24-bit codes. Off (NO_COLOR or
@@ -103,9 +104,10 @@ class PickerTests(FzfSandbox):
         calls = self.fzf_calls()
         self.assertEqual(len(calls), 2)
         header = plain(self.arg(calls[1], "--header")).split("\n")
-        self.assertEqual(header[1], "✓ touched rc-mower")          # the flash takes the legend's line
-        self.assertEqual(len(header), 2)
-        self.assertIn("enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help", header[0])
+        self.assertEqual(header[2], "✓ touched rc-mower")          # the flash takes the status line
+        self.assertEqual(len(header), 3)
+        self.assertTrue(header[0].startswith("🟢 open  🚩 keep"))    # the legend stays
+        self.assertIn("enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help", header[1])
         self.assertNotIn("✓", plain(self.arg(calls[0], "--header")))
         # rc-mower is now newest → first row, and the cursor is restored on it via start:pos
         rows = self.pin_rows(calls[1])
@@ -144,7 +146,7 @@ class PickerTests(FzfSandbox):
         ask = calls[2]                                                  # the yes/no is an fzf list
         self.assertEqual(self.arg(ask, "--prompt"), "📌 pins › prune › ")
         self.assertEqual(plain(self.arg(ask, "--header")).split("\n"),
-                         ["enter choose · esc cancel", "prune 1 expired pin(s): rc-mower", "unpin them? (pin undo restores)"])
+                         ["enter choose · esc cancel", "prune 1 expired pin(s): rc-mower", "unpin them? (pin undo restores)", " "])
         self.assertEqual([l.split("\t")[1] for l in ask["lines"]], ["yes", "no"])
         self.assertNotIn("--bind", ask["argv"])                          # cursor on yes: no start:pos needed
         self.assertEqual(r.stdout, "")                                    # nothing printed under the screen
@@ -233,9 +235,10 @@ class PickerTests(FzfSandbox):
         help_call = calls[1]
         self.assertEqual(self.arg(help_call, "--prompt"), "📌 pins › help › ")
         header = plain(self.arg(help_call, "--header")).split("\n")
-        self.assertEqual(header[0], "enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back")
-        self.assertTrue(header[1].startswith("🟢 open  🚩 keep  🔀 fork  🌳 worktree  ⏳ expiring  🔴 expired"))
-        self.assertEqual(header[2], "keymap: ~/.config/claude-pins/keys.toml")
+        self.assertTrue(header[0].startswith("🟢 open  🚩 keep  🔀 fork  🌳 worktree  ⏳ expiring  🔴 expired"))
+        self.assertEqual(header[1], "enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back")
+        self.assertEqual(header[2:], ["keymap: ~/.config/claude-pins/keys.toml", " "])
+        self.assertTrue(any(b.startswith("focus:transform-header(") for b in self.binds(help_call)))  # re-fits too
         self.assertFalse(any(l.startswith("-\t") for l in help_call["lines"]))   # every row is an action
         rows = self.labels(help_call)
         self.assertIn("Touch transcript      alt-t", rows)
@@ -244,7 +247,7 @@ class PickerTests(FzfSandbox):
         self.assertEqual(self.arg(ask, "--query"), "alt-t")
         self.assertIn("--disabled", ask["argv"]); self.assertEqual(ask["lines"], [])
         self.assertEqual(plain(self.arg(ask, "--header")).split("\n"),
-                         ["enter save · esc cancel · ctrl-u clear", "e.g. alt-t, f5; empty unbinds"])
+                         ["enter save · esc cancel · ctrl-u clear", "e.g. alt-t, f5; empty unbinds", " "])
         self.assertEqual(r.stdout, "")
         self.assertIn("✓ Touch transcript: f5", plain(self.arg(calls[3], "--header")))
         self.assertIn("Touch transcript      f5", self.labels(calls[3]))
@@ -261,7 +264,7 @@ class PickerTests(FzfSandbox):
         self.assertIn("printable character", plain(self.arg(calls[3], "--header")))   # the retry carries the error
         self.assertEqual(self.arg(calls[3], "--query"), "alt-t")
         ask = calls[4]
-        self.assertEqual(plain(self.arg(ask, "--header")).split("\n")[1:], ["conflicts: Unpin", "bind anyway?"])
+        self.assertEqual(plain(self.arg(ask, "--header")).split("\n")[1:], ["conflicts: Unpin", "bind anyway?", " "])
         self.assertIn("start:pos(2)", " ".join(ask["argv"]))                          # default no
         keymap = (self.home / ".config" / "claude-pins" / "keys.toml").read_text()
         self.assertIn('touch = "alt-x"', keymap)
@@ -340,7 +343,7 @@ class PickerTests(FzfSandbox):
         det = calls[1]
         self.assertEqual(self.arg(det, "--prompt"), "📌 pins › cc-collector › details › ")
         self.assertIn("--disabled", det["argv"])
-        self.assertEqual(plain(self.arg(det, "--header")), "enter open · esc back")
+        self.assertEqual(plain(self.arg(det, "--header")), "enter open · esc back\n ")
         body = [plain(l) for l in det["lines"]]
         self.assertTrue(all(l.startswith("-\t") for l in body))
         self.assertEqual(body[0], "-\tCommand center collector")
@@ -451,6 +454,10 @@ class PickerTests(FzfSandbox):
         self.assertIn("prune cancelled", self.header_after(4))
         self.assertIn("rc-mower", self.stored())
 
+    def env_of(self, call):
+        """The CLAUDE_PINS_* variables the screen exported for its shell snippets, colour stripped."""
+        return {k: plain(v) for k, v in call["env"].items()}
+
     def binds(self, call):
         a = call["argv"]
         return [a[i + 1] for i, x in enumerate(a) if x == "--bind"]
@@ -497,33 +504,51 @@ class PickerTests(FzfSandbox):
         self.assertIn("-\tNo pins yet. alt-n pins", self.run_pin("_rows").stdout)
 
     def test_version_gates(self):
-        """Older fzf: the too-short note follows focus and change; 0.46 adds the resize event (rows and note
-        re-fit on resize) and 0.65.2 the info command. The preview off drops the note transform."""
+        """Older fzf: the header re-fits on focus and change, reading the size from stty; 0.46 adds the resize
+        event (rows and header re-fit on resize), 0.51 --with-shell, 0.63 the gap row under the prompt, and
+        0.65.2 the info command. With the preview off the transform stays (it lays the header out) but the
+        too-short note is empty."""
         self.steps({"abort": True})
         self.run_pin()
         call = self.fzf_calls()[0]
         binds = self.binds(call)
         self.assertNotIn("--info-command", call["argv"])
+        self.assertNotIn("--with-shell", call["argv"])
         self.assertFalse(any(b.startswith("resize:") for b in binds))
         focus = next(b for b in binds if b.startswith("focus:"))
         self.assertIn("transform-preview-label(", focus)
-        self.assertIn("+transform-header(h=$FZF_LINES; test -n \"$h\" || h=`stty size </dev/tty", focus)
-        self.assertIn('test "$h" -lt 19 && printf', focus)
+        self.assertIn("+transform-header(c=$FZF_COLUMNS; h=$FZF_LINES; test -n \"$c\" || c=`stty size </dev/tty", focus)
+        self.assertIn('test "$h" -lt 19 && s=$CLAUDE_PINS_NOTE', focus)
         change = next(b for b in binds if b.startswith("change:"))
         self.assertTrue(change.startswith("change:transform-header("))
         self.assertNotIn("(", change.split("transform-header(", 1)[1][:-1])       # fzf ends the action at one
+        self.assertNotIn("[", change); self.assertNotIn("]", change)
+        self.assertEqual(self.env_of(call)["CLAUDE_PINS_NOTE"], "preview hidden: terminal too short")
+        self.assertEqual(self.env_of(call)["CLAUDE_PINS_LEGEND_CELLS"], "63")
+        self.assertEqual(self.env_of(call)["CLAUDE_PINS_HINTS_CELLS"], "82")
         self.steps({"key": "alt-v"}, {"abort": True})
         self.run_again(env={"CLAUDE_PINS_FZF_STUB_VERSION": "0.53.0"})
         calls = self.fzf_calls()
         binds = self.binds(calls[0])
         self.assertNotIn("--info-command", calls[0]["argv"])
+        self.assertIn("--with-shell", calls[0]["argv"])
+        self.assertEqual(self.arg(calls[0], "--with-shell"), "sh -c")
+        self.assertIn("--header-lines=1", calls[0]["argv"])                        # sticky rows sit above the prompt
         self.assertFalse(any(b.startswith(("change:", "focus:transform-header")) for b in binds))
         resize = next(b for b in binds if b.startswith("resize:"))
         self.assertTrue(resize.startswith("resize:reload(COLUMNS=100 "))
-        self.assertIn(")+transform-header(", resize)
-        self.assertNotIn("transform-header", self.binds(calls[1]))                 # preview off: no note
-        self.assertEqual([b for b in self.binds(calls[1]) if b.startswith("resize:")],
-                         ["resize:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort recency)"])
+        self.assertIn(" _rows --sort recency)+transform-header(", resize)
+        self.assertIn("+transform-header(", self.binds(calls[1])[-1])             # preview off: still re-fits
+        self.assertEqual(self.env_of(calls[1])["CLAUDE_PINS_NOTE"], "")            # but no note
+        self.steps({"abort": True})
+        self.run_pin(env={"CLAUDE_PINS_FZF_STUB_VERSION": "0.63.0"})
+        call = self.fzf_calls()[-1]
+        self.assertIn("--header-lines=2", call["argv"])                           # the gap row, then the labels
+        self.assertEqual(plain(call["lines"][0]), "-\t ")
+        self.assertRegex(plain(call["lines"][1]), r"^-\talias\s+title")
+        self.assertIn(" _rows --sort recency --gap)", next(b for b in self.binds(call) if b.startswith("resize:")))
+        r = self.run_pin("_rows", "--sort", "recency", "--gap")
+        self.assertEqual(r.stdout.splitlines(), call["lines"])                    # a reload draws the same
         self.steps({"abort": True})
         self.run_pin(env={"CLAUDE_PINS_FZF_STUB_VERSION": "0.65.1"})     # has --info-command, cuts its last cell
         self.assertNotIn("--info-command", self.fzf_calls()[-1]["argv"])

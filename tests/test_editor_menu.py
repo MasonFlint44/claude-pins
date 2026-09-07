@@ -40,7 +40,7 @@ class EditorTests(FzfSandbox):
         self.assertTrue(rows[7].startswith("permission   (default)"))
         self.assertEqual(rows[-2], "Done"); self.assertEqual(rows[-1], "Cancel")
         self.assertEqual(self.arg(calls[0], "--prompt"), "📌 pins › standup-prep › edit › ")
-        self.assertEqual(self.arg(calls[0], "--header"), "enter change · alt-s save · esc back")
+        self.assertEqual(self.arg(calls[0], "--header"), "enter change · alt-s save · esc back\n ")
         # after toggling keep the form is dirty: breadcrumb + star
         self.assertEqual(self.arg(calls[1], "--prompt"), "📌 pins › standup-prep › edit (unsaved) › ")
         self.assertTrue(self.fields(calls[1])[8].startswith("keep        *ON"))

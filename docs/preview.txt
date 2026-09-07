@@ -1,13 +1,13 @@
-  enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help
   🟢 open  🚩 keep  🔀 fork  🌳 worktree  ⏳ expiring  🔴 expired
+  enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help
+
 📌 pins ›                                                                                    4 pins
+
   alias         title                                            directory             idle
 > standup-prep  Standup prep                                     ~/git/dotclaude         0m  🟢 🚩
 ▌ insurance     USAA restructure                                 ~/git/foo › x           1d  🔀 🌳
 ▌ cc-collector  Command center collector                         ~/git/command-center    9d
 ▌ rc-mower      Navimow schedule debug                           ~                      26d  ⏳
-
-
 
 
 
