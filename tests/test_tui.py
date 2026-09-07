@@ -612,6 +612,24 @@ class FlowTests(TuiSandbox):
         self.assertEqual(self.screens()[1]["header"].split("\n")[-1],
                          "✗ standup-prep: transcript for session 11111111… is gone (expired) · pin unpin standup-prep")
 
+    def test_first_run_note_shows_once(self):
+        """The built-in picker mentions fzf on the status line the first time it runs and never again (a
+        marker file in the cache directory remembers); the help screen keeps one dim line about it."""
+        from claude_pins import config
+        self.assertFalse(config.noted_file().exists())
+        self.steps(["@f1"], ["@esc", "@pause"], ["@esc", "@pause"])
+        self.run_pin()
+        screens = self.screens()
+        self.assertEqual(screens[0]["header"].split("\n")[-1], "built-in picker in use · fzf adds ranked matching · pin doctor")
+        self.assertEqual(screens[1]["header"].split("\n")[-2:],
+                         ["built-in picker in use · fzf adds ranked matching · pin doctor", " "])   # under the keymap path
+        self.assertIn("keymap: ~/.config/claude-pins/keys.toml", screens[1]["header"])
+        self.assertEqual(screens[2]["header"].split("\n")[-1], " ")                              # once
+        self.assertTrue(config.noted_file().exists())
+        self.steps(["@esc", "@pause"])
+        self.run_pin()
+        self.assertEqual(self.screens()[0]["header"].split("\n")[-1], " ")                       # never again
+
     def test_no_terminal_cancels_a_question(self):
         shutil.rmtree(self.home / "git" / "proj")
         r = self.run_pin("open", "standup-prep", env={"CLAUDE_PINS_TUI_SCRIPT": ""})

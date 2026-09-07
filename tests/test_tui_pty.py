@@ -34,6 +34,9 @@ class NativePtyTests(PtyMixin, Sandbox):
         for sid, alias in ((SID1, "rc-mower"), (SID2, "cc-collector"), (SID3, "standup")):
             self.run_pin("add", sid, alias)
         self.stub_claude_tty()
+        from claude_pins import config
+        config.noted_file().parent.mkdir(parents=True, exist_ok=True)
+        config.noted_file().touch()                     # not the first run: no fzf note on the status line
 
     def finish(self, pid, fd):
         try:
@@ -152,9 +155,8 @@ class NativePtyTests(PtyMixin, Sandbox):
             self.wait_for(fd, COUNT3)
             self.out = b""
             os.write(fd, b"\x1a")
-            screen = self.wait_for(fd, r"Stopped")
+            self.wait_for(fd, r"Stopped\s+pin[\s\S]*\$ ")               # bash's job line, then its prompt
             self.assertIn(b"\x1b[?1049l", self.out)                    # the normal screen while stopped
-            self.assertRegex(screen, r"Stopped\s+pin\s*\n.*\$ $")            # bash's job line, then its prompt
             self.out = b""
             os.write(fd, b"fg\r")
             self.wait_for(fd, COUNT3)                                   # redrawn on the alternate screen again

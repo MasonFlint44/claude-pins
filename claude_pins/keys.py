@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Union
 
 DEFAULT_ESC_DELAY = 0.1
 DOUBLE_CLICK = 0.5          # seconds between two left clicks on one cell that make a double-click
@@ -53,7 +53,7 @@ class Mouse:
         return f"{what} at {self.x},{self.y}"
 
 
-Event = Key | Mouse
+Event = Union[Key, Mouse]      # typing.Union: a shebang may find an older python3 before pin can say so
 
 ESC = 0x1B
 _CTRL_NAMES = {0: "ctrl-space", 8: "ctrl-h", 9: "tab", 13: "enter", 28: "ctrl-\\", 29: "ctrl-]", 30: "ctrl-^",

@@ -6,7 +6,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-from . import actions, config, prompt
+from . import actions, config, fzf, prompt
 from .editor import edit_pin
 from .keymap import ACTIONS, BY_ID, GROUPS, Keymap, key_warning, validate_key
 from .listing import build_views
@@ -43,6 +43,24 @@ def list_items(views: list[View], km: Keymap, color, width: int | None = None) -
     return items
 
 
+def first_run_note() -> str:
+    """The built-in picker says once, on the status line, that fzf would add ranked matching; a marker
+    file in the cache directory remembers that it has (the rest of the nudge is doctor and the help
+    screen, so the picker itself never nags)."""
+    note = fzf.nudge()
+    if not note:
+        return ""
+    marker = config.noted_file()
+    if marker.exists():
+        return ""
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+    except OSError:
+        return ""
+    return note
+
+
 @dataclass
 class State:
     sort: str
@@ -60,6 +78,7 @@ class Picker:
         self.km = keymap or Keymap.load()
         self.state = State(sort=sort or config.default_sort(), query=query, show_expired=show_expired)
         self.color = palette(sys.stdout)
+        self.state.flash = first_run_note()
 
     # ---- helpers -------------------------------------------------------------------
 
@@ -69,10 +88,12 @@ class Picker:
 
     def header(self, hints: str, *extra: str, legend: str = "", note: str = "") -> Header:
         """This screen's lines above the prompt. A flash takes the status line for one screen (over the
-        too-short ``note``, which is about the same thing); otherwise the status line is blank."""
+        too-short ``note``, which is about the same thing); otherwise the status line is blank. A flash
+        is red when it starts with ✗, green with ✓, and dim otherwise (a note)."""
         flash = ""
         if self.state.flash:
-            flash = self.color(self.state.flash, ERROR if self.state.flash.startswith("✗") else SUCCESS)
+            kind = ERROR if self.state.flash.startswith("✗") else SUCCESS if self.state.flash.startswith("✓") else "dim"
+            flash = self.color(self.state.flash, kind)
         return Header(hints, legend=legend, extra=extra, status=flash or " ", note="" if flash else note,
                       color=self.color)
 
@@ -297,7 +318,10 @@ class Picker:
             ids = [a.id for g in GROUPS for a in ACTIONS if a.group == g]
             items = [Item(i, line) for i, line in zip(ids, grouped(table, self.color))]
             hints = "enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back"
-            header = self.header(hints, self.color("keymap: " + config.tilde(config.keymap_file()), "dim"), legend=legend())
+            extra = [self.color("keymap: " + config.tilde(config.keymap_file()), "dim")]
+            if fzf.nudge():
+                extra.append(self.color(fzf.nudge(), "dim"))
+            header = self.header(hints, *extra, legend=legend())
             res = show(Screen(items, prompt=crumb("help"), header=header, expect=["ctrl-r", "ctrl-alt-r"]))
             self.state.flash = ""
             if res is None:

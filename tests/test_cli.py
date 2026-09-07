@@ -300,13 +300,20 @@ class CliTests(FzfSandbox):
         os.environ["CLAUDE_CONFIG_DIR"] = str(self.root / "missing")
         r = self.run_pin("doctor", env={"CLAUDE_PINS_FZF": str(self.root / "no-such-fzf")})
         self.assertEqual(r.returncode, 1)
-        self.assertIn("✗ fzf: not found · install fzf ≥ 0.44", r.stdout)
+        # fzf is recommended, not required: a neutral line that says what it adds and how to get it
+        self.assertIn("· fzf: not found · built-in picker in use · fzf adds ranked matching · install fzf ≥ 0.44", r.stdout)
         self.assertIn("✗ store: pin store", r.stdout)
         self.assertIn(f"✗ projects dir {self.root}/missing/projects not found (set CLAUDE_CONFIG_DIR?)", r.stdout)
         self.assertIn("· keymap ~/.config/claude-pins/keys.toml (defaults)", r.stdout)
         self.stub("fzf", "#!/bin/sh\necho '0.38.0 (old)'\n")
         r = self.run_pin("doctor", env={"CLAUDE_PINS_FZF": str(self.bindir / "fzf")})
-        self.assertIn("✗ fzf 0.38.0: need ≥ 0.44", r.stdout)
+        self.assertIn("· fzf 0.38.0: need ≥ 0.44 · built-in picker in use", r.stdout)
+
+    def test_doctor_without_fzf_exits_zero(self):
+        r = self.run_pin("doctor", env={"CLAUDE_PINS_FZF": str(self.root / "no-such-fzf")})
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertTrue(r.stdout.startswith("· fzf: not found"))
+        self.assertNotIn("✗ fzf", r.stdout)       # ccusage's own line is a separate matter
 
     def test_hidden_helpers_edge_cases(self):
         self.run_pin("add", SID1, "a")

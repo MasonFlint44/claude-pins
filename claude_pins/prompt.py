@@ -1,8 +1,7 @@
 """Prompts as screens: a text field is the query line (disabled as a filter, prefilled, handed back on
 enter), a yes/no and a choice are short lists, and a directory field is the query line over a list of
-completions that reloads as you type. ctrl-c and esc cancel.
-
-The plain readline paths below are what the numbered menu used; they go with it.
+completions that reloads as you type. ctrl-c and esc cancel. Either backend draws them; without a
+terminal to ask on, a prompt is cancelled.
 """
 
 from __future__ import annotations
@@ -22,20 +21,8 @@ class Cancelled(Exception):
     pass
 
 
-def use_fzf() -> bool:
-    return True
-
-
 def _header(hints: str, notes: list[str]) -> Header:
     return Header(hints, extra=tuple(notes), color=palette(sys.stdout))
-
-
-def _ask(text: str) -> str:
-    try:
-        return input(text)
-    except (KeyboardInterrupt, EOFError):
-        print()
-        raise Cancelled()
 
 
 # ---- lists ----------------------------------------------------------------------------------
@@ -49,110 +36,28 @@ def _list(crumb: str | None, notes: list[str], options: list[str], default: int)
     return int(res.ids[0])
 
 
-def choose(header: list[str], options: list[str], default: int = 1, *, crumb: str | None = None,
-           stream=None) -> int:
-    """A choice among ``options``; returns the 1-based index. ``header`` lines explain it. ``default``
-    is where the cursor starts, and what bare enter picks in the plain menu."""
-    if use_fzf():
-        return _list(crumb, header, options, default)
-    out = stream or sys.stdout
-    for line in header:
-        print(f" {line}", file=out)
-    print(file=out)
-    for i, opt in enumerate(options, 1):
-        tag = "        (enter)" if i == default else ""
-        print(f"  {i}) {opt}{tag}", file=out)
-    print(file=out)
-    while True:
-        raw = _ask(f" choice [{default}]: ").strip()
-        if not raw:
-            return default
-        if raw.isdigit() and 1 <= int(raw) <= len(options):
-            return int(raw)
-        print(f" pick 1–{len(options)}", file=out)
+def choose(header: list[str], options: list[str], default: int = 1, *, crumb: str | None = None) -> int:
+    """A choice among ``options``; returns the 1-based index. ``header`` lines explain it; the cursor
+    starts on ``default``."""
+    return _list(crumb, header, options, default)
 
 
 def yesno(question: str, default: bool = True, *, crumb: str | None = None, notes: list[str] | None = None) -> bool:
-    """``notes`` are printed (plain) or shown in the header (fzf) above the question."""
-    notes = notes or []
-    if use_fzf():
-        return _list(crumb, [*notes, question], ["yes", "no"], 1 if default else 2) == 1
-    for line in notes:
-        print(f" {line}")
-    hint = "[Y/n]" if default else "[y/N]"
-    raw = _ask(f" → {question} {hint} ").strip().lower()
-    if not raw:
-        return default
-    return raw in ("y", "yes")
+    """``notes`` are shown in the header above the question."""
+    return _list(crumb, [*(notes or []), question], ["yes", "no"], 1 if default else 2) == 1
 
 
 # ---- text -----------------------------------------------------------------------------------
 
-def _readline():
-    try:
-        import readline
-        return readline
-    except ImportError:
-        return None
-
-
-def prefills(rl) -> bool:
-    """Whether this readline inserts text from a pre-input hook: GNU readline does, the libedit that macOS
-    Pythons link instead (``backend == "editline"`` from 3.13, its docstring says so before) does not."""
-    backend = getattr(rl, "backend", None)
-    if backend is not None:
-        return backend == "readline"
-    return "libedit" not in (rl.__doc__ or "")
-
-
-CLEAR = "c"     # on the fallback path, the answer that empties a field (like the choice fields' ``(clear)`` row)
-
-
-def _plain_text(label: str, default: str, completer=None) -> str:
-    """readline with ``default`` pre-filled (and a completer when given). Where it cannot pre-fill, a line
-    above the prompt says what enter keeps and that ``c`` clears, the way the choice menus offer ``(clear)``,
-    since there is no other way to empty a field there."""
-    rl = _readline()
-    prefill = rl is not None and prefills(rl)
-    if prefill:
-        def hook():
-            rl.insert_text(default)
-            rl.redisplay()
-        rl.set_pre_input_hook(hook)
-    elif default:
-        print(f' {label}: enter keeps "{default}", {CLEAR} clears, or type a new value')
-    if rl is not None and completer is not None:
-        rl.set_completer_delims(" \t\n")
-        rl.set_completer(completer)
-        rl.parse_and_bind("tab: complete")
-    try:
-        value = _ask(f" {label}: ")
-    finally:
-        if prefill:
-            rl.set_pre_input_hook(None)
-        if rl is not None and completer is not None:
-            rl.set_completer(None)
-    if not prefill and default:
-        if not value.strip():
-            return default
-        if value.strip() == CLEAR:
-            return ""
-    return value.strip()
-
-
 def text(label: str, default: str = "", *, crumb: str | None = None, note: str = "") -> str:
-    """One-line text field. fzf: the query line under a breadcrumb ending in the field's name, with
-    ``note`` under the hints; plain: ``label`` with the value pre-filled."""
-    if use_fzf():
-        res = show(Screen([], prompt=crumb or default_crumb(label), header=_header(TEXT_HINTS, [note] if note else []),
-                          query=default, disabled=True))
-        leave_screen()
-        if res is None:
-            raise Cancelled()
-        return res.query.strip()
-    if note:
-        label = f"{label} ({note})"
-    return _plain_text(label, default)
+    """One-line text field: the query line under a breadcrumb ending in the field's name, with ``note``
+    under the hints and ``default`` already typed."""
+    res = show(Screen([], prompt=crumb or default_crumb(label), header=_header(TEXT_HINTS, [note] if note else []),
+                      query=default, disabled=True))
+    leave_screen()
+    if res is None:
+        raise Cancelled()
+    return res.query.strip()
 
 
 # ---- directories ----------------------------------------------------------------------------
@@ -182,27 +87,15 @@ def directory_rows(txt: str) -> list[str]:
     return rows
 
 
-def _dir_completer(txt: str, state: int):
-    paths = directory_completions(txt)
-    return paths[state] if state < len(paths) else None
-
-
 def directory(default: str = "", *, crumb: str | None = None, note: str = "") -> str:
-    """A directory field: fzf's query line over the completions of what is typed (``pin _dirs``
-    reloads them on every change, the one per-keystroke Python spawn); enter takes the highlighted
-    directory, or the text when the list is empty. Plain: readline with tab completion. Returns the
-    text as typed, "" for none; the caller expands and checks it."""
-    if use_fzf():
-        items = [Item(r, r) for r in directory_rows(default)]
-        res = show(Screen(items, prompt=crumb or default_crumb("directory"),
-                          header=_header(TEXT_HINTS, [note] if note else []), query=default, disabled=True,
-                          on_change=Hook("dirs")))
-        leave_screen()
-        if res is None:
-            raise Cancelled()
-        return (res.ids[0] if res.ids else res.query).strip()
-    if note:
-        label = f"directory ({note})"
-    else:
-        label = "directory (tab completes)"
-    return _plain_text(label, default, _dir_completer)
+    """A directory field: the query line over the completions of what is typed (the ``dirs`` hook
+    reloads them on every change); enter takes the highlighted directory, or the text when the list is
+    empty. Returns the text as typed, "" for none; the caller expands and checks it."""
+    items = [Item(r, r) for r in directory_rows(default)]
+    res = show(Screen(items, prompt=crumb or default_crumb("directory"),
+                      header=_header(TEXT_HINTS, [note] if note else []), query=default, disabled=True,
+                      on_change=Hook("dirs")))
+    leave_screen()
+    if res is None:
+        raise Cancelled()
+    return (res.ids[0] if res.ids else res.query).strip()

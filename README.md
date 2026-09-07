@@ -28,9 +28,10 @@ terminal-only.
    ```
 
 2. Run `/pins:install` once. It symlinks `bin/pin` into `~/.local/bin`, installs bash or zsh
-   completion for the shell you use, and runs `pin doctor`, which checks for **fzf ≥ 0.44** (older or missing falls
-   back to a numbered menu) and **ccusage** (optional; only for the cost line). `/pins:doctor`
-   runs the same checks later and explains each line.
+   completion for the shell you use, and runs `pin doctor`, which checks for **fzf ≥ 0.44**
+   (recommended: without it a built-in picker draws the same screens, minus fzf's ranking of
+   matches) and **ccusage** (optional; only for the cost line). `/pins:doctor` runs the same
+   checks later and explains each line.
 
 Python 3.10+ standard library only. Linux and macOS (WSL counts as Linux).
 
@@ -135,17 +136,27 @@ the current value already there (enter saves, esc cancels, ctrl-u clears). The d
 lists completions of what is typed underneath; enter takes the highlighted one, or the text
 when nothing matches. alt-s saves; esc goes back and offers save / discard / keep editing when
 something changed. Every other question on the way (a new pin's alias, a key to rebind, prune,
-a missing directory, a branch mismatch, a session already open) is an fzf screen too: nothing
-drops to a text prompt while fzf is in use.
+a missing directory, a branch mismatch, a session already open) is a screen too: nothing
+drops to a text prompt.
 
-Without fzf the same questions are readline prompts with the current value pre-filled (ctrl-c
-cancels a field) and numbered lists. Where the readline is macOS's libedit, which cannot pre-fill,
-the prompt says what enter keeps and that `c` clears the field, like the `(clear)` row of the
-choice fields. The no-fzf menu draws the same tables as the picker, column labels above and the
-marker legend below; a bare letter is a list action and
-letter+number a row action: `N` open, `oN` fork, `wN` worktree, `tN` touch, `eN` edit, `xN`
-unpin, `pN` preview, `n` new, `a` show expired, `p` prune, `z` undo, `s` sort, `?` legend,
-`q` quit.
+### Without fzf
+
+When fzf is missing or older than 0.44 (or with `--no-fzf`), `pin` draws the same screens itself:
+the same header, prompt and counter, the same pointer, marker and current-row highlight, the
+preview pane and its size rule, the palette, the editor, the details and help screens and every
+prompt, with the same keys, including the keymap file; a resize re-lays the rows out and the
+header follows the width and the height. Typing filters with fzf's syntax: space
+separates terms that must all match, `'exact`, `^prefix`, `suffix$`, `!not`, `a | b`, and a term
+with a capital letter is case-sensitive. The mouse works: a click moves the cursor, a
+double-click opens, a right click toggles a selection, the wheel moves through the list or
+scrolls the pane (shift-up / shift-down scroll it from the keyboard); select text with
+shift-drag while the picker is up. What the built-in picker lacks is fzf's ranking: rows stay in
+list order rather than best match first. `pin doctor` says which picker is in use and how to
+install fzf, the built-in picker says so once on its status line the first time it runs, and
+the f1 screen keeps one line about it; nothing else nags. `pin _keys` names every key and mouse
+event as the picker reads it, for checking a terminal. On Terminal.app and iTerm2 the alt keys
+need "Use Option as Meta key" / "Esc+", as with fzf. A question asked where there is no terminal
+(a pipe, a script) is cancelled.
 
 ## Command line
 
@@ -160,7 +171,7 @@ pin [words…] [--fork | --resume | -w [name]] [--sort recency|alias|pinned] [--
 | `pin` | the picker; enter opens, esc leaves |
 | `pin <words…>` | loose match over alias and title, every word must appear; exactly one hit opens it, several open the picker pre-filtered, none prints "no pin matches" |
 | `--fork` / `--resume` / `-w [name]` | one-off open mode: fork the session, plain resume ignoring the pin's modes, or a new worktree (optionally named); these apply to a unique match |
-| `--sort`, `--all`, `--no-fzf` | starting sort, show expired pins from the start, use the numbered menu |
+| `--sort`, `--all`, `--no-fzf` | starting sort, show expired pins from the start, use the built-in picker even though fzf is there |
 
 Every subcommand exits 0 on success and 1 with a one-line message on `stderr` otherwise.
 
@@ -176,7 +187,7 @@ Every subcommand exits 0 on success and 1 with a one-line message on `stderr` ot
 | `pin undo` | restore the last unpin or prune (the last ten are kept); a restored alias that is taken meanwhile comes back as `alias-2` |
 | `pin prune [-y]` | unpin every expired pin after listing them and asking; `-y` skips the question; "nothing to prune" otherwise |
 | `pin touch <alias>` | bump the transcript's mtime, restarting its retention clock |
-| `pin doctor` | fzf version, ccusage and its price coverage across your sessions, store health, projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
+| `pin doctor` | fzf version (a recommendation: `·` with the install command when it is missing or old), ccusage and its price coverage across your sessions, store health, projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
 
 Every run of any of these also touches the transcripts of pins with `keep`.
 
@@ -190,7 +201,7 @@ Every run of any of these also touches the transcripts of pins with `keep`.
 | `CLAUDE_CONFIG_DIR` | where Claude's `projects/` and `settings.json` live (default `~/.claude`) |
 | `CLAUDE_PINS_SORT` | starting sort: `recency` (default), `alias`, `pinned` |
 | `CLAUDE_PINS_EXPIRE_WARN` | days before expiry at which ⏳ shows (default 7) |
-| `CLAUDE_PINS_NO_FZF` | force the numbered menu |
+| `CLAUDE_PINS_NO_FZF` | use the built-in picker even though fzf is there |
 | `CLAUDE_PINS_GLYPHS` | `emoji` or `text` markers (default: emoji on a UTF-8 locale outside the Linux console) |
 | `NO_COLOR` / `CLAUDE_PINS_COLOR=0` / `CLAUDE_PINS_COLOR=1` | never / never / always color |
 | `CLAUDE_PINS_FZF`, `CLAUDE_PINS_CCUSAGE` | alternate binaries |

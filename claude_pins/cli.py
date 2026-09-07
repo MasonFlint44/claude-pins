@@ -427,10 +427,11 @@ def cmd_touch(opts) -> int:
 def cmd_doctor(opts) -> int:
     ok = True
     v = fzf.fzf_version()
+    # fzf is a recommendation, not a requirement: the built-in picker draws the same screens without it
     if v is None:
-        print(f"✗ fzf: not found · {fzf.install_hint()}"); ok = False
+        print(f"· fzf: not found · {fzf.BUILT_IN_NOTE} · {fzf.install_hint()}")
     elif v < config.MIN_FZF:
-        print(f"✗ fzf {'.'.join(map(str, v))}: need ≥ 0.44 · {fzf.install_hint()}"); ok = False
+        print(f"· fzf {'.'.join(map(str, v))}: need ≥ 0.44 · {fzf.BUILT_IN_NOTE} · {fzf.install_hint()}")
     else:
         print(f"✓ fzf {'.'.join(map(str, v))}")
     print(doctor_line())

@@ -42,6 +42,11 @@ def cache_dir() -> Path:
     return root / "claude-pins"
 
 
+def noted_file() -> Path:
+    """Marks that the built-in picker's one-time note has been shown (next to the cost cache)."""
+    return cache_dir() / "built-in-picker-noted"
+
+
 def config_dir() -> Path:
     base = os.environ.get("XDG_CONFIG_HOME")
     root = Path(base).expanduser() if base else home() / ".config"

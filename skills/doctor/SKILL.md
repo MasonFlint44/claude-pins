@@ -20,7 +20,7 @@ skill runs it and turns each line into a fix.
 
    | Doctor says | What it means | Fix |
    |---|---|---|
-   | `✗ fzf: not found` / `need ≥ 0.44` | the picker needs fzf 0.44+; `pin` falls back to the numbered menu meanwhile | the line carries the static-binary install command; `brew install fzf` on macOS |
+   | `· fzf: not found` / `need ≥ 0.44` | fzf is recommended, not required: `pin` draws the same screens itself, without fzf's ranking of matches | the line carries the static-binary install command; `brew install fzf` on macOS; nothing to fix if the user is happy without |
    | `✗ ccusage: not installed` | the cost line is the only thing that needs it | `npm i -g ccusage@latest`, optional |
    | `· ccusage …: offline table has no price for X; the online fallback prices them` | ccusage's bundled prices predate model X; `pin` goes online once per changed transcript for those sessions | `npm i -g ccusage@latest` once a release adds the price; harmless otherwise |
    | `· ccusage …: no price for X even online` | no price table knows X yet | wait for ccusage; the cost line shows `≥` the priced part |

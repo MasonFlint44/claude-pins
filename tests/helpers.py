@@ -296,6 +296,7 @@ class PtyMixin:
             env = dict(os.environ)
             if shell:
                 os.symlink(PIN, self.bindir / "pin")
+                os.symlink(sys.executable, self.bindir / "python3")     # the shebang's python3 is the test's
                 env["PS1"] = "$ "
                 os.execve(shutil.which("bash"), ["bash", "--norc", "--noprofile", "-i"], env)
             os.execve(sys.executable, [sys.executable, str(PIN), *args], env)

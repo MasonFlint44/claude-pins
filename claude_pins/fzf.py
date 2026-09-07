@@ -206,6 +206,16 @@ def install_hint() -> str:
             "https://github.com/junegunn/fzf/releases unpacked into ~/.local/bin")
 
 
+BUILT_IN_NOTE = "built-in picker in use · fzf adds ranked matching"     # doctor, the help screen, the first run
+
+
+def nudge() -> str | None:
+    """What to say about fzf where the built-in picker is drawing, or None where fzf is."""
+    if available():
+        return None
+    return f"{BUILT_IN_NOTE} · pin doctor"
+
+
 def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] | None = None,
         query: str = "", multi: bool = False, preview: str | None = None,
         preview_window: str = PREVIEW_WINDOW, preview_label_cmd: str | None = None,
