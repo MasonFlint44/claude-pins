@@ -5,13 +5,13 @@ from __future__ import annotations
 import re
 import sys
 
-from . import config, prompt
+from . import actions, config, prompt
 from .cost import session_cost
 from .editor import edit_pin
 from .gitutil import current_branch, is_repo
-from .listing import build_views, next_sort
-from .model import Pin, PinError, kebab, next_free_alias
-from .opener import launch, plan_open, touch_kept, touch_pin
+from .listing import build_views
+from .model import PinError, kebab, next_free_alias
+from .opener import launch, touch_kept
 from .render import (label_row, layout, legend, palette, preview, rows, session_label_row, session_layout,
                      session_rows, terminal_width)
 from .theme import ERROR, SUCCESS
@@ -74,27 +74,19 @@ def run_menu(store: Store, *, query: str = "", sort: str | None = None, reason: 
             v = views[i - 1]
             pin = v.pin
             if letter in ("", "o", "w"):
-                if v.expiry.expired:
-                    state["flash"] = f"✗ {pin.alias} has expired"
-                    continue
-                try:
-                    plan = plan_open(store, pin, fork=True if letter == "o" else None, worktree="" if letter == "w" else None)
-                except PinError as e:
-                    state["flash"] = f"✗ {e}"
-                    continue
+                plan, flash = actions.open_plan(store, v, {"": "open", "o": "open_fork", "w": "open_worktree"}[letter])
                 if plan is None:
-                    state["flash"] = "cancelled"
+                    state["flash"] = flash
                     continue
                 launch(plan)
                 return 0
             if letter == "t":
-                state["flash"] = f"✓ touched {pin.alias}" if touch_pin(pin) else f"✗ transcript for {pin.alias} is gone"
+                state["flash"] = actions.touch([v]).flash
             elif letter == "e":
                 changed = edit_pin(store, pin.alias)
                 state["flash"] = f"✓ saved {changed}" if changed else "edit cancelled"
             elif letter == "x":
-                store.unpin(pin.alias); store.save()
-                state["flash"] = f"✓ unpinned {pin.alias} · z undo"
+                state["flash"] = actions.unpin(store, [v], "z").flash
             elif letter == "p":
                 branch = current_branch(pin.cwd) if pin.cwd and is_repo(pin.cwd) else None
                 cost = session_cost(pin.session_id, pin.transcript)
@@ -110,25 +102,20 @@ def run_menu(store: Store, *, query: str = "", sort: str | None = None, reason: 
         elif letter == "a":
             state["expired"] = not state["expired"]
         elif letter == "s":
-            state["sort"] = next_sort(state["sort"]); state["flash"] = f"sort: {state['sort']}"
+            state["sort"], outcome = actions.cycle_sort(state["sort"]); state["flash"] = outcome.flash
         elif letter == "z":
-            try:
-                kind, restored = store.restore_last(); store.save()
-                state["flash"] = f"✓ restored {', '.join(p.alias for p in restored) or 'nothing'} ({kind})"
-            except PinError as e:
-                state["flash"] = str(e)
+            state["flash"] = actions.undo(store).flash
         elif letter == "p":
             all_views, _ = build_views(store, include_expired=True, with_summary=False)
-            dead = [x.pin.alias for x in all_views if x.expiry.expired]
-            if not dead:
-                state["flash"] = "nothing to prune"; continue
-            try:
-                if prompt.yesno("unpin them? (pin undo restores)", True,
-                                notes=[f"prune {len(dead)} expired pin(s): {', '.join(dead)}"]):
-                    store.unpin_many(dead, kind="prune"); store.save()
-                    state["flash"] = f"✓ pruned {len(dead)} · z undo"
-            except prompt.Cancelled:
-                pass
+
+            def confirm(dead: list[str]) -> bool:
+                try:
+                    return prompt.yesno("unpin them? (pin undo restores)", True,
+                                        notes=[f"prune {len(dead)} expired pin(s): {', '.join(dead)}"])
+                except prompt.Cancelled:
+                    return False
+
+            state["flash"] = actions.prune(store, all_views, confirm, "z").flash
         elif letter == "n":
             new_pin_menu(store, state, color)
         elif letter in ("o", "w", "t", "e", "x"):
@@ -166,8 +153,6 @@ def new_pin_menu(store: Store, state: dict, color) -> None:
     except prompt.Cancelled:
         return
     try:
-        store.add(Pin(alias=alias, session_id=s.session_id, title=s.title, cwd=s.cwd, transcript=s.path))
-        store.save()
-        state["flash"] = f"✓ pinned as {alias}"
+        state["flash"] = actions.pin_session(store, s, alias).flash
     except PinError as e:
         state["flash"] = f"✗ {e}"

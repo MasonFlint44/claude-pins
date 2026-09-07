@@ -6,13 +6,13 @@ import os
 import sys
 from dataclasses import dataclass
 
-from . import config, fzf, prompt
+from . import actions, config, fzf, prompt
 from .editor import edit_pin
 from .fzf import pin_exe
 from .keymap import ACTIONS, BY_ID, GROUPS, Keymap, key_warning, validate_key
-from .listing import build_views, next_sort
-from .model import Pin, PinError, kebab, next_free_alias
-from .opener import launch, plan_open, take_notes, touch_kept, touch_pin
+from .listing import build_views
+from .model import PinError, kebab, next_free_alias
+from .opener import launch, touch_kept
 from .render import (FZF_COLUMN_SEP, View, crumb, grouped, label_row, layout, legend, palette, preview, rows,
                      session_label_row, session_layout, session_rows,
                      terminal_height, terminal_width)
@@ -104,6 +104,14 @@ class Picker:
     def reload(self) -> None:
         self.store = Store(self.store.path).load()
 
+    def apply(self, outcome: actions.Outcome) -> None:
+        self.state.flash = outcome.flash
+        if outcome.cursor is not None:
+            self.state.cursor = outcome.cursor
+
+    def undo_hint(self) -> str:
+        return self.km.key("undo") or "pin undo"
+
     # ---- main picker ----------------------------------------------------------------
 
     def run(self) -> int:
@@ -115,7 +123,7 @@ class Picker:
     def loop(self) -> int:
         while True:
             self.reload()
-            touched = touch_kept(self.store)
+            touch_kept(self.store)
             views, expired = build_views(self.store, include_expired=self.state.show_expired, sort=self.state.sort)
             items = list_items(views, self.km, self.color)
             main_actions = ["open_fork", "open_worktree", "palette", "edit", "details", "touch", "keep", "fork_mode",
@@ -173,12 +181,6 @@ class Picker:
         if action in ("open", "open_fork", "open_worktree"):
             if first is None:
                 return None
-            if first.expiry.expired:
-                alias = first.pin.alias
-                self.state.flash = (f"✗ {alias} has expired · unpin it or pin prune" if first.summary else
-                                    f"✗ {alias}: transcript for session {first.pin.session_id[:8]}… is gone (expired)"
-                                    f" · pin unpin {alias}")
-                return None
             return self.open(first, action)
         if action == "palette":
             if first is None:
@@ -199,8 +201,8 @@ class Picker:
             self.state.show_expired = not self.state.show_expired
             return None
         if action == "sort":
-            self.state.sort = next_sort(self.state.sort)
-            self.state.flash = f"sort: {self.state.sort}"
+            self.state.sort, outcome = actions.cycle_sort(self.state.sort)
+            self.apply(outcome)
             return None
         if action == "preview":
             if not self.state.preview and not self.preview_fits(bottom_border=bottom_border):
@@ -228,40 +230,21 @@ class Picker:
                 self.state.cursor = changed
                 self.state.flash = f"✓ saved {changed}"
             return None
-        names = ", ".join(v.pin.alias for v in selected)
         if action == "touch":
-            ok = [v.pin.alias for v in selected if touch_pin(v.pin)]
-            self.state.flash = f"✓ touched {', '.join(ok)}" if ok else "✗ nothing to touch (transcripts gone)"
+            self.apply(actions.touch(selected))
             return None
-        if action in ("keep", "fork_mode", "worktree_mode"):
-            attr = {"keep": "keep", "fork_mode": "fork", "worktree_mode": "worktree"}[action]
-            value = not getattr(first.pin, attr)
-            for v in selected:
-                setattr(self.store.require(v.pin.alias), attr, value)
-            self.store.save()
-            self.state.flash = f"✓ {attr} {'on' if value else 'off'} for {names}"
+        if action in actions.TOGGLES:
+            self.apply(actions.toggle(self.store, selected, action))
             return None
         if action == "unpin":
-            self.store.unpin_many([v.pin.alias for v in selected])
-            self.store.save()
-            undo_key = self.km.key("undo") or "pin undo"
-            self.state.flash = f"✓ unpinned {names} · {undo_key} undo"
-            self.state.cursor = ""
+            self.apply(actions.unpin(self.store, selected, self.undo_hint()))
             return None
         return None
 
     def open(self, view: View, action: str) -> str | None:
-        fork = True if action == "open_fork" else None
-        worktree = "" if action == "open_worktree" else None
-        try:
-            plan = plan_open(self.store, view.pin, fork=fork, worktree=worktree)
-        except PinError as e:
-            self.state.flash = f"✗ {e}"
-            return None
+        plan, flash = actions.open_plan(self.store, view, action)
         if plan is None:
-            # what the opener said on the way (a recreated worktree, an unpin) would be lost under the
-            # next screen, so it joins the flash
-            self.state.flash = " · ".join([*take_notes(), "cancelled"])
+            self.state.flash = flash
             return None
         launch(plan)
         return "quit"
@@ -419,47 +402,27 @@ class Picker:
                 alias = prompt.text("alias", suggestion, crumb=crumb("new", "alias"), note=note) or suggestion
             except prompt.Cancelled:
                 return
-            pin = Pin(alias=alias, session_id=summary.session_id, title=summary.title, cwd=summary.cwd,
-                      transcript=summary.path)
             try:
-                self.store.add(pin)
+                self.apply(actions.pin_session(self.store, summary, alias))
             except PinError as e:
                 note = self.color(f"✗ {e}", "bold")
                 continue
-            self.store.save()
-            self.state.cursor = alias
-            self.state.flash = f"✓ pinned as {alias}"
             return
 
     # ---- prune / undo -----------------------------------------------------------------------------
 
     def prune(self) -> None:
         views, _ = build_views(self.store, include_expired=True, with_summary=False)
-        expired = [v.pin.alias for v in views if v.expiry.expired]
-        if not expired:
-            self.state.flash = "nothing to prune"
-            return
-        try:
-            ok = prompt.yesno("unpin them? (pin undo restores)", True, crumb=crumb("prune"),
-                              notes=[f"prune {len(expired)} expired pin(s): {', '.join(expired)}"])
-        except prompt.Cancelled:
-            ok = False
-        if not ok:
-            self.state.flash = "prune cancelled"
-            return
-        self.store.unpin_many(expired, kind="prune")
-        self.store.save()
-        self.state.flash = f"✓ pruned {len(expired)} · {self.km.key('undo') or 'pin undo'} undo"
+
+        def confirm(expired: list[str]) -> bool:
+            try:
+                return prompt.yesno("unpin them? (pin undo restores)", True, crumb=crumb("prune"),
+                                    notes=[f"prune {len(expired)} expired pin(s): {', '.join(expired)}"])
+            except prompt.Cancelled:
+                return False
+
+        self.apply(actions.prune(self.store, views, confirm, self.undo_hint()))
 
     def undo(self) -> None:
-        try:
-            kind, restored = self.store.restore_last()
-        except PinError as e:
-            self.state.flash = str(e)
-            return
-        self.store.save()
-        names = ", ".join(p.alias for p in restored) or "nothing (already re-pinned)"
-        self.state.flash = f"✓ restored {names} ({kind})"
-        if restored:
-            self.state.cursor = restored[0].alias
+        self.apply(actions.undo(self.store))
 

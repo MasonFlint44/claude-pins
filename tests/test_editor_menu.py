@@ -191,7 +191,8 @@ class MenuTests(FzfSandbox):
     def test_menu_expired_open_and_errors(self):
         self.t2.unlink()
         r = self.run_pin(input="a\n2\nx9\nq\n")
-        self.assertIn("✗ rc-mower has expired", r.stdout)
+        # the same flash the fzf picker shows (claude_pins.actions), not a shorter menu-only one
+        self.assertIn("✗ rc-mower: transcript for session 22222222… is gone (expired) · pin unpin rc-mower", r.stdout)
         self.assertIn("no row 9", r.stdout)
         self.assertIsNone(self.claude_calls())
         r = self.run_pin(input="z\nq\n")
