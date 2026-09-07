@@ -4,7 +4,11 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
-## 0.5.0 — unreleased
+## 0.5.0 — 2026-09-07
+
+The picker's look is new, the editor lives inside fzf, and nothing flickers or
+prompts in plain text on the way. The layout, theme and glyphs come first
+below, then the screens, in the order they are met.
 
 - **Layout.** The hints sit above the prompt (fzf's `--header-first`) with the
   marker legend under them, and a status flash takes the legend's line so the
@@ -16,9 +20,20 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   (`~/g/c/claude-pins`) and keeping its last component. A Claude worktree shows
   as `~/git/repo › name`. Widths are measured in terminal cells, so emoji no
   longer push columns out of line.
-- **Palette, help and editor** group their rows with a dim gutter name instead
-  of separator rows, so every row is selectable, and the key column starts after
-  the longest label.
+- **Theme.** Claude Code's own colours: the prompt in clay, the pointer and
+  matched letters in periwinkle, the multi-select marker in green, and the
+  chrome (hints, legend, counter, borders, labels, group names) dim rather than
+  grey, so light terminals read as well as dark ones. In the preview the effort
+  and the context percentage sit on the budget statusline's green-to-red ramp
+  and the permission mode wears the colour Claude's mode indicator gives it.
+  Flashes are green for ✓ and coral for ✗. `CLAUDE_PINS_COLOR=0` joins
+  `NO_COLOR`, and `CLAUDE_PINS_COLOR=1` forces colour on.
+- **Emoji markers**: 🟢 open, 🚩 keep, 🔀 fork, 🌳 worktree, ⏳ expiring,
+  🔴 expired, chosen when the locale is UTF-8 and the terminal is not the
+  Linux console or `dumb`. Elsewhere the one-cell set ● ⚑ ⑂ ⌂ ⧗ ✗ stays, now
+  in the same colours the emoji carry, and the prompt drops its 📌.
+  `CLAUDE_PINS_GLYPHS=emoji|text` overrides the detection, for the picker and
+  the numbered menu alike.
 - **Preview.** The branch row reads `main`, `main checked out · session ran on
   feat/x` (yellow) or `(not a git repo)`; the transcript size sits with the
   message count on a `transcript` row; the full session id is the last metadata
@@ -28,29 +43,9 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   terminal is taller.
 - **Details screen** on alt-i (also in the palette): the whole preview on its own
   screen with more of the last exchange; enter opens the pin, esc goes back.
-- **No flicker between screens.** Every fzf screen draws over the previous one
-  (fzf's `--no-clear`); the shell comes back exactly once, when the tool exits
-  or hands over to claude, and for the text prompts that remain.
-- **Refresh.** alt-r re-reads the store in place, without restarting the
-  picker, for a picker left open while another terminal pinned something. Enter
-  opens a pin that arrived that way. On fzf 0.46 and newer the rows also re-fit
-  when the terminal is resized, and the too-short note follows the height; on
-  0.44 the note catches up on the next cursor move or keystroke. On 0.65.2 and
-  newer the counter reads `3 of 5 pins · 2 selected`.
-- **Theme.** Claude Code's own colours: the prompt in clay, the pointer and
-  matched letters in periwinkle, the multi-select marker in green, and the
-  chrome (hints, legend, counter, borders, labels, group names) dim rather than
-  grey, so light terminals read as well as dark ones. In the preview the effort
-  and the context percentage sit on the budget statusline's green-to-red ramp
-  and the permission mode wears the colour Claude's mode indicator gives it.
-  Flashes are green for ✓ and coral for ✗. `CLAUDE_PINS_COLOR=0` joins
-  `NO_COLOR`.
-- **Emoji markers**: 🟢 open, 🚩 keep, 🔀 fork, 🌳 worktree, ⏳ expiring,
-  🔴 expired, chosen when the locale is UTF-8 and the terminal is not the
-  Linux console or `dumb`. Elsewhere the one-cell set ● ⚑ ⑂ ⌂ ⧗ ✗ stays, now
-  in the same colours the emoji carry, and the prompt drops its 📌.
-  `CLAUDE_PINS_GLYPHS=emoji|text` overrides the detection, for the picker and
-  the numbered menu alike.
+- **Palette, help and editor** group their rows with a dim gutter name instead
+  of separator rows, so every row is selectable, and the key column starts after
+  the longest label.
 - **Editor and prompts.** No text prompt interrupts the picker any more: a
   text field is typed on fzf's query line under a `📌 pins › alias › edit ›
   title ›` breadcrumb with the current value in place (enter saves, esc
@@ -65,6 +60,15 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   value pre-filled and numbered lists (macOS's libedit cannot pre-fill, so
   there the prompt says what enter keeps and that `c` clears); the plain
   editor shares the breadcrumb and the gutter grouping.
+- **Refresh.** alt-r re-reads the store in place, without restarting the
+  picker, for a picker left open while another terminal pinned something. Enter
+  opens a pin that arrived that way. On fzf 0.46 and newer the rows also re-fit
+  when the terminal is resized, and the too-short note follows the height; on
+  0.44 the note catches up on the next cursor move or keystroke. On 0.65.2 and
+  newer the counter reads `3 of 5 pins · 2 selected`.
+- **No flicker between screens.** Every fzf screen draws over the previous one
+  (fzf's `--no-clear`); the shell comes back once, when the tool exits or
+  hands over to claude.
 - `pin list` and `pin sessions` share the renderer, so their columns follow.
 - `pin doctor`'s install hint points at fzf's releases page instead of naming a
   version that goes stale.
