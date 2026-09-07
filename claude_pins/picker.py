@@ -14,7 +14,7 @@ from .listing import build_views, next_sort
 from .model import Pin, PinError, kebab, next_free_alias
 from .opener import launch, plan_open, take_notes, touch_kept, touch_pin
 from .render import (FZF_COLUMN_SEP, View, crumb, grouped, label_row, layout, legend, palette, preview, rows,
-                     session_rows,
+                     session_label_row, session_layout, session_rows,
                      terminal_height, terminal_width)
 from .theme import ERROR, SUCCESS
 from .sessions import iter_transcripts
@@ -392,15 +392,19 @@ class Picker:
         pinned = {p.session_id: p.alias for p in self.store.pins}
         paths = iter_transcripts()[:200]
         summaries = [read_summary(p) for p in paths]
-        pairs = [(s, s.session_id in pinned) for s in summaries if s.exists]
+        pairs = [(s, pinned.get(s.session_id, "")) for s in summaries if s.exists]
         if not pairs:
             self.state.flash = "no sessions found under " + config.tilde(config.projects_dir())
             return
-        items = [fzf.Item(s.path, line)
-                 for (s, _), line in zip(pairs, session_rows(pairs, width=terminal_width() - LIST_WIDTH_SLACK,
-                                                              color=self.color, sep=FZF_COLUMN_SEP))]
+        width = terminal_width() - LIST_WIDTH_SLACK
+        cols = session_layout(pairs, width)
+        items = [fzf.Item("-", session_label_row(cols, self.color))]
+        items += [fzf.Item(s.path, line)
+                  for (s, _), line in zip(pairs, session_rows(pairs, width=width, color=self.color,
+                                                               sep=FZF_COLUMN_SEP, cols=cols))]
         res = fzf.run(items, prompt=crumb("new"), header=self.header("enter pin · esc back").text(), expect=[],
-                      preview=f"{pin_exe()} _spreview {{1}}", preview_label_cmd="echo ' session '", nth=SESSIONS_NTH)
+                      header_lines=1, preview=f"{pin_exe()} _spreview {{1}}", preview_label_cmd="echo ' session '",
+                      nth=SESSIONS_NTH)
         if res is None or not res.ids:
             return
         summary = next(s for s, _ in pairs if s.path == res.ids[0])

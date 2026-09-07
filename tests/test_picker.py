@@ -285,9 +285,11 @@ class PickerTests(FzfSandbox):
         new_call = calls[1]
         self.assertEqual(self.arg(new_call, "--prompt"), "📌 pins › new › ")
         rows = [plain(l) for l in new_call["lines"]]
-        self.assertTrue(rows[0].split("\t")[0].endswith(f"{sid4}.jsonl"))
-        self.assertRegex(rows[0], r"Tax prep questions\s+~/Documents\s+\d+[mh]\s+18 msgs")
-        self.assertRegex(rows[1], r"Standup prep\s+.*🚩 pinned$")
+        self.assertRegex(rows[0], r"^-\ttitle\s+directory\s+idle\s+msgs\s+pin$")   # the sticky label row
+        self.assertIn("--header-lines=1", new_call["argv"])
+        self.assertTrue(rows[1].split("\t")[0].endswith(f"{sid4}.jsonl"))
+        self.assertRegex(rows[1], r"Tax prep questions\s+~/Documents\s+\d+[mh]\s+18 msgs")
+        self.assertRegex(rows[2], r"Standup prep\s+.*📌 standup-prep$")               # the pin's alias, not "pinned"
         ask = calls[2]
         self.assertEqual(self.arg(ask, "--prompt"), "📌 pins › new › alias › ")
         self.assertEqual(self.arg(ask, "--query"), "tax-prep-questions")           # prefilled; an empty answer keeps it

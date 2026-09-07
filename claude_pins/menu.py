@@ -135,7 +135,7 @@ def run_menu(store: Store, *, query: str = "", sort: str | None = None, reason: 
 def new_pin_menu(store: Store, state: dict, color) -> None:
     pinned = {p.session_id: p.alias for p in store.pins}
     summaries = [read_summary(p) for p in iter_transcripts()[:30]]
-    pairs = [(s, s.session_id in pinned) for s in summaries if s.exists]
+    pairs = [(s, pinned.get(s.session_id, "")) for s in summaries if s.exists]
     if not pairs:
         state["flash"] = "no sessions found"
         return

@@ -25,6 +25,15 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   the message count and the marker glyphs are shown but no longer matched, so
   `1d` stops keeping every pin idle for a day. A squeezed directory matches as
   it is drawn, its last component always whole.
+- **Labels where a table needs them.** The new-pin screen has the picker's
+  column labels, and `pin list` and `pin sessions` print them on a terminal
+  (`pin list` adds the marker legend under the table); piped output stays bare
+  rows. A session that is already pinned shows 📌 and the pin's alias instead
+  of the keep flag and the word "pinned", which contradicted the legend; the
+  text glyph set gets ⚲ for it.
+- The id `pin sessions` lists is the shortest prefix, eight characters or more,
+  that is unique among the recent sessions, the way git abbreviates, so it
+  always resolves in `pin add`; the ambiguity listing uses the same prefixes.
 
 ## 0.5.0 — 2026-09-07
 

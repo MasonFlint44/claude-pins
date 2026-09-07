@@ -11,13 +11,15 @@ from . import __version__, config, fzf
 from .cost import doctor_line, session_cost
 from .gitutil import current_branch, is_repo
 from .listing import build_views
-from .match import loose_match, match_sessions, recent_sessions
+from .match import loose_match, match_sessions, recent_sessions, short_ids
 from .model import Launch, Pin, PinError, is_session_id, validate_alias, PERMISSION_MODES, EFFORT_LEVELS
 from .opener import launch, plan_open, touch_kept, touch_pin
-from .render import palette, preview, rows, session_preview, session_rows, stream_preview, terminal_width
+from .render import (Palette, label_row, layout, legend, palette, preview, rows, session_label_row,
+                     session_layout, session_preview, session_rows, stream_preview, terminal_width)
+from .text import cells, pad
 from .sessions import find_transcript, iter_transcripts, session_id_from_env
 from .store import Store, load_store
-from .transcript import read_summary
+from .transcript import Summary, read_summary
 
 SUBCOMMANDS = ("add", "list", "ls", "sessions", "edit", "rename", "rm", "unpin", "undo", "prune", "touch", "doctor", "open",
                "_preview", "_spreview", "_rows", "_dirs", "_status", "_complete", "help")
@@ -215,22 +217,37 @@ def cmd_open(opts) -> int:
 
 # ---- subcommands ---------------------------------------------------------------------------------
 
-def _short_id(sid: str) -> str:
-    return sid[:8]
+def session_table(sessions: list[Summary], pinned: dict[str, str], *, all_sessions: list[Summary] | None = None,
+                  color: Palette | None = None, labels: bool = False) -> list[str]:
+    """``pin sessions``' lines: the listed id prefix (unique among ``all_sessions``, the ones a prefix is
+    resolved against), then the session row; with ``labels`` a dim label row first."""
+    color = color or Palette(False)
+    ids = [s.session_id for s in (all_sessions or sessions)]
+    prefixes = dict(zip(ids, short_ids(ids)))
+    id_w = max(cells(prefixes[s.session_id]) for s in sessions)
+    width = terminal_width() - id_w - 2
+    pairs = [(s, pinned.get(s.session_id, "")) for s in sessions]
+    cols = session_layout(pairs, width)
+    lines = []
+    if labels:
+        lines.append(f"{color(pad('id', id_w), 'dim')}  {session_label_row(cols, color)}")
+    for s, line in zip(sessions, session_rows(pairs, width=width, color=color, cols=cols)):
+        lines.append(f"{color(pad(prefixes[s.session_id], id_w), 'dim')}  {line}")
+    return lines
 
 
 def resolve_session(text: str) -> str:
     """The session id named by ``text`` (see ``match_sessions``). Ambiguity and no match are errors."""
     if is_session_id(text.strip().lower()):
         return text.strip().lower()
-    hits = match_sessions(text)
+    sessions = recent_sessions()
+    hits = match_sessions(text, sessions)
     if len(hits) == 1:
         return hits[0].session_id
     if not hits:
         raise PinError(f"no recent session matches {text!r} · pin sessions lists them")
     lines = [f"{len(hits)} sessions match {text!r}; give the id or more words:"]
-    for s, line in zip(hits, session_rows([(s, False) for s in hits], width=terminal_width() - 10)):
-        lines.append(f"  {_short_id(s.session_id)}  {line}")
+    lines += [f"  {line}" for line in session_table(hits, {}, all_sessions=sessions)]
     raise PinError("\n".join(lines))
 
 
@@ -286,8 +303,17 @@ def cmd_list(opts) -> int:
     color = palette(sys.stdout)
     if not views:
         print("No pins yet. Run /pins:pin inside a Claude session, or: pin add <session-id> <alias>")
-    for line in rows(views, color=color):
+    # On a terminal the table gets the picker's column labels and marker legend; piped output stays
+    # bare rows so grep and friends see nothing else.
+    interactive = sys.stdout.isatty() and bool(views)
+    width = terminal_width()
+    cols = layout(views, width) if views else None
+    if interactive:
+        print(label_row(cols, color))
+    for line in rows(views, width=width, color=color, cols=cols):
         print(line)
+    if interactive:
+        print(color(legend(), "dim"))
     if expired and not opts.all:
         print(color(f"{expired} expired · pin list --all · pin prune", "dim"))
     return 0
@@ -306,10 +332,9 @@ def cmd_sessions(opts) -> int:
     if not sessions:
         print("no matching sessions" if opts.words else "no sessions found", file=sys.stderr)
         return 1
-    color = palette(sys.stdout)
-    pairs = [(s, s.session_id in pinned) for s in sessions]
-    for s, line in zip(sessions, session_rows(pairs, width=terminal_width() - 10, color=color)):
-        print(f"{color(_short_id(s.session_id), 'dim')}  {line}")
+    for line in session_table(sessions, pinned, all_sessions=recent_sessions(), color=palette(sys.stdout),
+                              labels=sys.stdout.isatty()):
+        print(line)
     return 0
 
 

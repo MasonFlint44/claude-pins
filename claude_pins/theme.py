@@ -107,10 +107,11 @@ class Glyphs:
     expiring: str
     expired: str
     logo: str       # empty in the text set
+    pinned: str     # before the alias of an already pinned session; the text one shares ⚑'s Unicode block
 
 
-EMOJI = Glyphs("emoji", "🟢", "🚩", "🔀", "🌳", "⏳", "🔴", "📌")
-TEXT = Glyphs("text", "●", "⚑", "⑂", "⌂", "⧗", "✗", "")
+EMOJI = Glyphs("emoji", "🟢", "🚩", "🔀", "🌳", "⏳", "🔴", "📌", "📌")
+TEXT = Glyphs("text", "●", "⚑", "⑂", "⌂", "⧗", "✗", "", "⚲")
 GLYPH_SETS = {"emoji": EMOJI, "text": TEXT}
 
 # Emoji carry their own colour; the one-cell text glyphs get one so the states still read at a glance.

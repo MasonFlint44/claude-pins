@@ -182,6 +182,11 @@ bash tests/coverage.sh                 # coverage report; needs uv (dev deps liv
   optional fzf and ccusage. `pyproject.toml` is dev tooling only (`uv sync
   --group dev` for coverage and pyte); the version there is read from
   `claude_pins/__init__.py`, so a release does not touch it.
+- `pin list` and `pin sessions` print column labels (and `pin list` the legend)
+  only when stdout is a terminal, so piped output stays bare rows for grep;
+  `--json` is the scripting form. Each glyph has one meaning across screens:
+  `*` marks a changed field in the editor and details, 🚩/⚑ is keep, and the
+  pinned tag on the session lists is 📌/⚲ with the pin's alias.
 - A new subcommand needs a row in the README command table, the list in both
   completion scripts, and their check scripts.
 - Plugin commands stay namespaced (`/pins:pin`); do not add bare `/pin` shims.

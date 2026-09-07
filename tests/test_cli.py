@@ -189,8 +189,9 @@ class CliTests(FzfSandbox):
         r = self.run_pin("sessions")
         self.assertEqual(r.returncode, 0, r.stderr)
         lines = r.stdout.splitlines()
-        self.assertRegex(lines[0], rf"^{SID1[:8]}  Standup prep\s+~/git/proj\s+2d\s+2 msgs\s+🚩 pinned$")
+        self.assertRegex(lines[0], rf"^{SID1[:8]}  Standup prep\s+~/git/proj\s+2d\s+2 msgs\s+📌 sp$")
         self.assertRegex(lines[1], rf"^{SID2[:8]}  Command center collector\s+~/git/cc\s+9d\s+2 msgs$")
+        self.assertEqual(len(lines), 2)                                             # piped: no label row
         r = self.run_pin("sessions", "collector")
         self.assertEqual(len(r.stdout.splitlines()), 1); self.assertIn(SID2[:8], r.stdout)
         r = self.run_pin("sessions", "--json", "standup")
@@ -202,6 +203,41 @@ class CliTests(FzfSandbox):
         self.t1.unlink(); self.t2.unlink()
         r = self.run_pin("sessions")
         self.assertEqual(r.returncode, 1); self.assertIn("no sessions found", r.stderr)
+
+    def test_tables_on_a_terminal(self):
+        """On a tty ``pin list`` gets the picker's column labels and marker legend and ``pin sessions``
+        its labels; piped output (the other tests) stays bare rows."""
+        self.run_pin("add", SID1, "standup-prep", "--keep")
+        out = self.run_pin_tty("list")
+        lines = [l for l in out.splitlines() if l.strip()]
+        self.assertRegex(lines[0], r"^alias\s+title\s+directory\s+idle$")
+        self.assertRegex(lines[1], r"^standup-prep\s+Standup prep\s+~/git/proj\s+0m\s+🚩$")
+        self.assertEqual(lines[2], "🟢 open  🚩 keep  🔀 fork  🌳 worktree  ⏳ expiring  🔴 expired")
+        self.assertEqual(len(lines), 3)
+        out = self.run_pin_tty("sessions")
+        lines = out.splitlines()
+        self.assertRegex(lines[0], r"^id\s+title\s+directory\s+idle\s+msgs\s+pin$")
+        self.assertRegex(lines[1], rf"^{SID1[:8]}  Standup prep\s+~/git/proj\s+0m\s+2 msgs\s+📌 standup-prep$")
+        self.assertEqual(len(lines), 3)
+        self.run_pin("rm", "standup-prep")
+        self.assertNotIn("pin", self.run_pin_tty("sessions").splitlines()[0])       # no column when nothing is pinned
+        self.assertNotIn("alias", self.run_pin_tty("list", "--json"))             # never in the JSON
+
+    def test_listed_id_prefix_grows_on_a_clash(self):
+        """The listed id is the shortest prefix (8+) unique among the recent sessions, git-style, so
+        it always resolves; a UUID's ninth character is the hyphen, so a clash grows it to ten."""
+        twin = SID1[:9] + "5" + SID1[10:]
+        self.make_session(twin, age_days=3, title="Standup prep twin")
+        r = self.run_pin("sessions")
+        ids = [l.split("  ")[0] for l in r.stdout.splitlines()]
+        self.assertEqual(ids, [SID1[:10], twin[:10], SID2[:8]])                  # newest first
+        r = self.run_pin("add", SID1[:8], "x")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn(f"2 sessions match '{SID1[:8]}'; give the id or more words:", r.stderr)
+        self.assertRegex(r.stderr, rf"  {SID1[:10]}  Standup prep\s")
+        self.assertRegex(r.stderr, rf"  {twin[:10]}  Standup prep twin\s")
+        r = self.run_pin("add", twin[:10], "twin")
+        self.assertEqual(r.returncode, 0, r.stderr); self.assertIn("✓ pinned as twin · Standup prep twin", r.stdout)
 
     def test_help_and_bad_usage(self):
         r = self.run_pin("--help")

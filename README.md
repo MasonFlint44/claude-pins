@@ -95,7 +95,8 @@ whose action names are `open`, `open_fork`, `open_worktree`, `palette`, `edit`, 
 `sort`, `preview`, `refresh`, `help`, `select`. fzf's own query-editing keys and alt+enter (Windows
 Terminal) are avoided on purpose. Markers: 🟢 open · 🚩 keep · 🔀 fork · 🌳 worktree · ⏳ expiring ·
 🔴 expired. On a terminal without emoji (a non-UTF-8 locale, the Linux console, `TERM=dumb`) they
-become the one-cell ● ⚑ ⑂ ⌂ ⧗ ✗ in the same colours and the 📌 leaves the prompt;
+become the one-cell ● ⚑ ⑂ ⌂ ⧗ ✗ in the same colours, the 📌 leaves the prompt and the
+pinned tag's 📌 becomes ⚲;
 `CLAUDE_PINS_GLYPHS=emoji` or `text` decides by hand.
 
 The colours are Claude Code's own: the prompt in clay, the pointer and matched letters in
@@ -122,6 +123,10 @@ height; 0.44 and 0.45 refit the rows at the next screen and the header on the ne
 move or keystroke. On 0.63 and newer a blank row separates the prompt from the list; before
 that fzf draws the column labels above the prompt. On 0.65.2 and newer the counter reads
 `3 of 5 pins · 2 selected`.
+
+alt-n lists the 200 most recent sessions under the same kind of column labels (title,
+directory, idle, msgs) and filters them by title and directory; a session that is already
+pinned ends its row with 📌 and the pin's alias, so enter there just says which pin it is.
 
 In the editor the pane shows the pin as it would be saved, changed rows marked `*`. Enter
 changes the highlighted field: booleans flip, choices open a short list with `(clear)`, and a
@@ -161,8 +166,8 @@ Every subcommand exits 0 on success and 1 with a one-line message on `stderr` ot
 | Subcommand | What it does |
 |---|---|
 | `pin add <session> <alias> [--title …] [--note …] [--cwd …] [--keep] [--fork] [--worktree] [--rename]` | pin a session. `<session>` is a session id, a unique id prefix (8+ characters), or words that must all appear in the title or directory of one of the 200 most recent sessions (quote them: `pin add "rc mower" mower`); several matches are listed with their ids. Title and directory default to the transcript's; a session given by full id with no transcript yet is accepted with a warning. Pinning an already pinned session says "already pinned as X" and, with `--title`/`--note`, updates it, or with `--rename`, renames it; a taken alias is refused with a suggested `alias-2` |
-| `pin list [--all] [--sort …] [--json]` | the rows the picker shows, expired ones hidden unless `--all`; `--json` adds `state`, `age`, `open`, `markers`, `remaining_days` per pin |
-| `pin sessions [words…] [--json]` | the 200 most recent sessions, newest first, with their short ids, titles, directories and a pinned marker; words filter the way `pin add` matches. This is what to run when you want to pin something by title from the terminal |
+| `pin list [--all] [--sort …] [--json]` | the rows the picker shows, expired ones hidden unless `--all`; on a terminal they get the column labels and the marker legend, piped output is bare rows; `--json` adds `state`, `age`, `open`, `markers`, `remaining_days` per pin |
+| `pin sessions [words…] [--json]` | the 200 most recent sessions, newest first, with their short ids, titles, directories, idle times, message counts and, for a pinned one, 📌 and the pin's alias; column labels on a terminal. The listed id is the shortest prefix (8 characters, more when two sessions share them) that `pin add` resolves. Words filter the way `pin add` matches. This is what to run when you want to pin something by title from the terminal |
 | `pin edit <alias> [flags]` | set fields directly: `--title`, `--note`, `--cwd`, `--rename <alias>`, `--model`, `--effort`, `--permission-mode` (empty string clears), `--keep`/`--no-keep`, `--fork`/`--no-fork`, `--worktree`/`--no-worktree`. With no flags, the interactive editor |
 | `pin rename <alias> <new-alias>` | rename a pin; a taken alias is refused with a suggestion (`pin edit --rename` does the same) |
 | `pin open <alias> [--fork] [--resume] [-w [name]]` | open by exact alias, with the same one-off modes as above; runs the already-open, missing-directory and branch prompts first |

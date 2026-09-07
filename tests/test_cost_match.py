@@ -164,6 +164,15 @@ class MatchTests(Sandbox):
         self.assertEqual(loose_match(pins, ["zzz"]), [])
         self.assertEqual(len(loose_match(pins, [])), 3)
 
+    def test_short_ids(self):
+        from claude_pins.match import short_ids
+        a = "11111111-1111-1111-1111-111111111111"
+        b = "11111111-1111-2222-2222-222222222222"      # shares a's first 14 characters
+        c = "22222222-2222-2222-2222-222222222222"
+        self.assertEqual(short_ids([a, c]), [a[:8], c[:8]])
+        self.assertEqual(short_ids([a, b, c]), [a[:15], b[:15], c[:8]])    # grown past the shared run, hyphens counted
+        self.assertEqual(short_ids([]), [])
+
     def test_match_sessions(self):
         from claude_pins.match import match_sessions, recent_sessions
         from claude_pins.transcript import Summary

@@ -156,3 +156,29 @@ class FzfSandbox(Sandbox):
             e.update(env)
         return subprocess.run([sys.executable, str(PIN), *args], input=input, capture_output=True, text=True, env=e)
 
+    def run_pin_tty(self, *args: str, columns: int = 100) -> str:
+        """``pin`` with a pseudo-terminal on stdout (the tables add labels there); returns the plain text."""
+        import pty
+        import re
+        import subprocess
+        master, slave = pty.openpty()
+        import fcntl, struct, termios
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, columns, 0, 0))
+        env = {**os.environ, "NO_COLOR": "1"}
+        p = subprocess.Popen([sys.executable, str(PIN), *args], stdin=subprocess.DEVNULL, stdout=slave,
+                             stderr=subprocess.PIPE, env=env)
+        os.close(slave)
+        chunks = []
+        while True:
+            try:
+                data = os.read(master, 65536)
+            except OSError:
+                break
+            if not data:
+                break
+            chunks.append(data)
+        os.close(master)
+        p.wait(timeout=30)
+        text = b"".join(chunks).decode("utf-8", "replace").replace("\r\n", "\n")
+        return re.sub(r"\x1b\[[0-9;]*m", "", text)
+

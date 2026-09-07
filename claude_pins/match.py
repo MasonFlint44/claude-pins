@@ -10,6 +10,20 @@ from .transcript import Summary, read_summary
 
 RECENT = 200  # sessions considered by title match and ``pin sessions``, newest first
 _ID_PREFIX = re.compile(r"^[0-9a-f-]{8,}$")
+ID_PREFIX_FLOOR = 8
+
+
+def short_ids(ids: list[str]) -> list[str]:
+    """The prefix each id is listed by: eight characters, or more when another listed id shares them
+    (git's abbreviation rule), so what a listing prints always resolves. A UUID's ninth character is a
+    hyphen, so a clash grows the prefix to ten."""
+    out = []
+    for sid in ids:
+        n = ID_PREFIX_FLOOR
+        while n < len(sid) and any(o != sid and o.startswith(sid[:n]) for o in ids):
+            n += 1
+        out.append(sid[:n])
+    return out
 
 
 def loose_match(pins: list[Pin], words: list[str]) -> list[Pin]:

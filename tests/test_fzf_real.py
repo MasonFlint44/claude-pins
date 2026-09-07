@@ -287,16 +287,21 @@ class RealFzfTests(FzfSandbox):
     def test_session_chooser(self):
         p = self.picker()
         items, kw = self.capture(p.new_pin)
-        self.assertEqual(len(items), 3)
+        self.assertEqual(len(items), 4)
+        self.assertEqual((items[0].id, kw["header_lines"]), ("-", 1))               # the label row is sticky
+        self.assertRegex(plain(items[0].display), r"^title\s+directory\s+idle\s+msgs\s+pin$")
+        self.assertKeeps(items, kw, "'title", [])
         self.assertKeeps(items, kw, "standup", [i.id for i in items if SID3 in i.id])
         self.assertKeeps(items, kw, "dotclaude", [i.id for i in items if SID3 in i.id])
         self.assertEveryRowFindable(items, kw)
-        # title and directory only: idle, the message count and the pinned tag are outside --nth
+        # title and directory only: idle, the message count and the pinned tag (the pin's alias) are
+        # outside --nth
         self.assertEqual(kw["nth"], "1..2")
-        self.assertTrue(all("msgs" in plain(i.display) for i in items))
+        self.assertTrue(all("msgs" in plain(i.display) for i in items[1:]))
+        self.assertTrue(plain(items[1].display).endswith(f"{theme.glyphs().pinned} standup"))
         self.assertKeeps(items, kw, "'msgs", [])
         self.assertKeeps(items, kw, "'9d", [])
-        self.assertKeeps(items, kw, "'pinned", [])
+        self.assertKeeps(items, kw, "cc-collector", [])                              # the alias tag of SID2's row
 
     def test_editor_and_choice(self):
         from claude_pins import editor

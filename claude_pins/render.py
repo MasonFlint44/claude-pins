@@ -359,26 +359,62 @@ def preview(view: View, cost: Cost | None = None, current_branch: str | None = N
     return "\n".join(lines)
 
 
-def session_rows(items: list[tuple[Summary, bool]], width: int | None = None, color: Palette | None = None,
-                 sep: str = COLUMN_SEP) -> list[str]:
-    """Session rows for the new-pin screen: title · dir · age · msgs · pinned marker, joined by ``sep``."""
+@dataclass
+class SessionColumns:
+    """Column widths for one rendering of the session table, in cells."""
+
+    title: int
+    dir: int
+    age: int
+    msgs: int
+    pin: int        # the pinned tag (glyph and alias), 0 when no listed session is pinned
+
+
+def session_layout(items: list[tuple[Summary, str]], width: int) -> SessionColumns:
+    """Directory and the pinned tag are as wide as their longest value, capped like the picker's directory
+    and alias columns; age and the message count are fixed; the title takes what is left."""
+    dir_w = min(max(cells(display_dir(s.cwd)) for s, _ in items), max(MIN_COLUMN, width // 3))
+    msgs_w = max(cells(f"{s.messages} msgs") for s, _ in items)
+    pin_w = min(max((cells(_pinned_tag(alias)) for _, alias in items if alias), default=0), max(MIN_COLUMN, width // 5))
+    gaps = 2 + 2 + 2 + (2 if pin_w else 0)
+    title_w = max(TITLE_FLOOR, width - (dir_w + AGE_WIDTH + msgs_w + pin_w + gaps))
+    return SessionColumns(title_w, dir_w, AGE_WIDTH, msgs_w, pin_w)
+
+
+def _pinned_tag(alias: str) -> str:
+    """``📌 alias``: the glyph, a space, the alias."""
+    return f"{glyphs().pinned} {alias}"
+
+
+def session_label_row(cols: SessionColumns, color: Palette | None = None, sep: str = COLUMN_SEP) -> str:
+    """The session table's column labels, laid out like its rows."""
+    color = color or Palette(False)
+    directory = "directory" if cols.dir >= len("directory") else "dir"
+    line = f"{pad('title', cols.title)}{sep}{pad(directory, cols.dir)}{sep}{pad('idle', cols.age, '>')}{sep}{pad('msgs', cols.msgs, '>')}"
+    if cols.pin:
+        line += f"{sep}pin"
+    return color(line, "dim")
+
+
+def session_rows(items: list[tuple[Summary, str]], width: int | None = None, color: Palette | None = None,
+                 sep: str = COLUMN_SEP, cols: SessionColumns | None = None) -> list[str]:
+    """Session rows for the new-pin screen and ``pin sessions``: title · dir · age · msgs, then the pin
+    glyph and alias when the session is already pinned (``items`` pair each summary with that alias, or
+    ""), joined by ``sep``."""
     width = width or terminal_width()
     color = color or Palette(False)
     if not items:
         return []
     now = time.time()
-    dir_w = min(max(cells(display_dir(s.cwd)) for s, _ in items), max(MIN_COLUMN, width // 3))
-    msgs_w = max(cells(f"{s.messages} msgs") for s, _ in items)
-    keep = glyphs().keep
-    tag_w = cells(f"  {keep} pinned") if any(p for _, p in items) else 0
-    title_w = max(TITLE_FLOOR, width - dir_w - 2 - AGE_WIDTH - 2 - msgs_w - 2 - tag_w)
+    cols = cols or session_layout(items, width)
     out = []
-    for s, pinned in items:
-        age = pad(format_age(max(0.0, now - s.mtime)), AGE_WIDTH, ">")
-        d = pad(fit_dir(flat(display_dir(s.cwd)), dir_w), dir_w)
-        line = f"{pad(flat(s.title), title_w)}{sep}{color(d, 'dim')}{sep}{color(age, 'dim')}{sep}{pad(f'{s.messages} msgs', msgs_w, '>')}"
-        if pinned:
-            line += sep + color(f"{keep} pinned", SUCCESS)
+    for s, alias in items:
+        age = pad(format_age(max(0.0, now - s.mtime)), cols.age, ">")
+        d = pad(fit_dir(flat(display_dir(s.cwd)), cols.dir), cols.dir)
+        line = f"{pad(flat(s.title), cols.title)}{sep}{color(d, 'dim')}{sep}{color(age, 'dim')}{sep}{pad(f'{s.messages} msgs', cols.msgs, '>')}"
+        if alias:
+            glyph = glyphs().pinned
+            line += f"{sep}{glyph} {color(clip(alias, cols.pin - cells(glyph) - 1), 'bold')}"
         out.append(line)
     return out
 

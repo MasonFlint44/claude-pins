@@ -6,7 +6,8 @@ from claude_pins.cost import Cost, format_tokens
 from claude_pins.model import Launch, Pin
 from claude_pins import theme
 from claude_pins.render import (FZF_COLUMN_SEP, Palette, View, branch_line, crumb, display_dir, fit_dir, format_size,
-                                grouped, label_row, layout, legend, preview, rows, session_rows)
+                                grouped, label_row, layout, legend, preview, rows, session_label_row, session_layout,
+                                session_rows)
 from claude_pins.text import cells, clip, pad
 from claude_pins.sessions import Expiry
 from claude_pins.transcript import Summary
@@ -267,13 +268,24 @@ class PreviewTests(Sandbox):
     def test_session_rows(self):
         s = self.summary()
         s.mtime = __import__("time").time() - 7200
-        out = session_rows([(s, False), (s, True)], width=90)
+        pairs = [(s, ""), (s, "standup-prep")]
+        out = session_rows(pairs, width=90)
         self.assertRegex(out[0], r"^Standup prep\s+~/git/dotclaude\s+2h\s+85 msgs$")
+        self.assertEqual(cells(out[0]), cells(out[1]) - cells("  📌 standup-prep"))   # the tag is its own column
         self.assertLessEqual(max(cells(o) for o in out), 90)
-        self.assertTrue(out[1].endswith("🚩 pinned"))
-        fzf_out = session_rows([(s, False), (s, True)], width=90, sep=FZF_COLUMN_SEP)
+        self.assertTrue(out[1].endswith("📌 standup-prep"))                          # the pin's alias, not "pinned"
+        self.assertEqual(session_label_row(session_layout(pairs, 90)),
+                         "title                                      directory        idle     msgs  pin")
+        self.assertEqual(session_label_row(session_layout([(s, "")], 90)),
+                         "title                                                       directory        idle     msgs")
+        fzf_out = session_rows(pairs, width=90, sep=FZF_COLUMN_SEP)
         self.assertEqual([r.replace("\t ", "  ") for r in fzf_out], out)
-        self.assertEqual([r.count("\t") for r in fzf_out], [3, 4])                 # title·dir·idle·msgs(·pinned)
+        self.assertEqual([r.count("\t") for r in fzf_out], [3, 4])                 # title·dir·idle·msgs(·pin)
+        os.environ["CLAUDE_PINS_GLYPHS"] = "text"
+        self.assertTrue(session_rows(pairs, width=90)[1].endswith("⚲ standup-prep"))
+        long = session_rows([(s, "a-very-long-alias-that-goes-on-and-on")], width=70)[0]
+        self.assertLessEqual(cells(long), 70)
+        self.assertIn("⚲ a-very-long…", long)                                     # capped like the picker's alias column
 
     def test_format_tokens(self):
         self.assertEqual(format_tokens(950), "950")
