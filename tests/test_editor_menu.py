@@ -104,8 +104,9 @@ class MenuTests(FzfSandbox):
     def test_menu_render_and_open(self):
         r = self.run_pin(input="2\n")
         self.assertRegex(r.stdout, r"pins\s+\(install fzf ≥ 0.44 for the full picker: pin doctor\)")
+        self.assertRegex(r.stdout, r"\n    alias\s+title\s+directory\s+idle\n 1  standup-prep")   # labels over the numbers
         self.assertRegex(r.stdout, r"1  standup-prep\s+Standup prep\s+~/git/proj\s+2d")
-        self.assertRegex(r.stdout, r"2  rc-mower\s+Navimow schedule debug\s+~\s+26d\s+⏳")
+        self.assertRegex(r.stdout, r"2  rc-mower\s+Navimow schedule debug\s+~\s+26d\s+⏳\n 🟢 open  🚩 keep")   # legend under the table
         self.assertIn("N open · oN fork · wN worktree · tN touch · eN edit · xN unpin · pN preview", r.stdout)
         self.assertIn("n new · a show expired · p prune · z undo · s sort · ? help · q quit", r.stdout)
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID2])
@@ -137,7 +138,8 @@ class MenuTests(FzfSandbox):
         self.make_session(sid3, cwd=str(self.home / "Documents"), age_days=0.2, title="Tax prep questions")
         r = self.run_pin(input="n\n1\n\ns\na\nq\n")
         self.assertIn("pins › new", r.stdout)
-        self.assertRegex(r.stdout, r"1  Tax prep questions\s+~/Documents")
+        self.assertRegex(r.stdout, r"pins › new\n      title\s+directory\s+idle\s+msgs\s+pin\n   1  Tax prep questions\s+~/Documents")
+        self.assertRegex(r.stdout, r"2  Standup prep\s+.*📌 standup-prep\n")
         self.assertIn("✓ pinned as tax-prep-questions", r.stdout)
         self.assertIn("sort: alias", r.stdout)
         self.assertIn("tax-prep-questions", {p["alias"] for p in json.loads(self.store_path().read_text())["pins"]})

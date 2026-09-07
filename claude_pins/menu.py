@@ -12,7 +12,8 @@ from .gitutil import current_branch, is_repo
 from .listing import build_views, next_sort
 from .model import Pin, PinError, kebab, next_free_alias
 from .opener import launch, plan_open, touch_kept, touch_pin
-from .render import legend, palette, preview, rows, session_rows
+from .render import (label_row, layout, legend, palette, preview, rows, session_label_row, session_layout,
+                     session_rows, terminal_width)
 from .theme import ERROR, SUCCESS
 from .sessions import iter_transcripts
 from .store import Store
@@ -40,8 +41,12 @@ def run_menu(store: Store, *, query: str = "", sort: str | None = None, reason: 
             print(f" {color(state['flash'], ERROR if state['flash'].startswith('✗') else SUCCESS)}")
             state["flash"] = ""
         if views:
-            for line in rows(views, color=color, numbered=True):
+            # The picker's column labels above the numbered table and its legend below, as pin list has
+            cols = layout(views, terminal_width(), numbered=True)
+            print(f" {label_row(cols, color)}")
+            for line in rows(views, color=color, numbered=True, cols=cols):
                 print(f" {line}")
+            print(f" {color(legend(), 'dim')}")
         else:
             print(color("  No pins yet. n pins a recent session, or run /pins:pin inside a Claude session.", "dim"))
         if expired and not state["expired"]:
@@ -140,7 +145,10 @@ def new_pin_menu(store: Store, state: dict, color) -> None:
         state["flash"] = "no sessions found"
         return
     print("\n pins › new")
-    for i, line in enumerate(session_rows(pairs, color=color), 1):
+    width = terminal_width() - 6                    # the number gutter
+    cols = session_layout(pairs, width)
+    print(f"      {session_label_row(cols, color)}")
+    for i, line in enumerate(session_rows(pairs, width=width, color=color, cols=cols), 1):
         print(f"  {i:>2}  {line}")
     try:
         raw = input(" session number (enter cancels): ").strip()

@@ -28,9 +28,10 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
 - **Labels where a table needs them.** The new-pin screen has the picker's
   column labels, and `pin list` and `pin sessions` print them on a terminal
   (`pin list` adds the marker legend under the table); piped output stays bare
-  rows. A session that is already pinned shows 📌 and the pin's alias instead
-  of the keep flag and the word "pinned", which contradicted the legend; the
-  text glyph set gets ⚲ for it.
+  rows. The no-fzf menu gets the labels over both of its tables and the legend
+  under the pin table, not only on `?`. A session that is already pinned shows
+  📌 and the pin's alias instead of the keep flag and the word "pinned", which
+  contradicted the legend; the text glyph set gets ⚲ for it.
 - The id `pin sessions` lists is the shortest prefix, eight characters or more,
   that is unique among the recent sessions, the way git abbreviates, so it
   always resolves in `pin add`; the ambiguity listing uses the same prefixes.
