@@ -362,12 +362,13 @@ class PlainTerminalTests(FzfSandbox):
 
     def test_prefill_and_ctrl_c(self):
         import pty, select, sys, time
+        from claude_pins.prompt import prefills
         try:
             import readline
         except ImportError:
             self.skipTest("no readline")
-        if getattr(readline, "backend", "readline") != "readline":
-            self.skipTest(f"readline backend is {readline.backend}: pre-fill is GNU readline's")
+        if not prefills(readline):
+            self.skipTest("libedit: the pre-input hook does not insert, the default is shown in the label instead")
         from tests.helpers import PIN
         pid, fd = pty.fork()
         if pid == 0:

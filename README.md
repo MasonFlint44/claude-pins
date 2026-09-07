@@ -126,8 +126,8 @@ something changed. Every other question on the way (a new pin's alias, a key to 
 a missing directory, a branch mismatch, a session already open) is an fzf screen too: nothing
 drops to a text prompt while fzf is in use.
 
-Without fzf the same questions are readline prompts with the current value pre-filled (ctrl-c
-cancels a field) and numbered lists. In the no-fzf menu a bare letter is a list action and
+Without fzf the same questions are readline prompts with the current value pre-filled (shown in
+brackets instead where the readline is macOS's libedit; ctrl-c cancels a field) and numbered lists. In the no-fzf menu a bare letter is a list action and
 letter+number a row action: `N` open, `oN` fork, `wN` worktree, `tN` touch, `eN` edit, `xN`
 unpin, `pN` preview, `n` new, `a` show expired, `p` prune, `z` undo, `s` sort, `?` legend,
 `q` quit.

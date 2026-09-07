@@ -188,6 +188,30 @@ class MatchTests(Sandbox):
 
 
 class PromptTests(Sandbox):
+    def test_plain_text_without_a_prefilling_readline(self):
+        """libedit (macOS) takes the hook but inserts nothing, so the default goes in the label and bare
+        enter keeps it; GNU readline pre-fills and an empty answer means empty."""
+        from unittest import mock
+        from claude_pins import prompt
+
+        class Editline:
+            __doc__ = "Importing this module enables command line editing using libedit readline."
+
+            def set_completer_delims(self, d): pass
+            def set_completer(self, c): self.completer = c
+            def parse_and_bind(self, s): pass
+
+        self.assertFalse(prompt.prefills(Editline()))
+        self.assertTrue(prompt.prefills(type("Gnu", (), {"__doc__": "GNU readline", "backend": "readline"})()))
+        self.assertFalse(prompt.prefills(type("Ed", (), {"backend": "editline"})()))
+        os.environ["CLAUDE_PINS_NO_FZF"] = "1"
+        asked = []
+        with mock.patch.object(prompt, "_readline", lambda: Editline()), \
+                mock.patch("builtins.input", lambda text: asked.append(text) or ""):
+            self.assertEqual(prompt.text("title", "Standup prep"), "Standup prep")
+            self.assertEqual(prompt.directory("~/git"), "~/git")
+        self.assertEqual(asked, [" title [Standup prep]: ", " directory (tab completes) [~/git]: "])
+
     def test_directory_completions(self):
         from claude_pins.prompt import directory_completions
         (self.home / "git" / "alpha").mkdir(parents=True); (self.home / "git" / "alps").mkdir()

@@ -99,29 +99,39 @@ def _readline():
         return None
 
 
+def prefills(rl) -> bool:
+    """Whether this readline inserts text from a pre-input hook: GNU readline does, the libedit that macOS
+    Pythons link instead (``backend == "editline"`` from 3.13, its docstring says so before) does not."""
+    backend = getattr(rl, "backend", None)
+    if backend is not None:
+        return backend == "readline"
+    return "libedit" not in (rl.__doc__ or "")
+
+
 def _plain_text(label: str, default: str, completer=None) -> str:
-    """readline with ``default`` pre-filled (and a completer when given); without readline the
+    """readline with ``default`` pre-filled (and a completer when given); where it cannot pre-fill, the
     default is shown in the label and bare enter keeps it."""
     rl = _readline()
-    if rl is not None:
+    prefill = rl is not None and prefills(rl)
+    if prefill:
         def hook():
             rl.insert_text(default)
             rl.redisplay()
         rl.set_pre_input_hook(hook)
-        if completer is not None:
-            rl.set_completer_delims(" \t\n")
-            rl.set_completer(completer)
-            rl.parse_and_bind("tab: complete")
     elif default:
         label = f"{label} [{default}]"
+    if rl is not None and completer is not None:
+        rl.set_completer_delims(" \t\n")
+        rl.set_completer(completer)
+        rl.parse_and_bind("tab: complete")
     try:
         value = _ask(f" {label}: ")
     finally:
-        if rl is not None:
+        if prefill:
             rl.set_pre_input_hook(None)
-            if completer is not None:
-                rl.set_completer(None)
-    if rl is None and not value.strip():
+        if rl is not None and completer is not None:
+            rl.set_completer(None)
+    if not prefill and not value.strip():
         return default
     return value.strip()
 
