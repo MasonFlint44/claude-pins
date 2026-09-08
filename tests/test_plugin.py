@@ -100,12 +100,12 @@ class PluginFileTests(Sandbox):
 
     def test_doctor_skill_table_matches_doctor_output(self):
         """Every doctor line the skill explains is a line pin doctor can actually print."""
-        from claude_pins import cli, cost, fzf, store
-        src = "".join(Path(m.__file__).read_text() for m in (cli, cost, fzf, store))
+        from claude_pins import cli, cost, fzf, mac, store
+        src = "".join(Path(m.__file__).read_text() for m in (cli, cost, fzf, mac, store))
         skill = (REPO / "skills" / "doctor" / "SKILL.md").read_text()
-        for phrase in ("fzf: not found", "need ≥ 0.44", "ccusage: not installed", "offline table has no price for",
-                       "even online", "online fallback unreachable", "corrupt", "not found (set CLAUDE_CONFIG_DIR?)",
-                       "cleanupPeriodDays"):
+        for phrase in ("fzf: not found", "need ≥ 0.44", "alt keys: Option as Meta", "ccusage: not installed",
+                       "offline table has no price for", "even online", "online fallback unreachable", "corrupt",
+                       "not found (set CLAUDE_CONFIG_DIR?)", "cleanupPeriodDays"):
             self.assertIn(phrase, skill, f"skill does not explain {phrase!r}")
             self.assertIn(phrase.split(" (")[0], src, f"doctor never prints {phrase[:30]!r}")
 
@@ -115,7 +115,7 @@ class ReadmeTests(Sandbox):
         """The README's Keys table lists exactly the bound defaults from keymap.ACTIONS."""
         from claude_pins.keymap import ACTIONS
         readme = (REPO / "README.md").read_text()
-        section = readme.split("## Keys", 1)[1].split("## Command line", 1)[0]
+        section = readme.split("## Keys", 1)[1].split("\n### ", 1)[0]          # up to the macOS subsection
         documented = set()
         for line in section.splitlines():
             if not line.startswith("|") or "---" in line or "| key |" in line:

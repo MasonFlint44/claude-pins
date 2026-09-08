@@ -15,15 +15,20 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   open, right click to select, the wheel over the list or the pane; shift-up
   and shift-down scroll the pane from the keyboard). Typing filters with fzf's
   syntax (`'exact`, `^prefix`, `suffix$`, `!not`, `a | b`, smart case) and
-  highlights the matches; what it lacks is fzf's ranking, so rows keep their
-  list order. The preview is computed off the input loop, so the cursor never
-  waits on ccusage; a resize re-lays the rows out. The look was matched to
-  fzf 0.67 cell for cell through a terminal emulator, and a test keeps it so.
-- **fzf is recommended, not required.** `pin doctor` marks a missing or old
-  fzf with `·` and exits 0, saying what fzf adds and how to install it; the
-  built-in picker says so once on its status line the first time it runs, and
-  the f1 screen keeps one line about it. The doctor and install skills say the
-  same.
+  highlights the matches; rows keep their order, as they always have under
+  fzf (`--no-sort`). The preview is computed off the input loop, so the cursor
+  never waits on ccusage; a resize re-lays the rows out. The look was matched
+  to fzf 0.67 cell for cell through a terminal emulator, and a test keeps it so.
+- **fzf is optional.** `pin doctor` marks a missing or old fzf with `·` and
+  exits 0, saying that the built-in picker draws the same screens and how to
+  install fzf. The doctor and install skills say the same.
+- **Alt keys on macOS.** Every Mac terminal types symbols on Option until it is
+  told to send it as Meta, which is why alt-i and the other alt keys did
+  nothing there. On a Mac the picker now names the switch for the terminal it
+  is in (Terminal.app, iTerm2, VS Code, Ghostty, Kitty, Alacritty; WezTerm is
+  on already) on its status line the first time it runs and on the f1 screen,
+  reading each terminal's settings so a user who has set it sees nothing, and
+  `pin doctor` reports it. The README has the table.
 - **Keys that reach the picker everywhere.** The actions palette is ctrl-x
   (ctrl-space never reaches a program in VS Code's terminal, which keeps it
   for its own suggestions), refresh is ctrl-r, edit is f2 and new pin is

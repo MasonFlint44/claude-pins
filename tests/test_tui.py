@@ -621,23 +621,37 @@ class FlowTests(TuiSandbox):
         self.assertEqual(self.screens()[1]["header"].split("\n")[-1],
                          "✗ standup-prep: transcript for session 11111111… is gone (expired) · pin unpin standup-prep")
 
-    def test_first_run_note_shows_once(self):
-        """The built-in picker mentions fzf on the status line the first time it runs and never again (a
-        marker file in the cache directory remembers); the help screen keeps one dim line about it."""
+    def test_alt_keys_note_shows_once_on_a_mac(self):
+        """On a Mac whose terminal is not sending Option as Meta, the picker names the switch on the status
+        line the first time it runs and never again (a marker file in the cache directory remembers); the
+        help screen keeps one dim line. Once the switch is on, or off a Mac, nothing shows."""
         from claude_pins import config
+        os.environ["CLAUDE_PINS_OS"] = "darwin"; os.environ["TERM_PROGRAM"] = "vscode"
         self.assertFalse(config.noted_file().exists())
         self.steps(["@f1"], ["@esc", "@pause"], ["@esc", "@pause"])
         self.run_pin()
         screens = self.screens()
-        self.assertEqual(screens[0]["header"].split("\n")[-1], "built-in picker in use · fzf adds ranked matching · pin doctor")
-        self.assertEqual(screens[1]["header"].split("\n")[-2:],
-                         ["built-in picker in use · fzf adds ranked matching · pin doctor", " "])   # under the keymap path
+        note = "alt keys need terminal.integrated.macOptionIsMeta in VS Code"
+        self.assertEqual(screens[0]["header"].split("\n")[-1], note)
+        self.assertEqual(screens[1]["header"].split("\n")[-2:], [note, " "])                  # under the keymap path
         self.assertIn("keymap: ~/.config/claude-pins/keys.toml", screens[1]["header"])
         self.assertEqual(screens[2]["header"].split("\n")[-1], " ")                              # once
         self.assertTrue(config.noted_file().exists())
-        self.steps(["@esc", "@pause"])
+        self.steps(["@f1"], ["@esc", "@pause"], ["@esc", "@pause"])
         self.run_pin()
-        self.assertEqual(self.screens()[0]["header"].split("\n")[-1], " ")                       # never again
+        screens = self.screens()
+        self.assertEqual(screens[0]["header"].split("\n")[-1], " ")                              # never again
+        self.assertIn(note, screens[1]["header"])                                                # the help screen keeps it
+        settings = self.home / "Library" / "Application Support" / "Code" / "User" / "settings.json"
+        settings.parent.mkdir(parents=True)
+        settings.write_text('{\n  // keys\n  "terminal.integrated.macOptionIsMeta": true,\n}\n')
+        config.noted_file().unlink()
+        self.steps(["@f1"], ["@esc", "@pause"], ["@esc", "@pause"])
+        self.run_pin()
+        screens = self.screens()
+        self.assertEqual(screens[0]["header"].split("\n")[-1], " ")                              # the switch is on
+        self.assertNotIn("alt keys", screens[1]["header"])
+        self.assertFalse(config.noted_file().exists())                                          # nothing to remember
 
     def test_no_terminal_cancels_a_question(self):
         shutil.rmtree(self.home / "git" / "proj")

@@ -106,7 +106,7 @@ class RealFzfTests(FzfSandbox):
 
     def assertNativeAgrees(self, items, kw, *queries):
         """The built-in picker's matcher keeps the same rows as this fzf for every query (in list order;
-        fzf's ranking is not reproduced)."""
+        the picker runs fzf with ``--no-sort``, so neither ranks)."""
         from claude_pins import query
         sticky = kw.get("header_lines", 0)
         for q in (*self.QUERIES, *queries):

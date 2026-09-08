@@ -201,19 +201,12 @@ def available() -> bool:
     return v is not None and v >= config.MIN_FZF
 
 
+OPTIONAL_NOTE = "optional; the built-in picker draws the same screens"     # doctor's fzf row
+
+
 def install_hint() -> str:
     return ("install fzf ≥ 0.44: brew install fzf, your package manager, or a release tarball from "
             "https://github.com/junegunn/fzf/releases unpacked into ~/.local/bin")
-
-
-BUILT_IN_NOTE = "built-in picker in use · fzf adds ranked matching"     # doctor, the help screen, the first run
-
-
-def nudge() -> str | None:
-    """What to say about fzf where the built-in picker is drawing, or None where fzf is."""
-    if available():
-        return None
-    return f"{BUILT_IN_NOTE} · pin doctor"
 
 
 def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] | None = None,

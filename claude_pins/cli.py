@@ -7,7 +7,7 @@ import json
 import os
 import sys
 
-from . import __version__, config, fzf, hooks
+from . import __version__, config, fzf, hooks, mac
 from .cost import doctor_line
 from .listing import build_views
 from .match import loose_match, match_sessions, recent_sessions, short_ids
@@ -427,13 +427,16 @@ def cmd_touch(opts) -> int:
 def cmd_doctor(opts) -> int:
     ok = True
     v = fzf.fzf_version()
-    # fzf is a recommendation, not a requirement: the built-in picker draws the same screens without it
+    # fzf is optional: the built-in picker draws the same screens without it
     if v is None:
-        print(f"· fzf: not found · {fzf.BUILT_IN_NOTE} · {fzf.install_hint()}")
+        print(f"· fzf: not found ({fzf.OPTIONAL_NOTE}) · {fzf.install_hint()}")
     elif v < config.MIN_FZF:
-        print(f"· fzf {'.'.join(map(str, v))}: need ≥ 0.44 · {fzf.BUILT_IN_NOTE} · {fzf.install_hint()}")
+        print(f"· fzf {'.'.join(map(str, v))}: need ≥ 0.44 ({fzf.OPTIONAL_NOTE}) · {fzf.install_hint()}")
     else:
         print(f"✓ fzf {'.'.join(map(str, v))}")
+    probe = mac.option_as_meta()
+    if probe:
+        print(probe.doctor_line())
     print(doctor_line())
     path = config.pins_file()
     try:

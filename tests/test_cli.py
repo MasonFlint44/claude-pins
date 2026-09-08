@@ -300,14 +300,36 @@ class CliTests(FzfSandbox):
         os.environ["CLAUDE_CONFIG_DIR"] = str(self.root / "missing")
         r = self.run_pin("doctor", env={"CLAUDE_PINS_FZF": str(self.root / "no-such-fzf")})
         self.assertEqual(r.returncode, 1)
-        # fzf is recommended, not required: a neutral line that says what it adds and how to get it
-        self.assertIn("· fzf: not found · built-in picker in use · fzf adds ranked matching · install fzf ≥ 0.44", r.stdout)
+        # fzf is optional: a neutral line that says so and how to get it
+        self.assertIn("· fzf: not found (optional; the built-in picker draws the same screens) · install fzf ≥ 0.44", r.stdout)
+        self.assertNotIn("alt keys", r.stdout)                                  # not a Mac: no Option line
         self.assertIn("✗ store: pin store", r.stdout)
         self.assertIn(f"✗ projects dir {self.root}/missing/projects not found (set CLAUDE_CONFIG_DIR?)", r.stdout)
         self.assertIn("· keymap ~/.config/claude-pins/keys.toml (defaults)", r.stdout)
         self.stub("fzf", "#!/bin/sh\necho '0.38.0 (old)'\n")
         r = self.run_pin("doctor", env={"CLAUDE_PINS_FZF": str(self.bindir / "fzf")})
-        self.assertIn("· fzf 0.38.0: need ≥ 0.44 · built-in picker in use", r.stdout)
+        self.assertIn("· fzf 0.38.0: need ≥ 0.44 (optional; the built-in picker draws the same screens)", r.stdout)
+
+    def test_doctor_alt_keys_on_a_mac(self):
+        """On a Mac the doctor reports the terminal's Option-as-Meta switch: ✓ when it is on, · with the
+        switch to set when it is off, and · with the switch to check when the terminal is unknown."""
+        env = {"CLAUDE_PINS_OS": "darwin", "TERM_PROGRAM": "iTerm.app", "ITERM_PROFILE": "Work"}
+        r = self.run_pin("doctor", env=env)
+        self.assertIn('· alt keys: Option as Meta unknown in iTerm2 · check "Left Option key: Esc+"', r.stdout)
+        import plistlib
+        prefs = self.home / "Library" / "Preferences" / "com.googlecode.iterm2.plist"
+        prefs.parent.mkdir(parents=True)
+        prefs.write_bytes(plistlib.dumps({"New Bookmarks": [{"Name": "Default", "Option Key Sends": 0},
+                                                            {"Name": "Work", "Option Key Sends": 2}]}))
+        self.assertIn("✓ alt keys: Option as Meta on in iTerm2", self.run_pin("doctor", env=env).stdout)
+        r = self.run_pin("doctor", env={**env, "ITERM_PROFILE": "Default"})
+        self.assertIn('· alt keys: Option as Meta off in iTerm2 · set "Left Option key: Esc+"', r.stdout)
+        r = self.run_pin("doctor", env={"CLAUDE_PINS_OS": "darwin", "TERM_PROGRAM": "tmux"})
+        self.assertIn("· alt keys: Option as Meta unknown (terminal not recognised) · set the terminal's Option as Meta switch",
+                      r.stdout)
+        r = self.run_pin("doctor", env={"CLAUDE_PINS_OS": "linux", "LC_TERMINAL": "iTerm2"})      # ssh from iTerm2
+        self.assertIn('· alt keys: Option as Meta off in iTerm2 · set "Left Option key: Esc+"', r.stdout)
+        self.assertNotIn("alt keys", self.run_pin("doctor", env={"CLAUDE_PINS_OS": "linux"}).stdout)
 
     def test_doctor_without_fzf_exits_zero(self):
         r = self.run_pin("doctor", env={"CLAUDE_PINS_FZF": str(self.root / "no-such-fzf")})

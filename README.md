@@ -29,9 +29,9 @@ terminal-only.
 
 2. Run `/pins:install` once. It symlinks `bin/pin` into `~/.local/bin`, installs bash or zsh
    completion for the shell you use, and runs `pin doctor`, which checks for **fzf ≥ 0.44**
-   (recommended: without it a built-in picker draws the same screens, minus fzf's ranking of
-   matches) and **ccusage** (optional; only for the cost line). `/pins:doctor` runs the same
-   checks later and explains each line.
+   (optional: without it a built-in picker draws the same screens) and **ccusage** (optional;
+   only for the cost line), and on a Mac says whether the terminal sends Option as Meta, which
+   the alt keys need. `/pins:doctor` runs the same checks later and explains each line.
 
 Python 3.10+ standard library only. Linux and macOS (WSL counts as Linux).
 
@@ -94,7 +94,10 @@ ctrl-r resets a row, alt-r resets all) or by editing `~/.config/claude-pins/keys
 whose action names are `open`, `open_fork`, `open_worktree`, `palette`, `edit`, `details`,
 `touch`, `keep`, `fork_mode`, `worktree_mode`, `unpin`, `new`, `expired`, `prune`, `undo`,
 `sort`, `preview`, `refresh`, `help`, `select`. fzf's own query-editing keys and alt+enter (Windows
-Terminal) are avoided on purpose. Markers: 🟢 open · 🚩 keep · 🔀 fork · 🌳 worktree · ⏳ expiring ·
+Terminal) are avoided on purpose. The palette, refresh, edit and new pin are on keys that reach
+a program in every terminal, VS Code's included (ctrl-space and ctrl-alt-r never do there, and
+VS Code keeps f1 for its own command palette: the help screen is in the actions palette).
+Markers: 🟢 open · 🚩 keep · 🔀 fork · 🌳 worktree · ⏳ expiring ·
 🔴 expired. On a terminal without emoji (a non-UTF-8 locale, the Linux console, `TERM=dumb`) they
 become the one-cell ● ⚑ ⑂ ⌂ ⧗ ✗ in the same colours, the 📌 leaves the prompt and the
 pinned tag's 📌 becomes ⚲;
@@ -139,6 +142,26 @@ something changed. Every other question on the way (a new pin's alias, a key to 
 a missing directory, a branch mismatch, a session already open) is a screen too: nothing
 drops to a text prompt.
 
+### Alt keys on macOS
+
+Every macOS terminal starts with the Option key typing symbols and accents, so alt-i, alt-t and
+the other alt keys do nothing until the terminal is told to send Option as Meta (Esc+). The
+picker names the switch on its status line the first time it runs on a Mac, keeps the line on
+the f1 screen until the switch is on, and `pin doctor` reports it. The switches:
+
+| terminal | setting |
+|---|---|
+| Terminal.app | Settings › Profiles › Keyboard › **Use Option as Meta key** |
+| iTerm2 | Settings › Profiles › Keys › **Left Option key: Esc+** |
+| VS Code | `"terminal.integrated.macOptionIsMeta": true` in settings.json |
+| Ghostty | `macos-option-as-alt = true` in `~/.config/ghostty/config` |
+| Kitty | `macos_option_as_alt yes` in `kitty.conf` |
+| Alacritty | `[window]` `option_as_alt = "Both"` in `alacritty.toml` |
+| WezTerm | on by default |
+
+The keys that need no switch (enter, tab, f1, f2, ctrl-x, ctrl-r, ctrl-t) cover the palette,
+and the palette lists every action.
+
 ### Without fzf
 
 When fzf is missing or older than 0.44 (or with `--no-fzf`), `pin` draws the same screens itself:
@@ -150,13 +173,11 @@ separates terms that must all match, `'exact`, `^prefix`, `suffix$`, `!not`, `a 
 with a capital letter is case-sensitive. The mouse works: a click moves the cursor, a
 double-click opens, a right click toggles a selection, the wheel moves through the list or
 scrolls the pane (shift-up / shift-down scroll it from the keyboard); select text with
-shift-drag while the picker is up. What the built-in picker lacks is fzf's ranking: rows stay in
-list order rather than best match first. `pin doctor` says which picker is in use and how to
-install fzf, the built-in picker says so once on its status line the first time it runs, and
-the f1 screen keeps one line about it; nothing else nags. `pin _keys` names every key and mouse
-event as the picker reads it, for checking a terminal. On Terminal.app and iTerm2 the alt keys
-need "Use Option as Meta key" / "Esc+", as with fzf. A question asked where there is no terminal
-(a pipe, a script) is cancelled.
+shift-drag while the picker is up. Rows keep their order under both pickers (fzf runs with
+`--no-sort`, so the sort you chose holds while you type). `pin doctor` says whether fzf was
+found and how to install it. `pin _keys` names every key and mouse event as the picker reads
+it, for checking a terminal. A question asked where there is no terminal (a pipe, a script) is
+cancelled.
 
 ## Command line
 
@@ -187,7 +208,7 @@ Every subcommand exits 0 on success and 1 with a one-line message on `stderr` ot
 | `pin undo` | restore the last unpin or prune (the last ten are kept); a restored alias that is taken meanwhile comes back as `alias-2` |
 | `pin prune [-y]` | unpin every expired pin after listing them and asking; `-y` skips the question; "nothing to prune" otherwise |
 | `pin touch <alias>` | bump the transcript's mtime, restarting its retention clock |
-| `pin doctor` | fzf version (a recommendation: `·` with the install command when it is missing or old), ccusage and its price coverage across your sessions, store health, projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
+| `pin doctor` | fzf version (optional: `·` with the install command when it is missing or old), on a Mac whether the terminal sends Option as Meta, ccusage and its price coverage across your sessions, store health, projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
 
 Every run of any of these also touches the transcripts of pins with `keep`.
 
@@ -205,7 +226,7 @@ Every run of any of these also touches the transcripts of pins with `keep`.
 | `CLAUDE_PINS_GLYPHS` | `emoji` or `text` markers (default: emoji on a UTF-8 locale outside the Linux console) |
 | `NO_COLOR` / `CLAUDE_PINS_COLOR=0` / `CLAUDE_PINS_COLOR=1` | never / never / always color |
 | `CLAUDE_PINS_FZF`, `CLAUDE_PINS_CCUSAGE` | alternate binaries |
-| `CLAUDE_PINS_PS`, `CLAUDE_PINS_NOW`, `CLAUDE_PINS_TUI_SCRIPT`, `CLAUDE_PINS_TUI_LOG` | test hooks: a fake process table file, a fake clock (epoch seconds), a scripted terminal for the built-in picker and its log |
+| `CLAUDE_PINS_PS`, `CLAUDE_PINS_NOW`, `CLAUDE_PINS_TUI_SCRIPT`, `CLAUDE_PINS_TUI_LOG`, `CLAUDE_PINS_OS` | test hooks: a fake process table file, a fake clock (epoch seconds), a scripted terminal for the built-in picker and its log, a fake platform (`darwin`, `linux`) for the Option-as-Meta check |
 
 ## Development
 

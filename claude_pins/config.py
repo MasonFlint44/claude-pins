@@ -43,8 +43,8 @@ def cache_dir() -> Path:
 
 
 def noted_file() -> Path:
-    """Marks that the built-in picker's one-time note has been shown (next to the cost cache)."""
-    return cache_dir() / "built-in-picker-noted"
+    """Marks that the picker's one-time note about alt keys on macOS has been shown (next to the cost cache)."""
+    return cache_dir() / "alt-keys-noted"
 
 
 def config_dir() -> Path:

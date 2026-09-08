@@ -30,7 +30,8 @@ ENV_KEYS = [
     "CLAUDE_PINS_PS", "CLAUDE_PINS_FZF", "CLAUDE_PINS_CCUSAGE", "CLAUDE_PINS_TEST_INPUT",
     "COLUMNS", "LINES", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CLAUDE_PINS_FZF_STUB_VERSION",
     "FZF_COLUMNS", "CLAUDE_PINS_GLYPHS", "LC_ALL", "LC_CTYPE", "LANG", "CLAUDE_PINS_TUI_SCRIPT",
-    "CLAUDE_PINS_TUI_LOG", "TERM", "ESCDELAY",
+    "CLAUDE_PINS_TUI_LOG", "TERM", "ESCDELAY", "CLAUDE_PINS_OS", "TERM_PROGRAM", "LC_TERMINAL", "ITERM_PROFILE",
+    "KITTY_WINDOW_ID", "KITTY_CONFIG_DIRECTORY", "ALACRITTY_WINDOW_ID",
 ]
 
 
@@ -84,6 +85,7 @@ class Sandbox(unittest.TestCase):
                 os.environ.pop(k, None)
         os.environ["PATH"] = f"{self.bindir}:/usr/bin:/bin:/usr/local/bin"
         os.environ["NO_COLOR"] = "1"
+        os.environ["CLAUDE_PINS_OS"] = "linux"          # no alt-keys note, whatever the runner (macOS CI included)
         os.environ["COLUMNS"] = "100"
         os.environ["CLAUDE_PINS_GLYPHS"] = "emoji"     # what a UTF-8 terminal gets; the text set has its own tests
         self.write_settings({})

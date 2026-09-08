@@ -39,8 +39,9 @@ idempotent; run it again after a plugin update.
      ```
 4. Run `"${CLAUDE_PLUGIN_ROOT}/bin/pin" doctor` and quote its lines as printed, all of them,
    rather than summarizing: each line is a check the user may need to act on later. It reports the fzf version
-   (0.44 or newer is recommended: without it a built-in picker draws the same screens, minus
-   fzf's ranking of matches, and the doctor prints the one-line static-binary install), whether ccusage is installed
+   (optional: without it a built-in picker draws the same screens, and the doctor prints the
+   one-line static-binary install), on a Mac whether the terminal sends Option as Meta (the alt
+   keys need it; the line names the terminal's setting), whether ccusage is installed
    (`npm i -g ccusage`; optional, only for the cost line), the pin store, and the Claude
    projects directory.
 5. Finish with the two-line usage reminder: `pin` opens the picker, `/pins:pin` pins the current

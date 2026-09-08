@@ -4,7 +4,7 @@
     "should_trigger": true
   },
   {
-    "query": "pin says 'built-in picker in use' instead of using fzf, why is that",
+    "query": "in the pin picker alt-i and alt-t don't do anything on my mac, they just type weird characters",
     "should_trigger": true
   },
   {

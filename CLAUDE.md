@@ -36,6 +36,36 @@ reasons behind several design choices and are recorded nowhere else.
   the help screen's reset keys are ctrl-r and alt-r rather than `r` and `R`.
   Its own editing keys are left alone so the filter stays editable, and alt+enter
   is avoided because Windows Terminal takes it.
+- The fzf backend has passed `--no-sort --tiebreak=index` since the first
+  commit, so fzf never ranked rows here and the alt-s order holds while typing
+  under both backends. That is why fzf is documented as optional rather than
+  recommended: what it adds over the built-in picker is nothing a user sees.
+- VS Code's integrated terminal keeps these keys from the shell by default (its
+  `DEFAULT_COMMANDS_TO_SKIP_SHELL` plus the find, history and suggest
+  contributions, read from the vscode main branch): f1 and ctrl-shift-p, f3,
+  f5, f10, f11, ctrl-shift-b, ctrl-p, ctrl-f, ctrl-g, ctrl-alt-r and
+  ctrl-space (terminal suggest, on by default). ctrl-r, f2, ctrl-x and ctrl-t
+  reach the shell, which is why the palette is ctrl-x, refresh ctrl-r, edit
+  f2, new pin ctrl-t and the help screen's reset-all alt-r; help stays f1
+  because the palette lists it. Alt keys reach the shell there on Linux and
+  Windows but on macOS only with `terminal.integrated.macOptionIsMeta`.
+- Every macOS terminal starts with Option typing symbols and accents, so the
+  alt keys are dead until a per-terminal switch is on. `claude_pins/mac.py`
+  names the terminal from `TERM_PROGRAM` (Apple_Terminal, iTerm.app, vscode,
+  ghostty, WezTerm), `KITTY_WINDOW_ID` or `TERM=xterm-kitty`, and
+  `ALACRITTY_WINDOW_ID`, and reads the switch where each keeps it: Terminal.app
+  `~/Library/Preferences/com.apple.Terminal.plist` (the default profile's
+  `useOptionAsMetaKey`), iTerm2 `com.googlecode.iterm2.plist` (the
+  `ITERM_PROFILE` entry of "New Bookmarks", "Option Key Sends" 2 is Esc+; 1 is
+  Meta, which sets the high bit and is no use), VS Code's user `settings.json`
+  (searched, not parsed: it allows comments), Ghostty's config (the
+  Application Support file is loaded after the XDG one and wins), `kitty.conf`,
+  `alacritty.toml`; WezTerm sends Meta by default. Over ssh only iTerm2 says
+  who it is (`LC_TERMINAL`). Unreadable or unparsable is unknown, which shows
+  the note like off; only a switch read as on silences it, so a user who set it
+  is never nagged. The keymap is not per-OS: one shortcut inside and outside
+  VS Code, on every platform, was the deciding point, so the palette and the
+  frequent actions sit on keys that need no switch.
 - `--header-first` draws the header above the prompt. Its last line is a status
   line (the flash, the too-short note, or a space: fzf drops a trailing newline
   in `--header` but keeps a line holding a space), so a flash never displaces
@@ -150,9 +180,9 @@ gap row and a plain gutter, so the test skips there):
 - The matcher is fzf's extended syntax over the `--nth` span of the plain row
   (fields keep their trailing delimiter), and its anchored forms step over the
   text's own whitespace the way fzf's `PrefixMatch`/`SuffixMatch`/`EqualMatch`
-  do, or `mower$` could never match a directory column. Rows keep their order:
-  fzf's ranking is not reproduced. `tests/test_fzf_real.py` checks that both
-  keep the same rows for a list of queries on every screen.
+  do, or `mower$` could never match a directory column. Rows keep their order,
+  as under fzf. `tests/test_fzf_real.py` checks that both keep the same rows
+  for a list of queries on every screen.
 - Mouse reporting is xterm 1000 with the SGR form 1006 (release events, no
   223-cell limit) and is switched off on every exit path; fzf's double-click
   window is 500 ms on one cell.
@@ -177,9 +207,10 @@ gap row and a plain gutter, so the test skips there):
   the stub's argv. A pty test cannot use `wait_for(fresh=True)` against the
   built-in picker: it enters the alternate screen once and redraws every screen
   over the last, so each wait clears what was read and looks at the new frame.
-- The one-time fzf note is remembered by `config.noted_file()` in the cache
-  directory; the pty and parity tests touch it first so their first screen is
-  the ordinary one.
+- The one-time alt-keys note is remembered by `config.noted_file()` in the
+  cache directory; the pty and parity tests touch it first so their first
+  screen is the ordinary one, and `tests/helpers.Sandbox` sets
+  `CLAUDE_PINS_OS=linux` so the macOS runner never sees the note unasked.
 
 ## Verify before committing
 

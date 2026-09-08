@@ -6,7 +6,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-from . import actions, config, fzf, prompt
+from . import actions, config, mac, prompt
 from .editor import edit_pin
 from .keymap import ACTIONS, BY_ID, GROUPS, Keymap, key_warning, validate_key
 from .listing import build_views
@@ -43,11 +43,17 @@ def list_items(views: list[View], km: Keymap, color, width: int | None = None) -
     return items
 
 
+def alt_keys_note() -> str:
+    """What the help screen says about alt keys: on a Mac whose terminal is not sending Option as Meta,
+    the switch to set (``mac.option_as_meta``); nothing elsewhere or once the switch is on."""
+    probe = mac.option_as_meta()
+    return probe.note() if probe and not probe.on else ""
+
+
 def first_run_note() -> str:
-    """The built-in picker says once, on the status line, that fzf would add ranked matching; a marker
-    file in the cache directory remembers that it has (the rest of the nudge is doctor and the help
-    screen, so the picker itself never nags)."""
-    note = fzf.nudge()
+    """The alt-keys note once, on the status line, the first time the picker runs; a marker file in the
+    cache directory remembers that it has (the help screen keeps the line, so the picker never nags)."""
+    note = alt_keys_note()
     if not note:
         return ""
     marker = config.noted_file()
@@ -319,8 +325,8 @@ class Picker:
             items = [Item(i, line) for i, line in zip(ids, grouped(table, self.color))]
             hints = "enter rebind · ctrl-r reset row · alt-r reset all · esc back"
             extra = [self.color("keymap: " + config.tilde(config.keymap_file()), "dim")]
-            if fzf.nudge():
-                extra.append(self.color(fzf.nudge(), "dim"))
+            if alt_keys_note():
+                extra.append(self.color(alt_keys_note(), "dim"))
             header = self.header(hints, *extra, legend=legend())
             res = show(Screen(items, prompt=crumb("help"), header=header, expect=["ctrl-r", "alt-r"]))
             self.state.flash = ""

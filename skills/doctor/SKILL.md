@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Diagnose the pins plugin — why `pin` says the built-in picker is in use instead of fzf, why the cost line says "no price" or "install ccusage", why a pin shows as expired, or whether the pin store and Claude's projects directory are in order. Use when the user says pins are broken, slow, show no cost, lost a pin, asks what a `pin doctor` line means, or asks whether pins are working. A `pin` command that is not found is the install skill's job.
+description: Diagnose the pins plugin — why the picker's alt keys do nothing on a Mac, why `pin doctor` says fzf is not found, why the cost line says "no price" or "install ccusage", why a pin shows as expired, or whether the pin store and Claude's projects directory are in order. Use when the user says pins are broken, slow, show no cost, lost a pin, asks what a `pin doctor` line means, or asks whether pins are working. A `pin` command that is not found is the install skill's job.
 allowed-tools: Bash
 ---
 
@@ -20,7 +20,8 @@ skill runs it and turns each line into a fix.
 
    | Doctor says | What it means | Fix |
    |---|---|---|
-   | `· fzf: not found` / `need ≥ 0.44` | fzf is recommended, not required: `pin` draws the same screens itself, without fzf's ranking of matches | the line carries the static-binary install command; `brew install fzf` on macOS; nothing to fix if the user is happy without |
+   | `· fzf: not found` / `need ≥ 0.44` | fzf is optional: `pin` draws the same screens itself | the line carries the static-binary install command; `brew install fzf` on macOS; nothing to fix if the user is happy without |
+   | `· alt keys: Option as Meta off/unknown in X` | on a Mac the terminal types symbols on Option, so the picker's alt keys (alt-i, alt-t …) do nothing until it sends Option as Meta; the line names the terminal's setting | turn the named setting on (Terminal.app: Profiles › Keyboard › Use Option as Meta key; iTerm2: Profiles › Keys › Left Option key: Esc+; VS Code: `terminal.integrated.macOptionIsMeta`; Ghostty `macos-option-as-alt`; Kitty `macos_option_as_alt`; Alacritty `window.option_as_alt`); the keys without alt (ctrl-x palette, f2, ctrl-r, ctrl-t) work regardless |
    | `✗ ccusage: not installed` | the cost line is the only thing that needs it | `npm i -g ccusage@latest`, optional |
    | `· ccusage …: offline table has no price for X; the online fallback prices them` | ccusage's bundled prices predate model X; `pin` goes online once per changed transcript for those sessions | `npm i -g ccusage@latest` once a release adds the price; harmless otherwise |
    | `· ccusage …: no price for X even online` | no price table knows X yet | wait for ccusage; the cost line shows `≥` the priced part |

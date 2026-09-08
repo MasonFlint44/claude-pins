@@ -5,7 +5,7 @@ one enough. A term is fuzzy (its characters in order, anywhere) unless it starts
 text), ``^`` (a prefix) or ends with ``$`` (a suffix), ``^…$`` both; ``!`` in front negates any of them.
 A term with an upper-case letter is matched case-sensitively, otherwise case does not matter (smart
 case). Matched characters come back as positions so the rows can highlight them; the list keeps its
-order, since fzf's ranking is not reproduced here.
+order, as they do under fzf, which the picker runs with ``--no-sort``.
 
 ``--nth`` narrows what a query sees: with ``nth="1..3"`` over a row whose columns are tab-separated,
 only the text from the first to the third column is searched, as fzf does.
