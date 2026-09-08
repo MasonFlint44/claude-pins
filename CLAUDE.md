@@ -317,12 +317,19 @@ tests/terminals/run.sh                 # every key in real Linux terminals under
 - ccusage cost is read from `ccusage session --json`: try `--offline` first and
   go online only for models offline cannot price (see `claude_pins/cost.py`).
   The `--id` form reports every cost as 0 and is unusable.
+- A change a user would notice gets its bullet under `## Unreleased` at the
+  top of `CHANGELOG.md` in the same commit, written for the user, not the
+  code. The release only dates that section, so its notes are complete when
+  the release is cut rather than reconstructed from the log; after a release
+  the section is gone, so the next such change starts it again.
 - Commits end with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`
   and nothing else. No session-link trailer: the repository is public.
 
 ## Releasing
 
-1. Add a `## X.Y.Z — YYYY-MM-DD` section to `CHANGELOG.md`.
+1. Rename `## Unreleased` in `CHANGELOG.md` to `## X.Y.Z — YYYY-MM-DD`, after
+   reading its bullets against `git log` since the last tag for anything a
+   user would notice that was left out.
 2. Set the version in `.claude-plugin/plugin.json` and `claude_pins/__init__.py`
    with a targeted edit, not a read-then-write one-liner (the test suite checks
    the three agree, and an emptied `__init__.py` has happened before).
