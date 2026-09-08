@@ -335,10 +335,10 @@ class FzfWrapperTests(Sandbox):
 class KeymapFileTests(Sandbox):
     def test_parse_and_bad_entries(self):
         from claude_pins.keymap import Keymap, parse
-        text = '# comment\n[section]\nopen = "enter" # trailing\n"quoted" = x\nnoequals\nnew = \'alt-n\'\nunknown = "f9"\n'
-        self.assertEqual(parse(text), {"open": "enter", '"quoted"': "x", "new": "alt-n", "unknown": "f9"})
+        text = '# comment\n[section]\nopen = "enter" # trailing\n"quoted" = x\nnoequals\nnew = \'ctrl-t\'\nunknown = "f9"\n'
+        self.assertEqual(parse(text), {"open": "enter", '"quoted"': "x", "new": "ctrl-t", "unknown": "f9"})
         km = Keymap(parse(text))
-        self.assertEqual(km.key("new"), "alt-n"); self.assertEqual(km.key("unknown"), "")
+        self.assertEqual(km.key("new"), "ctrl-t"); self.assertEqual(km.key("unknown"), "")
         self.assertEqual(km.label("new"), "New pin…")
         with self.assertRaises(KeyError):
             km.set("unknown", "f9")

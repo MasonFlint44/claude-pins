@@ -58,7 +58,7 @@ class PickerTests(FzfSandbox):
         self.assertRegex(rows[2], r"rc-mower\s.*~\s+26d\s+⏳$")
         header = plain(self.arg(call, "--header")).split("\n")
         self.assertTrue(header[0].startswith("🟢 open  🚩 keep"))    # the legend first, over the hints (100 columns)
-        self.assertEqual(header[1], "enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help")
+        self.assertEqual(header[1], "enter open · ctrl-x actions · f2 edit · ctrl-t new · alt-i details · f1 help")
         self.assertEqual(header[2:], [" "])                            # the status line, blank: a gap above the prompt
 
     def test_theme_and_glyph_switches(self):
@@ -107,7 +107,7 @@ class PickerTests(FzfSandbox):
         self.assertEqual(header[2], "✓ touched rc-mower")          # the flash takes the status line
         self.assertEqual(len(header), 3)
         self.assertTrue(header[0].startswith("🟢 open  🚩 keep"))    # the legend stays
-        self.assertIn("enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help", header[1])
+        self.assertIn("enter open · ctrl-x actions · f2 edit · ctrl-t new · alt-i details · f1 help", header[1])
         self.assertNotIn("✓", plain(self.arg(calls[0], "--header")))
         # rc-mower is now newest → first row, and the cursor is restored on it via start:pos
         rows = self.pin_rows(calls[1])
@@ -180,11 +180,11 @@ class PickerTests(FzfSandbox):
         lines = [plain(l) for l in call["lines"]]
         self.assertEqual(len(lines), 1)                 # the message takes the sticky row: nothing to select
         self.assertIn("--header-lines=1", call["argv"])
-        self.assertIn("No pins yet. alt-n pins a recent session, or run /pins:pin inside a Claude session.", lines[0])
+        self.assertIn("No pins yet. ctrl-t pins a recent session, or run /pins:pin inside a Claude session.", lines[0])
         self.assertTrue(lines[0].startswith("-\t"))
 
     def test_palette_grouped_and_context(self):
-        self.steps({"key": "ctrl-space", "select": ["standup-prep"]}, {"key": "", "select": ["touch"]}, {"abort": True})
+        self.steps({"key": "ctrl-x", "select": ["standup-prep"]}, {"key": "", "select": ["touch"]}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
         pal = calls[1]
@@ -206,12 +206,12 @@ class PickerTests(FzfSandbox):
 
     def test_palette_expired_and_multi(self):
         self.t3.unlink()
-        self.steps({"key": "alt-a"}, {"key": "ctrl-space", "select": ["rc-mower"]}, {"abort": True}, {"abort": True})
+        self.steps({"key": "alt-a"}, {"key": "ctrl-x", "select": ["rc-mower"]}, {"abort": True}, {"abort": True})
         self.run_pin()
         rows = self.labels(self.fzf_calls()[2])
         self.assertFalse(any(r.startswith(("Open", "Touch")) for r in rows))
         self.assertTrue(any(r.startswith("Unpin") for r in rows))
-        self.steps({"key": "ctrl-space", "select": ["standup-prep", "cc-collector"]}, {"key": "", "select": ["unpin"]}, {"abort": True})
+        self.steps({"key": "ctrl-x", "select": ["standup-prep", "cc-collector"]}, {"key": "", "select": ["unpin"]}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
         self.assertEqual(self.arg(calls[-2], "--prompt"), "📌 pins › 2 selected › actions › ")
@@ -221,7 +221,7 @@ class PickerTests(FzfSandbox):
 
     def test_palette_open_when_already_open(self):
         ps = self.root / "ps.txt"; ps.write_text(f"claude --resume {SID1}\n")
-        self.steps({"key": "ctrl-space", "select": ["standup-prep"]}, {"abort": True}, {"abort": True})
+        self.steps({"key": "ctrl-x", "select": ["standup-prep"]}, {"abort": True}, {"abort": True})
         self.run_pin(env={"CLAUDE_PINS_PS": str(ps)})
         rows = self.labels(self.fzf_calls()[1])
         self.assertTrue(any(r.startswith("Resume anyway (open in another tab)") for r in rows))
@@ -229,14 +229,14 @@ class PickerTests(FzfSandbox):
 
     def test_help_screen_rebind_reset(self):
         self.steps({"key": "f1"}, {"key": "", "select": ["touch"]}, {"query": "f5"}, {"key": "ctrl-r", "select": ["touch"]},
-                   {"key": "ctrl-alt-r"}, {"abort": True}, {"abort": True})
+                   {"key": "alt-r"}, {"abort": True}, {"abort": True})
         r = self.run_pin()
         calls = self.fzf_calls()
         help_call = calls[1]
         self.assertEqual(self.arg(help_call, "--prompt"), "📌 pins › help › ")
         header = plain(self.arg(help_call, "--header")).split("\n")
         self.assertTrue(header[0].startswith("🟢 open  🚩 keep  🔀 fork  🌳 worktree  ⏳ expiring  🔴 expired"))
-        self.assertEqual(header[1], "enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back")
+        self.assertEqual(header[1], "enter rebind · ctrl-r reset row · alt-r reset all · esc back")
         self.assertEqual(header[2:], ["keymap: ~/.config/claude-pins/keys.toml", " "])
         self.assertTrue(any(b.startswith("focus:transform-header(") for b in self.binds(help_call)))  # re-fits too
         self.assertFalse(any(l.startswith("-\t") for l in help_call["lines"]))   # every row is an action
@@ -279,7 +279,7 @@ class PickerTests(FzfSandbox):
     def test_new_pin_flow(self):
         sid4 = "44444444-4444-4444-4444-444444444444"
         self.make_session(sid4, cwd=str(self.home / "Documents"), age_days=0.1, title="Tax prep questions", n_turns=9)
-        self.steps({"key": "alt-n"}, {"key": "", "select": [f"{sid4}"]}, {"query": ""}, {"abort": True})
+        self.steps({"key": "ctrl-t"}, {"key": "", "select": [f"{sid4}"]}, {"query": ""}, {"abort": True})
         r = self.run_pin()
         calls = self.fzf_calls()
         new_call = calls[1]
@@ -300,7 +300,7 @@ class PickerTests(FzfSandbox):
         self.assertTrue(self.pin_rows(calls[3])[0].startswith("tax-prep-questions\t"))
 
     def test_new_pin_already_pinned(self):
-        self.steps({"key": "alt-n"}, {"key": "", "select": [SID1]}, {"abort": True})
+        self.steps({"key": "ctrl-t"}, {"key": "", "select": [SID1]}, {"abort": True})
         self.run_pin()
         self.assertIn("already pinned as standup-prep", plain(self.arg(self.fzf_calls()[2], "--header")))
 
@@ -360,7 +360,7 @@ class PickerTests(FzfSandbox):
         self.assertEqual(self.claude_calls()["cwd"], str(self.home / "git" / "cc"))
 
     def test_edit_from_picker(self):
-        self.steps({"key": "alt-e", "select": ["standup-prep"]},
+        self.steps({"key": "f2", "select": ["standup-prep"]},
                    {"key": "", "select": ["title"]},     # editor: pick title field
                    {"query": "Standup prep (Tue)"},      # typed on the query line
                    {"key": "alt-s"},                      # save
@@ -376,7 +376,7 @@ class PickerTests(FzfSandbox):
     def test_open_expired_and_no_selection(self):
         self.t3.unlink()
         self.steps({"key": "alt-a"}, {"key": "", "select": ["rc-mower"]}, {"key": "", "select": []},
-                   {"key": "alt-t", "select": []}, {"key": "ctrl-space", "select": []}, {"abort": True})
+                   {"key": "alt-t", "select": []}, {"key": "ctrl-x", "select": []}, {"abort": True})
         r = self.run_pin()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("✗ rc-mower: transcript for session 33333333… is gone (expired) · pin unpin rc-mower",
@@ -427,20 +427,20 @@ class PickerTests(FzfSandbox):
         self.assertIn("✓ Touch transcript: (unbound)", self.header_after(3))
 
     def test_new_pin_cancel_taken_and_empty(self):
-        self.steps({"key": "alt-n"}, {"abort": True}, {"abort": True})
+        self.steps({"key": "ctrl-t"}, {"abort": True}, {"abort": True})
         self.run_pin()
         self.assertEqual(len(self.fzf_calls()), 3)
         sid4 = "44444444-4444-4444-4444-444444444444"
         self.make_session(sid4, age_days=0.1, title="Fresh")
         self.fzf_log.unlink()
-        self.steps({"key": "alt-n"}, {"key": "", "select": [sid4]}, {"query": "rc-mower"}, {"abort": True}, {"abort": True})
+        self.steps({"key": "ctrl-t"}, {"key": "", "select": [sid4]}, {"query": "rc-mower"}, {"abort": True}, {"abort": True})
         r = self.run_pin()  # taken alias, then esc cancels
         self.assertIn("✗ alias rc-mower is taken", self.header_after(3))    # the retry says why
         self.assertEqual(self.arg(self.fzf_calls()[3], "--query"), "fresh")   # and offers the suggestion again
         self.assertNotIn("fresh", self.stored())
         for t in (self.t1, self.t2, self.t3, self.project_dir(str(self.home / "git" / "proj")) / f"{sid4}.jsonl"):
             t.unlink()
-        self.steps({"key": "alt-n"}, {"abort": True})
+        self.steps({"key": "ctrl-t"}, {"abort": True})
         self.run_pin()
         self.assertIn("no sessions found under ~/.claude/projects", self.header_after())
 
@@ -471,17 +471,17 @@ class PickerTests(FzfSandbox):
         return self.run_pin(*args, **kw)
 
     def test_refresh_reloads_in_place(self):
-        """alt-r is a --bind to reload(pin _rows), not an --expect key; the row command carries the sort,
+        """ctrl-r is a --bind to reload(pin _rows), not an --expect key; the row command carries the sort,
         the expired switch and the launch width."""
         self.steps({"key": "alt-s"}, {"key": "alt-a"}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
         for call in calls:
             self.assertIn("--no-clear", call["argv"])
-            self.assertNotIn("alt-r", self.arg(call, "--expect"))
-        self.assertIn("alt-r:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort recency)", self.binds(calls[0]))
-        self.assertIn("alt-r:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort alias)", self.binds(calls[1]))
-        self.assertIn("alt-r:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort alias --all)",
+            self.assertNotIn("ctrl-r", self.arg(call, "--expect"))
+        self.assertIn("ctrl-r:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort recency)", self.binds(calls[0]))
+        self.assertIn("ctrl-r:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort alias)", self.binds(calls[1]))
+        self.assertIn("ctrl-r:reload(COLUMNS=100 " + os.environ["CLAUDE_PINS_EXE"] + " _rows --sort alias --all)",
                       self.binds(calls[2]))
 
     def test_rows_subcommand_matches_the_screen(self):
@@ -503,7 +503,7 @@ class PickerTests(FzfSandbox):
         for a in ("standup-prep", "cc-collector", "rc-mower"):
             self.run_pin("rm", a)
         self.assertEqual(self.run_pin("_rows").stdout.count("\n"), 1)
-        self.assertIn("-\tNo pins yet. alt-n pins", self.run_pin("_rows").stdout)
+        self.assertIn("-\tNo pins yet. ctrl-t pins", self.run_pin("_rows").stdout)
 
     def test_version_gates(self):
         """Older fzf: the header re-fits on focus and change, reading the size from stty; 0.46 adds the resize
@@ -527,7 +527,7 @@ class PickerTests(FzfSandbox):
         self.assertNotIn("[", change); self.assertNotIn("]", change)
         self.assertEqual(self.env_of(call)["CLAUDE_PINS_NOTE"], "preview hidden: terminal too short")
         self.assertEqual(self.env_of(call)["CLAUDE_PINS_LEGEND_CELLS"], "63")
-        self.assertEqual(self.env_of(call)["CLAUDE_PINS_HINTS_CELLS"], "82")
+        self.assertEqual(self.env_of(call)["CLAUDE_PINS_HINTS_CELLS"], "76")
         self.steps({"key": "alt-v"}, {"abort": True})
         self.run_again(env={"CLAUDE_PINS_FZF_STUB_VERSION": "0.53.0"})
         calls = self.fzf_calls()
@@ -567,15 +567,15 @@ class PickerTests(FzfSandbox):
         self.steps({"key": "f1"}, {"key": "", "select": ["refresh"]}, {"query": "alt-u"}, {"abort": True}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
-        self.assertIn("Refresh               alt-r", self.labels(calls[1]))
+        self.assertIn("Refresh               ctrl-r", self.labels(calls[1]))
         self.assertIn("✓ Refresh: alt-u", plain(self.arg(calls[3], "--header")))
         self.assertIn("Refresh               alt-u", self.labels(calls[3]))
         main = calls[4]
         self.assertNotIn("alt-u", self.arg(main, "--expect"))
-        self.assertNotIn("alt-r", self.arg(main, "--expect"))
+        self.assertNotIn("ctrl-r", self.arg(main, "--expect"))
         self.assertTrue(any(b.startswith("alt-u:reload(") for b in self.binds(main)))
-        self.assertFalse(any(b.startswith("alt-r:") for b in self.binds(main)))
-        self.steps({"key": "ctrl-space", "select": ["standup-prep"]}, {"key": "", "select": ["refresh"]}, {"abort": True})
+        self.assertFalse(any(b.startswith("ctrl-r:") for b in self.binds(main)))
+        self.steps({"key": "ctrl-x", "select": ["standup-prep"]}, {"key": "", "select": ["refresh"]}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
         self.assertIn("Refresh                     alt-u", self.labels(calls[-2]))

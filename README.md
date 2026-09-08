@@ -7,7 +7,7 @@ and `/pins:unpin` slash commands shipped as a Claude Code plugin.
 ![the pin picker: four pins, a preview pane with branch, model, context and cost](docs/preview.svg)
 
 ```
-$ pin                 # picker: enter opens, ctrl-space actions, alt-n pins a recent session, f1 help
+$ pin                 # picker: enter opens, ctrl-x actions, ctrl-t pins a recent session, f1 help
 $ pin standup         # one match → cd there and `claude --resume <id>`; several → picker pre-filtered
 $ pin rc-mower --fork # one-off fork (new session id, original untouched)
 $ pin add "rc mower" mower   # pin by title from the terminal; pin sessions lists what it matches
@@ -78,19 +78,19 @@ completion link; the store and cache below can go too.
 
 | action | key | | action | key |
 |---|---|---|---|---|
-| open | enter | | new pin… | alt-n |
+| open | enter | | new pin… | ctrl-t |
 | open as fork | alt-o | | show expired | alt-a |
 | open in new worktree | alt-w | | prune… | alt-p |
-| actions palette | ctrl-space | | undo | alt-z |
-| edit… | alt-e | | cycle sort | alt-s |
+| actions palette | ctrl-x | | undo | alt-z |
+| edit… | f2 | | cycle sort | alt-s |
 | details | alt-i | | toggle preview | alt-v |
 | touch transcript | alt-t | | help / shortcuts | f1 |
-| toggle keep | alt-k | | refresh | alt-r |
+| toggle keep | alt-k | | refresh | ctrl-r |
 | unpin | alt-x | | multi-select | tab |
 
 Esc always goes back exactly one level. Toggle fork mode and toggle worktree mode have no
 default key; both live in the palette. Every key is remappable from the f1 screen (enter rebinds,
-ctrl-r resets a row, ctrl-alt-r resets all) or by editing `~/.config/claude-pins/keys.toml`,
+ctrl-r resets a row, alt-r resets all) or by editing `~/.config/claude-pins/keys.toml`,
 whose action names are `open`, `open_fork`, `open_worktree`, `palette`, `edit`, `details`,
 `touch`, `keep`, `fork_mode`, `worktree_mode`, `unpin`, `new`, `expired`, `prune`, `undo`,
 `sort`, `preview`, `refresh`, `help`, `select`. fzf's own query-editing keys and alt+enter (Windows
@@ -117,7 +117,7 @@ details on a screen of their own, with more of the last exchange, and enter ther
 Directories shorten fish-style when the column is narrow (`~/g/c/claude-pins`), keeping the last
 component; a Claude worktree shows as `~/git/repo › name`.
 
-The list is read from the store every time a screen returns; alt-r re-reads it in place, for a
+The list is read from the store every time a screen returns; ctrl-r re-reads it in place, for a
 picker left open while another terminal pinned something. On fzf 0.46 and newer the rows also
 re-fit themselves when the terminal is resized, and the header follows the width and the
 height; 0.44 and 0.45 refit the rows at the next screen and the header on the next cursor
@@ -125,7 +125,7 @@ move or keystroke. On 0.63 and newer a blank row separates the prompt from the l
 that fzf draws the column labels above the prompt. On 0.65.2 and newer the counter reads
 `3 of 5 pins · 2 selected`.
 
-alt-n lists the 200 most recent sessions under the same kind of column labels (title,
+ctrl-t lists the 200 most recent sessions under the same kind of column labels (title,
 directory, idle, msgs) and filters them by title and directory; a session that is already
 pinned ends its row with 📌 and the pin's alias, so enter there just says which pin it is.
 

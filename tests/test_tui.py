@@ -331,14 +331,14 @@ class FrameTests(TuiSandbox):
 
     def test_header_fits_the_width(self):
         from claude_pins.render import legend
-        hints = "enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help"
+        hints = "enter open · ctrl-x actions · f2 edit · ctrl-t new · alt-i details · f1 help"
         screen = Screen(self.rows(), prompt="> ", header=Header(hints, legend=legend(), note="preview hidden: terminal too short"),
                         header_lines=1, preview=Hook("preview"))
-        res, frame = self.run_screen(screen, ["@enter"], cols=153, rows=30)
+        res, frame = self.run_screen(screen, ["@enter"], cols=147, rows=30)
         self.assertRegex(frame[0], r"^  🟢 open .*🔴 expired    enter open .* f1 help$")   # one line, four cells between
         self.assertEqual(frame[1], "")
         self.assertEqual(frame[2], ">")                                         # the prompt line (frames are rstripped)
-        res, frame = self.run_screen(screen, ["@enter"], cols=152, rows=30)
+        res, frame = self.run_screen(screen, ["@enter"], cols=146, rows=30)
         self.assertTrue(frame[0].startswith("  🟢 open") and frame[1].startswith("  enter open"))   # one short: stacked
         res, frame = self.run_screen(screen, ["@enter"], cols=100, rows=30)
         self.assertTrue(frame[0].startswith("  🟢 open") and frame[1].startswith("  enter open"))   # stacked
@@ -355,7 +355,7 @@ class FrameTests(TuiSandbox):
         from claude_pins.hooks import pin_rows
         items = pin_rows("recency", False, width=60)
         screen = Screen(items, prompt="> ", header_lines=1, nth="1..3", reload=Hook("rows", ("recency", "")),
-                        refresh_key="alt-r", preview=Hook("preview"), label_from_row=True)
+                        refresh_key="ctrl-r", preview=Hook("preview"), label_from_row=True)
         res, frame = self.run_screen(screen, ["@resize:30x120", "@enter"], cols=60, rows=12)
         self.assertEqual(len(frame), 30)
         self.assertRegex(frame[3], r"^> standup-prep  Standup prep\s+~/git/proj\s+1d$")
@@ -364,7 +364,7 @@ class FrameTests(TuiSandbox):
         # the refresh key reloads: a pin added meanwhile appears
         self.make_session(SID2, age_days=0.5, title="Late")
         self.run_pin("add", SID2, "late")
-        res, frame = self.run_screen(screen, ["@alt-r", "@enter"], cols=60, rows=12)
+        res, frame = self.run_screen(screen, ["@ctrl-r", "@enter"], cols=60, rows=12)
         self.assertTrue(any(l.startswith("▌ late") for l in frame))
         self.assertEqual(res.ids, ["standup-prep"])                              # the cursor stayed on its row
 
@@ -439,7 +439,7 @@ class FlowTests(TuiSandbox):
         self.assertRegex(frame, r"\n  alias\s+title\s+directory\s+idle\n▌ standup-prep\s+Standup prep\s+~/git/proj\s+2d\n")
         self.assertRegex(frame, r"\n> rc-mower\s+Navimow schedule debug\s+~\s+26d  ⏳\n")
         self.assertIn("🟢 open  🚩 keep  🔀 fork  🌳 worktree  ⏳ expiring  🔴 expired", frame)
-        self.assertIn("enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help", frame)
+        self.assertIn("enter open · ctrl-x actions · f2 edit · ctrl-t new · alt-i details · f1 help", frame)
         self.assertRegex(frame, r"📌 pins ›\s+2 pins\n")
         self.assertIn("│ session    " + SID2, frame)                            # the pane follows the cursor
         self.assertNotIn("install fzf", frame)                                  # no nagging on the screen
@@ -471,7 +471,7 @@ class FlowTests(TuiSandbox):
 
     def test_new_pin_and_sort(self):
         self.make_session(SID3, cwd=str(self.home / "Documents"), age_days=0.2, title="Tax prep questions")
-        self.steps(["@alt-n"], ["@enter"], ["@enter"], ["@alt-s"], ["@esc", "@pause"])
+        self.steps(["@ctrl-t"], ["@enter"], ["@enter"], ["@alt-s"], ["@esc", "@pause"])
         r = self.run_pin()
         screens = self.screens()
         self.assertEqual(screens[1]["prompt"], "📌 pins › new › ")
@@ -488,26 +488,26 @@ class FlowTests(TuiSandbox):
         self.assertIn("tax-prep-questions", self.stored())
 
     def test_new_pin_edge_cases(self):
-        self.steps(["@alt-n"], ["@esc", "@pause"], ["@esc", "@pause"])          # esc on the session list
+        self.steps(["@ctrl-t"], ["@esc", "@pause"], ["@esc", "@pause"])          # esc on the session list
         r = self.run_pin()
         self.assertNotIn("✓ pinned", self.screens()[2]["header"])
-        self.steps(["@alt-n"], ["@enter"], ["@esc", "@pause"])                  # row 1 is the newest session: pinned
+        self.steps(["@ctrl-t"], ["@enter"], ["@esc", "@pause"])                  # row 1 is the newest session: pinned
         r = self.run_pin()
         self.assertEqual(self.screens()[2]["header"].split("\n")[-1], "already pinned as standup-prep")
         self.make_session(SID3, age_days=0.1, title="Fresh")
-        self.steps(["@alt-n"], ["@enter"], ["@ctrl-u", "rc-mower", "@enter"], ["@esc", "@pause"], ["@esc", "@pause"])
+        self.steps(["@ctrl-t"], ["@enter"], ["@ctrl-u", "rc-mower", "@enter"], ["@esc", "@pause"], ["@esc", "@pause"])
         r = self.run_pin()                                                      # a taken alias: the field asks again
         screens = self.screens()
         self.assertEqual(screens[3]["prompt"], "📌 pins › new › alias › ")
         self.assertIn("✗ alias rc-mower is taken", screens[3]["header"])
         self.assertNotIn("rc-mower-2", self.stored())
         self.t1.unlink(); self.t2.unlink(); (self.project_dir(str(self.home / "git" / "proj")) / f"{SID3}.jsonl").unlink()
-        self.steps(["@alt-n"], ["@esc", "@pause"])
+        self.steps(["@ctrl-t"], ["@esc", "@pause"])
         r = self.run_pin()
         self.assertIn("no sessions found under", self.screens()[1]["header"])
 
     def test_edit_through_the_picker(self):
-        self.steps(["@alt-e"], ["@enter"], [" (Tue)", "@enter"], ["@down"] * 8 + ["@enter"], ["@alt-s"], ["@esc", "@pause"])
+        self.steps(["@f2"], ["@enter"], [" (Tue)", "@enter"], ["@down"] * 8 + ["@enter"], ["@alt-s"], ["@esc", "@pause"])
         r = self.run_pin()
         screens = self.screens()
         self.assertEqual(screens[1]["prompt"], "📌 pins › standup-prep › edit › ")
@@ -593,7 +593,7 @@ class FlowTests(TuiSandbox):
         self.run_pin("rm", "standup-prep"); self.run_pin("rm", "rc-mower")
         self.steps(["@esc", "@pause"])
         r = self.run_pin()
-        self.assertIn("No pins yet. alt-n pins a recent session, or run /pins:pin inside a Claude session.", self.frame())
+        self.assertIn("No pins yet. ctrl-t pins a recent session, or run /pins:pin inside a Claude session.", self.frame())
 
     def test_usable_needs_two_ttys_and_a_real_term(self):
         import io

@@ -317,17 +317,17 @@ class Picker:
                      for a in ACTIONS if a.group == g]
             ids = [a.id for g in GROUPS for a in ACTIONS if a.group == g]
             items = [Item(i, line) for i, line in zip(ids, grouped(table, self.color))]
-            hints = "enter rebind · ctrl-r reset row · ctrl-alt-r reset all · esc back"
+            hints = "enter rebind · ctrl-r reset row · alt-r reset all · esc back"
             extra = [self.color("keymap: " + config.tilde(config.keymap_file()), "dim")]
             if fzf.nudge():
                 extra.append(self.color(fzf.nudge(), "dim"))
             header = self.header(hints, *extra, legend=legend())
-            res = show(Screen(items, prompt=crumb("help"), header=header, expect=["ctrl-r", "ctrl-alt-r"]))
+            res = show(Screen(items, prompt=crumb("help"), header=header, expect=["ctrl-r", "alt-r"]))
             self.state.flash = ""
             if res is None:
                 return
             target = res.ids[0] if res.ids and res.ids[0] != "-" else None
-            if res.key == "ctrl-alt-r":
+            if res.key == "alt-r":
                 self.km.reset(); self.km.save()
                 self.state.flash = "✓ keymap reset to defaults"
                 continue

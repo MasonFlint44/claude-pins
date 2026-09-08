@@ -24,6 +24,11 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   built-in picker says so once on its status line the first time it runs, and
   the f1 screen keeps one line about it. The doctor and install skills say the
   same.
+- **Keys that reach the picker everywhere.** The actions palette is ctrl-x
+  (ctrl-space never reaches a program in VS Code's terminal, which keeps it
+  for its own suggestions), refresh is ctrl-r, edit is f2 and new pin is
+  ctrl-t; the f1 screen's reset-all is alt-r. Alt keys stay for the rest. A
+  saved `keys.toml` keeps whatever it names.
 - `pin _keys` names every key and mouse event as the picker reads it, for
   checking a terminal or a bug report.
 - A question asked where there is no terminal (a pipe, a script) is now

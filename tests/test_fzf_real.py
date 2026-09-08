@@ -129,7 +129,7 @@ class RealFzfTests(FzfSandbox):
         keys = [a.key for a in ACTIONS if a.key and a.key not in ("enter", "tab") and not a.bind]
         transform = fzf.header_transform(bottom_border=True)
         binds = [("focus", f"transform-header({transform})"), ("change", f"transform-header({transform})"),
-                 ("change", f"reload({fzf.pin_exe()} _dirs --gap {{q}})"), ("alt-r", "reload(printf 'L\\na\\tb\\n')")]
+                 ("change", f"reload({fzf.pin_exe()} _dirs --gap {{q}})"), ("ctrl-r", "reload(printf 'L\\na\\tb\\n')")]
         if fzf.supports("resize", VERSION):
             binds.append(("resize", f"reload(true)+transform-header({transform})"))
         self.assertEqual(fzf.header_binds(bottom_border=True, version=VERSION)[0][1], f"transform-header({transform})")
@@ -137,7 +137,7 @@ class RealFzfTests(FzfSandbox):
                   preview_label_cmd="echo {1}", pos=2, border_label=" 2 expired ", disabled=True, header_lines=1,
                   binds=binds, info_command=fzf.INFO_COMMAND if fzf.supports("info-command", VERSION) else None,
                   nth="1..3", extra=["--bind", "alt-t:change-header(✓ touched)+reload(true)", "--bind", "enter:become(echo {1})",
-                         "--expect", "ctrl-r,ctrl-alt-r", "--preview-label", " draft "])
+                         "--expect", "ctrl-r,alt-r", "--preview-label", " draft "])
         items = [fzf.Item("-", "label"), fzf.Item("a", "b")]
         self.assertEqual(filter_ids(items, "x", **kw), [])  # accepted, nothing matches "x" against "b"
         self.assertEqual(filter_ids(items, "", **kw), ["a"])  # the header line is neither matched nor printed
@@ -159,16 +159,16 @@ class RealFzfTests(FzfSandbox):
         self.assertIn("--color=bw", fzf.build_args(REAL_FZF, **kw))
 
     def test_header_transform(self):
-        """The header transform, run by this fzf: legend and hints on one line from 153 columns (four cells
+        """The header transform, run by this fzf: legend and hints on one line from 147 columns (four cells
         between them), stacked below that with the legend first, the extra line, and the status line as the
         flash, the too-short note under 20 rows, or a space. Python's launch-time layout is the same text."""
         from claude_pins.render import legend
         from claude_pins.theme import Palette
-        hints = "enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help"
+        hints = "enter open · ctrl-x actions · f2 edit · ctrl-t new · alt-i details · f1 help"
         note = "preview hidden: terminal too short"
-        cases = [(Header(hints, legend=legend(), note=note, color=Palette(True)), (153, 30), (152, 30), (200, 19)),
+        cases = [(Header(hints, legend=legend(), note=note, color=Palette(True)), (147, 30), (146, 30), (200, 19)),
                  (Header(hints, legend=legend(), extra=("keymap: ~/k.toml",), status="✓ saved", color=Palette(True)),
-                  (160, 30), (150, 30)),
+                  (160, 30), (140, 30)),
                  (Header("enter run · esc back"), (200, 30), (40, 12))]
         for header, *sizes in cases:
             for cols, lines in sizes:
@@ -186,7 +186,7 @@ class RealFzfTests(FzfSandbox):
                 items = [fzf.Item("a", "b")]
                 self.assertEqual(filter_ids(items, "", prompt="> ", header=p.stdout), ["a"])
         h = cases[0][0]
-        wide, narrow = plain(h.text(153, 30)).split("\n"), plain(h.text(152, 30)).split("\n")
+        wide, narrow = plain(h.text(147, 30)).split("\n"), plain(h.text(146, 30)).split("\n")
         self.assertEqual(len(wide), 2); self.assertEqual(len(narrow), 3)
         self.assertTrue(wide[0].startswith("🟢 open") and wide[0].endswith("f1 help"))
         self.assertIn("🔴 expired    enter open", wide[0])                       # exactly four cells between
@@ -194,7 +194,7 @@ class RealFzfTests(FzfSandbox):
         self.assertEqual(narrow[:2], [plain(legend()), hints])
         self.assertEqual(plain(h.text(200, 19, bottom_border=True)).split("\n")[-1], note)
         self.assertEqual(plain(h.text(200, 20, bottom_border=True)).split("\n")[-1], " ")
-        self.assertEqual(plain(cases[1][0].text(150, 30)).split("\n"), [plain(legend()), hints, "keymap: ~/k.toml", "✓ saved"])
+        self.assertEqual(plain(cases[1][0].text(140, 30)).split("\n"), [plain(legend()), hints, "keymap: ~/k.toml", "✓ saved"])
         self.assertEqual(plain(cases[1][0].text(160, 30)).split("\n")[1:], ["keymap: ~/k.toml", "✓ saved"])
         self.assertEqual(cases[2][0].text(200, 30), "enter run · esc back\n ")     # hints alone stay left
 
@@ -275,7 +275,7 @@ class RealFzfTests(FzfSandbox):
         self.assertKeeps(items, kw, "details", ["details"])
         self.assertKeeps(items, kw, "'pin", ["edit", "new", "unpin"])   # the gutter name matches on its group's first row
         self.assertEveryRowFindable(items, kw)
-        self.assertNativeAgrees(items, kw, "alt-", "'alt-e", "ctrl")
+        self.assertNativeAgrees(items, kw, "alt-", "'alt-i", "ctrl")
 
     def test_details_screen(self):
         from claude_pins.listing import build_views
@@ -396,7 +396,7 @@ class InteractiveSmokeTest(PtyMixin, FzfSandbox):
         super().tearDown()
 
     def test_query_then_enter_resumes_the_match(self):
-        """Also: alt-r reloads the rows in place (a pin added from another terminal appears, the label row
+        """Also: ctrl-r reloads the rows in place (a pin added from another terminal appears, the label row
         stays the sticky header), and the terminal is back on the normal screen in cooked mode before
         claude starts."""
         pid, fd = self.spawn(30)
@@ -410,7 +410,7 @@ class InteractiveSmokeTest(PtyMixin, FzfSandbox):
             self.make_session(sid4, cwd=str(self.home / "git" / "late"), age_days=0.5, title="Late arrival")
             self.run_pin("add", sid4, "late")               # another terminal pins something
             self.out = b""
-            os.write(fd, b"\x1br")                          # alt-r: reload, no restart
+            os.write(fd, b"\x12")                           # ctrl-r: reload, no restart
             self.wait_for(fd, r"Late arrival")
             screen = self.wait_for(fd, r"4/4|(?<!of )4 pins")   # fzf counts the reload in as it reads it
             self.assertEqual(len(re.findall(r"alias\s+title\s+directory\s+idle", screen)), 1)
@@ -510,7 +510,7 @@ class InteractiveSmokeTest(PtyMixin, FzfSandbox):
                 os.close(fd)
                 self.raw = b""
 
-        for steps in ([], [(b"sched", r"1 of 3 pins"), (b"\t", r"1 selected")], [(b"\x1be", r"opens")]):
+        for steps in ([], [(b"sched", r"1 of 3 pins"), (b"\t", r"1 selected")], [(b"\x1bOQ", r"opens")]):
             keys = b"".join(k for k, _ in steps)
             a, b = capture(steps, False), capture(steps, True)
             for y in range(30):

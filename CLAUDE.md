@@ -33,14 +33,14 @@ reasons behind several design choices and are recorded nowhere else.
   fields. `--filter` with `--no-sort` prints the trimmed line instead of the
   whole one, which only `tests/test_fzf_real.py` has to work around.
 - fzf cannot bind printable characters (they type into the query), which is why
-  the help screen's reset keys are ctrl-r and ctrl-alt-r rather than `r` and `R`.
+  the help screen's reset keys are ctrl-r and alt-r rather than `r` and `R`.
   Its own editing keys are left alone so the filter stays editable, and alt+enter
   is avoided because Windows Terminal takes it.
 - `--header-first` draws the header above the prompt. Its last line is a status
   line (the flash, the too-short note, or a space: fzf drops a trailing newline
   in `--header` but keeps a line holding a space), so a flash never displaces
   the legend and the list never moves. The legend and the hints share one line
-  when the width allows four cells between them (about 153 columns) and stack
+  when the width allows four cells between them (about 147 columns) and stack
   otherwise; that choice needs the width fzf has, so `fzf.Header.text()` lays
   out the launch and the same arithmetic in `fzf.header_transform()` re-fits it.
   `--header-lines=N` makes the first N input lines sticky rows (the blank gap

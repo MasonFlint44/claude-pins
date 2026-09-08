@@ -1,5 +1,5 @@
   🟢 open  🚩 keep  🔀 fork  🌳 worktree  ⏳ expiring  🔴 expired
-  enter open · ctrl-space actions · alt-e edit · alt-n new · alt-i details · f1 help
+  enter open · ctrl-x actions · f2 edit · ctrl-t new · alt-i details · f1 help
 
 📌 pins ›                                                                                    4 pins
 
