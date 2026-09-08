@@ -75,12 +75,12 @@ class ActionTests(Sandbox):
         # a view that still carries a summary (read before the sweep took the file) gets the short form
         stale = View(views[0].pin, Expiry("expired", 0.0, 0.0), summary=read_summary(self.t2))
         plan, flash = actions.open_plan(self.store, stale, "open")
-        self.assertEqual((plan, flash), (None, "✗ mower has expired · unpin it or pin prune"))
+        self.assertEqual((plan, flash), (None, "✗ mower has expired · unpin it or pins prune"))
         self.t2.unlink()
         gone = self.views(sort="alias")[0]
         self.assertTrue(gone.expiry.expired)
         plan, flash = actions.open_plan(self.store, gone, "open")
-        self.assertEqual((plan, flash), (None, "✗ mower: transcript for session 22222222… is gone (expired) · pin unpin mower"))
+        self.assertEqual((plan, flash), (None, "✗ mower: transcript for session 22222222… is gone (expired) · pins unpin mower"))
         plan, flash = actions.open_plan(self.store, views[1], "open_fork")
         self.assertEqual(flash, "")
         self.assertIn("--fork-session", plan.argv)

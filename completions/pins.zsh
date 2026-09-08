@@ -1,11 +1,11 @@
-#compdef pin
-# zsh completion for `pin` (claude-pins). /pins:install links it as _pin into a directory on fpath.
-# Aliases come from `pin _complete`; subcommands and flags mirror completions/pin.bash.
+#compdef pins
+# zsh completion for `pins` (claude-pins). /pins:install links it as _pins into a directory on fpath.
+# Aliases come from `pins _complete`; subcommands and flags mirror completions/pins.bash.
 
-_pin() {
+_pins() {
     local -a subs aliases
     subs=(add list sessions edit rename rm unpin undo prune touch doctor open help)
-    aliases=(${(f)"$(command pin _complete 2>/dev/null)"})
+    aliases=(${(f)"$(command pins _complete 2>/dev/null)"})
     case "${words[CURRENT]}" in
         -*)
             compadd -- --help --version --sort --fork --resume -w --worktree --no-fzf --all --json \
@@ -32,4 +32,4 @@ _pin() {
     compadd -a aliases
 }
 
-_pin "$@"
+_pins "$@"

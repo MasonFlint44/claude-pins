@@ -1,4 +1,4 @@
-"""``pin`` command line: picker, matching, subcommands, hidden helpers for fzf previews and the plugin."""
+"""``pins`` command line: picker, matching, subcommands, hidden helpers for fzf previews and the plugin."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ SUBCOMMANDS = ("add", "list", "ls", "sessions", "edit", "rename", "rm", "unpin",
 
 
 def _global_options(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--version", action="version", version=f"pin {__version__}")
+    p.add_argument("--version", action="version", version=f"pins {__version__}")
     p.add_argument("--sort", choices=config.SORT_ORDERS, help="initial sort for the picker")
     p.add_argument("--fork", action="store_true", help="open as a fork (one-off)")
     p.add_argument("--resume", action="store_true", help="plain resume, ignoring the pin's fork/worktree modes")
@@ -35,13 +35,13 @@ def _global_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--all", action="store_true", help="start with expired pins shown")
 
 
-EPILOG = ("pin            open the picker\npin <words…>   open the one pin matching, else the picker pre-filtered\n"
-          "pin sessions   recent sessions with ids, for pin add <id-or-title-words> <alias>\n"
+EPILOG = ("pins           open the picker\npins <words…>  open the one pin matching, else the picker pre-filtered\n"
+          "pins sessions   recent sessions with ids, for pins add <id-or-title-words> <alias>\n"
           "Env: CLAUDE_PINS_FILE, CLAUDE_PINS_SORT, CLAUDE_PINS_NO_FZF, CLAUDE_PINS_EXPIRE_WARN, NO_COLOR, CLAUDE_CONFIG_DIR")
 
 
 def build_query_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="pin", add_help=False)
+    p = argparse.ArgumentParser(prog="pins", add_help=False)
     _global_options(p)
     p.add_argument("words", nargs="*")
     return p
@@ -49,12 +49,12 @@ def build_query_parser() -> argparse.ArgumentParser:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="pin", description="Pin Claude Code sessions and resume them by name.", epilog=EPILOG,
+        prog="pins", description="Pin Claude Code sessions and resume them by name.", epilog=EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     _global_options(p)
     sub = p.add_subparsers(dest="cmd", metavar="command")
 
-    a = sub.add_parser("add", help="pin a session: pin add <session> <alias> [--title …]")
+    a = sub.add_parser("add", help="pin a session: pins add <session> <alias> [--title …]")
     a.add_argument("session", metavar="session", help="session id, unique id prefix, or words from its title")
     a.add_argument("alias")
     a.add_argument("--title", default=""); a.add_argument("--note", default="")
@@ -68,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     ls.add_argument("--sort", choices=config.SORT_ORDERS)
     ls.add_argument("--json", action="store_true")
 
-    ss = sub.add_parser("sessions", help="list recent sessions (what pin add and the picker's new-pin screen match)")
+    ss = sub.add_parser("sessions", help="list recent sessions (what pins add and the picker's new-pin screen match)")
     ss.add_argument("words", nargs="*", help="every word must appear in the title or directory")
     ss.add_argument("--json", action="store_true")
 
@@ -81,11 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
         e.add_argument(f"--{flag}", dest=flag, action="store_true", default=None)
         e.add_argument(f"--no-{flag}", dest=flag, action="store_false")
 
-    rn = sub.add_parser("rename", help="rename a pin: pin rename <alias> <new-alias>")
+    rn = sub.add_parser("rename", help="rename a pin: pins rename <alias> <new-alias>")
     rn.add_argument("alias"); rn.add_argument("new_alias")
 
     for name in ("rm", "unpin"):
-        r = sub.add_parser(name, help="unpin (pin undo restores)")
+        r = sub.add_parser(name, help="unpin (pins undo restores)")
         r.add_argument("alias")
     sub.add_parser("undo", help="restore the last unpin or prune")
     pr = sub.add_parser("prune", help="unpin every expired pin")
@@ -116,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
-    # `pin <words…>` — anything that is not a subcommand is a match query.
+    # `pins <words…>` — anything that is not a subcommand is a match query.
     first = next((a for a in argv if not a.startswith("-")), None)
     if first is not None and first not in SUBCOMMANDS and "-h" not in argv and "--help" not in argv:
         try:
@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             return run_query(opts)
         except PinError as e:
-            print(f"pin: {e}", file=sys.stderr)
+            print(f"pins: {e}", file=sys.stderr)
             return 1
         except KeyboardInterrupt:
             print()
@@ -140,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return dispatch(opts, parser)
     except PinError as e:
-        print(f"pin: {e}", file=sys.stderr)
+        print(f"pins: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         print()
@@ -176,13 +176,13 @@ def run_query(opts) -> int:
         if len(hits) == 1:
             return _open(store, hits[0], fork=opts.fork or None, worktree=opts.worktree, plain=opts.resume)
         if not hits:
-            print(f"pin: no pin matches {query!r}", file=sys.stderr)
+            print(f"pins: no pin matches {query!r}", file=sys.stderr)
     from . import tui
     scripted = os.environ.get("CLAUDE_PINS_FZF") or os.environ.get("CLAUDE_PINS_TUI_SCRIPT")   # the tests' stand-ins
     if not (sys.stdin.isatty() and sys.stdout.isatty()) and not scripted:
         if words:
             if hits:
-                print("pin: several pins match; be more specific:", file=sys.stderr)
+                print("pins: several pins match; be more specific:", file=sys.stderr)
                 for h in hits:
                     print(f"  {h.alias:<18} {h.title}", file=sys.stderr)
             return 1
@@ -193,7 +193,7 @@ def run_query(opts) -> int:
     if not fzf.available() and not tui.usable():    # a dumb terminal: the list, and where the commands are
         opts.json = False
         code = cmd_list(opts)
-        print("(no picker on this terminal: pin <alias> opens a pin, pin help lists the commands)")
+        print("(no picker on this terminal: pins <alias> opens a pin, pins help lists the commands)")
         return code
     from .picker import Picker
     return Picker(store, query=query if words else "", sort=opts.sort, show_expired=opts.all).run()
@@ -217,7 +217,7 @@ def cmd_open(opts) -> int:
 
 def session_table(sessions: list[Summary], store: Store | None, *, all_sessions: list[Summary] | None = None,
                   color: Palette | None = None, labels: bool = False) -> list[str]:
-    """``pin sessions``' lines: the listed id prefix (unique among ``all_sessions``, the ones a prefix is
+    """``pins sessions``' lines: the listed id prefix (unique among ``all_sessions``, the ones a prefix is
     resolved against), then the session row (a pinned one tagged, under the pin's title, when ``store`` is
     given); with ``labels`` a dim label row first."""
     color = color or Palette(False)
@@ -250,7 +250,7 @@ def resolve_session(text: str, store: Store) -> str:
     if len(hits) == 1:
         return hits[0].session_id
     if not hits:
-        raise PinError(f"no recent session matches {text!r} · pin sessions lists them")
+        raise PinError(f"no recent session matches {text!r} · pins sessions lists them")
     lines = [f"{len(hits)} sessions match {text!r}; give the id or more words:"]
     lines += [f"  {line}" for line in session_table(hits, store, all_sessions=sessions)]
     raise PinError("\n".join(lines))
@@ -314,7 +314,7 @@ def cmd_list(opts) -> int:
         return 0
     color = palette(sys.stdout)
     if not views:
-        print("No pins yet. Run /pins:pin inside a Claude session, or: pin add <session-id> <alias>")
+        print("No pins yet. Run /pins:pin inside a Claude session, or: pins add <session-id> <alias>")
     # On a terminal the table gets the picker's column labels and marker legend; piped output stays
     # bare rows so grep and friends see nothing else.
     interactive = sys.stdout.isatty() and bool(views)
@@ -327,7 +327,7 @@ def cmd_list(opts) -> int:
     if interactive:
         print(color(legend(), "dim"))
     if expired and not opts.all:
-        print(color(f"{expired} expired · pin list --all · pin prune", "dim"))
+        print(color(f"{expired} expired · pins list --all · pins prune", "dim"))
     return 0
 
 
@@ -397,7 +397,7 @@ def cmd_unpin(opts) -> int:
     store = load_store()
     pin = store.unpin(opts.alias)
     store.save()
-    print(_line(f"✓ unpinned {pin.alias} · pin undo restores it", naming.restore(pin)))
+    print(_line(f"✓ unpinned {pin.alias} · pins undo restores it", naming.restore(pin)))
     return 0
 
 
@@ -422,13 +422,13 @@ def cmd_prune(opts) -> int:
         from . import prompt
         try:
             from .render import crumb
-            if not prompt.yesno("unpin them? (pin undo restores)", True, crumb=crumb("prune")):
+            if not prompt.yesno("unpin them? (pins undo restores)", True, crumb=crumb("prune")):
                 return 1
         except prompt.Cancelled:
             return 130
     store.unpin_many(dead, kind="prune")
     store.save()
-    print(f"✓ pruned {len(dead)} · pin undo restores them")
+    print(f"✓ pruned {len(dead)} · pins undo restores them")
     return 0
 
 
@@ -462,9 +462,9 @@ def cmd_doctor(opts) -> int:
         kept = sum(1 for p in store.pins if p.keep)
         count = f"{kept} {'pin' if kept == 1 else 'pins'}" if kept else "no pins"
         if config.plugin_enabled():
-            print(f"✓ keep: {count} · touched on every pin run and every Claude session start (plugin hook)")
+            print(f"✓ keep: {count} · touched on every pins run and every Claude session start (plugin hook)")
         else:
-            print(f"· keep: {count} · touched on every pin run only: "
+            print(f"· keep: {count} · touched on every pins run only: "
                   "the pins plugin is not enabled, so no session-start hook (/plugin install pins@claude-toolbox, then restart Claude)")
     except PinError as e:
         print(f"✗ store: {e}"); ok = False
@@ -545,7 +545,7 @@ def cmd_complete(opts) -> int:
 def cmd_keep(opts) -> int:
     """For the plugin's SessionStart hook: touch every ``keep`` pin's transcript and say nothing. A
     SessionStart hook's stdout lands in Claude's context and a nonzero exit is shown to the user at
-    every start, so a store that is missing, corrupt or unreadable is left for ``pin doctor``."""
+    every start, so a store that is missing, corrupt or unreadable is left for ``pins doctor``."""
     try:
         touch_kept(load_store())
     except Exception:

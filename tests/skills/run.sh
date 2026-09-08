@@ -11,7 +11,7 @@
 # A case is a directory with:
 #   prompt     the user's message (a natural-language ask, or /pins:<command> args)
 #   setup.sh   sourced before the run with $CFG (throwaway config dir), $HOME (throwaway),
-#              $REPO, $WORK, $SID (the run's session id), $PIN (the checkout's bin/pin)
+#              $REPO, $WORK, $SID (the run's session id), $PIN (the checkout's bin/pins)
 #   check.sh   sourced after the run with the same, plus $OUT (result text) and $RESULT
 #              (result JSON); a non-zero `fail` count fails the case.
 #              Helpers: expect, expect_out, expect_no_out, store (the pin store as JSON).
@@ -42,7 +42,7 @@ for case in "${CASES[@]}"; do
         total=$((total + 1))
         WORK=$(mktemp -d); CFG="$WORK/claude"; HOME="$WORK/home"; mkdir -p "$CFG" "$WORK/cwd" "$HOME/bin" "$HOME/.claude"
         SID=$(python3 -c 'import uuid; print(uuid.uuid4())')
-        PIN="$REPO/bin/pin"; export PIN  # for setup.sh/check.sh
+        PIN="$REPO/bin/pins"; export PIN  # for setup.sh/check.sh
         printf '{"hasCompletedOnboarding":true}\n' > "$CFG/.claude.json"
         [ -n "${ANTHROPIC_API_KEY:-}" ] || cp "$REAL_CFG/.credentials.json" "$CFG/.credentials.json"
         printf '#!/bin/sh\necho "$@" >> "%s/claude-argv.txt"\n' "$WORK" > "$HOME/bin/claude"; chmod +x "$HOME/bin/claude"

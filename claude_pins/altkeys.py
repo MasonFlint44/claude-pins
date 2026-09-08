@@ -5,7 +5,7 @@ key), so an alt binding arrives as text until the terminal's Option-as-Meta sett
 terminal keeps that setting somewhere different. Stock xterm is the same on any system: Meta sets the
 high bit of the character until ``XTerm*metaSendsEscape`` is true. This reads the setting where the
 terminal keeps it, so the picker can say once which switch a user needs and stay quiet for one who has
-already set it, and ``pin doctor`` can report it. Everything is read with the standard library and
+already set it, and ``pins doctor`` can report it. Everything is read with the standard library and
 any file that cannot be read or parsed leaves the state unknown, which is treated like off: the note
 shows, the doctor says so.
 """

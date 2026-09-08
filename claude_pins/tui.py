@@ -287,7 +287,7 @@ def run_screen(screen: Screen) -> Result | None:
     """Draw ``screen`` in this terminal and wait for the user; None when the user left with esc, or
     when there is no terminal to ask on (a question from a script or a pipe cannot be answered)."""
     if not usable():
-        print(f"pin: no terminal to answer {ansi.plain(screen.prompt).strip(' ›')}; cancelled", file=sys.stderr)
+        print(f"pins: no terminal to answer {ansi.plain(screen.prompt).strip(' ›')}; cancelled", file=sys.stderr)
         return None
     term = _terminal()
     return Session(screen, term).run()
@@ -844,12 +844,12 @@ class Session:
         return self.emit([(ch, DIM) for ch in "".join(line)[:cols]])
 
 
-# ---- pin _keys -------------------------------------------------------------------------------------------------
+# ---- pins _keys -------------------------------------------------------------------------------------------------
 
 def key_check() -> int:
     """Print the name of every key and mouse event until esc twice or ctrl-c."""
     if not usable():
-        print("pin _keys needs a terminal", file=sys.stderr)
+        print("pins _keys needs a terminal", file=sys.stderr)
         return 1
     term = Terminal()
     term.enter()

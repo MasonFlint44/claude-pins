@@ -1,6 +1,6 @@
 """The built-in picker: the decoder, the matcher, the frames it draws, and the flows through it.
 
-The frames come from ``tui.Session`` run in process over a ``ScriptedTerminal``; the flows run ``bin/pin``
+The frames come from ``tui.Session`` run in process over a ``ScriptedTerminal``; the flows run ``bin/pins``
 with the scripted terminal wired in (``TuiSandbox``), the way the fzf flows run it with the fzf stub.
 ``tests/test_tui_pty.py`` drives the real raw-mode terminal.
 """
@@ -484,7 +484,7 @@ class FrameTests(TuiSandbox):
 
 
 class FlowTests(TuiSandbox):
-    """``pin`` end to end through the built-in picker: the screens the menu used to stand in for."""
+    """``pins`` end to end through the built-in picker: the screens the menu used to stand in for."""
 
     def setUp(self):
         super().setUp()
@@ -628,9 +628,9 @@ class FlowTests(TuiSandbox):
         self.steps(["@alt-a"], ["@alt-p"], ["@enter"], ["@alt-z"], ["@esc", "@pause"])
         r = self.run_pin()
         screens = self.screens()
-        self.assertEqual(screens[0]["frame"][-1].rstrip("─"), "── 1 expired · alt-a show · pin prune ")
+        self.assertEqual(screens[0]["frame"][-1].rstrip("─"), "── 1 expired · alt-a show · pins prune ")
         self.assertRegex("\n".join(screens[1]["frame"]), r"▌ rc-mower\s+Navimow schedule debug\s+~\s+🔴")
-        self.assertEqual(screens[1]["frame"][-1].rstrip("─"), "── 1 expired shown · pin prune ")
+        self.assertEqual(screens[1]["frame"][-1].rstrip("─"), "── 1 expired shown · pins prune ")
         self.assertEqual(screens[2]["prompt"], "📌 pins › prune › ")
         self.assertIn("prune 1 expired pin(s): rc-mower", screens[2]["header"])
         self.assertEqual(screens[3]["header"].split("\n")[-1], "✓ pruned 1 · alt-z undo")
@@ -645,7 +645,7 @@ class FlowTests(TuiSandbox):
         self.steps(["@alt-a"], ["@down", "@enter"], ["@esc", "@pause"])
         r = self.run_pin()
         self.assertEqual(self.screens()[2]["header"].split("\n")[-1],
-                         "✗ rc-mower: transcript for session 22222222… is gone (expired) · pin unpin rc-mower")
+                         "✗ rc-mower: transcript for session 22222222… is gone (expired) · pins unpin rc-mower")
         self.assertIsNone(self.claude_calls())
         self.steps(["@alt-z"], ["@esc", "@pause"])
         r = self.run_pin()
@@ -658,7 +658,7 @@ class FlowTests(TuiSandbox):
         screens = self.screens()
         self.assertEqual(screens[1]["prompt"], "📌 pins › standup-prep › open › ")
         self.assertIn("standup-prep: directory ~/git/proj is missing", screens[1]["header"])
-        self.assertEqual(screens[2]["header"].split("\n")[-1], "✓ unpinned standup-prep · pin undo restores it · session name cleared · cancelled")
+        self.assertEqual(screens[2]["header"].split("\n")[-1], "✓ unpinned standup-prep · pins undo restores it · session name cleared · cancelled")
         self.assertNotIn("standup-prep", self.stored())
 
     def test_empty_store_and_dumb_terminal(self):
@@ -691,7 +691,7 @@ class FlowTests(TuiSandbox):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIsNone(self.claude_calls())
         self.assertEqual(self.screens()[1]["header"].split("\n")[-1],
-                         "✗ standup-prep: transcript for session 11111111… is gone (expired) · pin unpin standup-prep")
+                         "✗ standup-prep: transcript for session 11111111… is gone (expired) · pins unpin standup-prep")
 
     def test_alt_keys_note_shows_once_on_a_mac(self):
         """On a Mac whose terminal is not sending Option as Meta, the picker names the switch on the status

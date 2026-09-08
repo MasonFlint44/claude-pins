@@ -1,4 +1,4 @@
-# Dev tooling only. `pin` itself is stdlib Python and is never installed as a package.
+# Dev tooling only. `pins` itself is stdlib Python and is never installed as a package.
 [project]
 name = "claude-pins"
 dynamic = ["version"]   # read from claude_pins/__init__.py, see [tool.setuptools.dynamic]
@@ -22,11 +22,11 @@ packages = ["claude_pins"]
 version = {attr = "claude_pins.__version__"}
 
 [tool.uv]
-package = false   # never installed into the venv; bin/pin runs from the checkout
+package = false   # never installed into the venv; bin/pins runs from the checkout
 
 [tool.coverage.run]
 branch = true
-parallel = true            # every bin/pin subprocess the tests spawn writes its own data file
+parallel = true            # every bin/pins subprocess the tests spawn writes its own data file
 source = ["claude_pins"]
 
 [tool.coverage.report]

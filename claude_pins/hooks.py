@@ -1,6 +1,6 @@
 """The commands a screen runs while it is up, as Python.
 
-Each is one function: the fzf backend reaches it through a ``pin _<hook>`` subprocess (``cli`` prints
+Each is one function: the fzf backend reaches it through a ``pins _<hook>`` subprocess (``cli`` prints
 what the function returns), the built-in picker calls it in process. Keeping one function per hook is
 what makes a reload draw exactly what a launch would on either backend.
 

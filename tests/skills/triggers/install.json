@@ -1,6 +1,6 @@
 [
   {
-    "query": "I just added the pins plugin from the claude-toolbox marketplace. Set up the pin command so I can use it in my terminal.",
+    "query": "I just added the pins plugin from the claude-toolbox marketplace. Set up the pins command so I can use it in my terminal.",
     "should_trigger": true
   },
   {
@@ -12,15 +12,15 @@
     "should_trigger": true
   },
   {
-    "query": "I updated the pins plugin to 0.2.1 and now `pin` in my terminal says no such file. I think the symlink points at the old version dir.",
+    "query": "I updated the pins plugin to 0.2.1 and now `pins` in my terminal says no such file. I think the symlink points at the old version dir.",
     "should_trigger": true
   },
   {
-    "query": "get bash completion working for the pin command, tab does nothing after `pin `",
+    "query": "get bash completion working for the pins command, tab does nothing after `pins `",
     "should_trigger": true
   },
   {
-    "query": "i use zsh on my mac, how do i get the pin command from the pins plugin working there",
+    "query": "i use zsh on my mac, how do i get the pins command from the pins plugin working there",
     "should_trigger": true
   },
   {
@@ -28,11 +28,11 @@
     "should_trigger": true
   },
   {
-    "query": "put the pin picker on my PATH and check fzf and ccusage while you're at it",
+    "query": "put the pins picker on my PATH and check fzf and ccusage while you're at it",
     "should_trigger": true
   },
   {
-    "query": "the pins plugin is installed but there's no pin binary in ~/.local/bin, can you wire it up",
+    "query": "the pins plugin is installed but there's no pins binary in ~/.local/bin, can you wire it up",
     "should_trigger": true
   },
   {
@@ -56,7 +56,7 @@
     "should_trigger": false
   },
   {
-    "query": "the pin picker shows no cost for this session even though ccusage is installed, what's wrong",
+    "query": "the pins picker shows no cost for this session even though ccusage is installed, what's wrong",
     "should_trigger": false
   },
   {

@@ -35,7 +35,7 @@ def list_items(views: list[View], km: Keymap, color, width: int | None = None) -
     The ``rows`` hook draws the same list, so a reload draws exactly what a restart would."""
     width = (width or terminal_width()) - LIST_WIDTH_SLACK
     if not views:
-        return [Item("-", color(EMPTY_MESSAGE.format(new=km.key("new") or "pin add"), "dim"))]
+        return [Item("-", color(EMPTY_MESSAGE.format(new=km.key("new") or "pins add"), "dim"))]
     cols = layout(views, width)
     items = [Item("-", label_row(cols, color))]
     for v, line in zip(views, rows(views, width=width, color=color, cols=cols, sep=FZF_COLUMN_SEP)):
@@ -129,7 +129,7 @@ class Picker:
             self.state.cursor = outcome.cursor
 
     def undo_hint(self) -> str:
-        return self.km.key("undo") or "pin undo"
+        return self.km.key("undo") or "pins undo"
 
     # ---- main picker ----------------------------------------------------------------
 
@@ -154,9 +154,9 @@ class Picker:
                 pos = None
             footer = ""
             if expired and not self.state.show_expired:
-                footer = f" {expired} expired · {self.km.key('expired') or 'pin list --all'} show · pin prune "
+                footer = f" {expired} expired · {self.km.key('expired') or 'pins list --all'} show · pins prune "
             elif expired and self.state.show_expired:
-                footer = f" {expired} expired shown · pin prune "
+                footer = f" {expired} expired shown · pins prune "
             hints = self.hints("open", "palette", "edit", "new", "details", "help")
             note = self.color(TOO_SHORT_NOTE, "dim") if self.state.preview else ""
             header = self.header(hints, legend=legend(), note=note)
@@ -427,7 +427,7 @@ class Picker:
 
         def confirm(expired: list[str]) -> bool:
             try:
-                return prompt.yesno("unpin them? (pin undo restores)", True, crumb=crumb("prune"),
+                return prompt.yesno("unpin them? (pins undo restores)", True, crumb=crumb("prune"),
                                     notes=[f"prune {len(expired)} expired pin(s): {', '.join(expired)}"])
             except prompt.Cancelled:
                 return False

@@ -199,7 +199,7 @@ class RealFzfTests(FzfSandbox):
         self.assertEqual(cases[2][0].text(200, 30), "enter run · esc back\n ")     # hints alone stay left
 
     def test_reload_rows(self):
-        """What ``pin _rows`` prints for a reload is what the launch sent: the label row stays the sticky header
+        """What ``pins _rows`` prints for a reload is what the launch sent: the label row stays the sticky header
         and every alias is findable."""
         r = self.run_pin("_rows", "--sort", "alias", env={"FZF_COLUMNS": "100"})
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -333,7 +333,7 @@ class RealFzfTests(FzfSandbox):
 
     def test_prompt_screens(self):
         """The prompts fzf draws: a text field is the query line over no rows, a directory field the query
-        line over ``pin _dirs`` rows reloading on change, a yes/no and a choice are two- and n-row lists."""
+        line over ``pins _dirs`` rows reloading on change, a yes/no and a choice are two- and n-row lists."""
         from claude_pins import prompt
         with mock.patch.object(fzf, "run", self.recorder):
             with self.assertRaises(prompt.Cancelled):
@@ -523,7 +523,7 @@ class InteractiveSmokeTest(PtyMixin, FzfSandbox):
                                      f"keys {keys!r} row {y} col {x}: fzf {a.display[y]!r} vs built-in {b.display[y]!r}")
 
     def test_editor_field_on_the_query_line(self):
-        """``pin edit`` in a terminal: the form with the draft in its pane, the title typed on fzf's query line
+        """``pins edit`` in a terminal: the form with the draft in its pane, the title typed on fzf's query line
         (enter over an empty list exits 1 and still prints the query), the star on the row and the mark in
         the pane, alt-s to save, and the shell back exactly once with the confirmation printed on it."""
         pid, fd = self.spawn(30, 100, "edit", "standup")

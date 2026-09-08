@@ -21,7 +21,7 @@ def plain(text: str) -> str:
     return _ANSI.sub("", text)
 
 REPO = Path(__file__).resolve().parent.parent
-PIN = REPO / "bin" / "pin"
+PIN = REPO / "bin" / "pins"
 
 ENV_KEYS = [
     "HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR",
@@ -135,7 +135,7 @@ class Sandbox(unittest.TestCase):
         os.utime(path, (t, t))
 
     def pin_aged(self, session_id: str, alias: str, *args: str):
-        """``pin add`` with the transcript's age kept. Pinning names the session, which is activity like
+        """``pins add`` with the transcript's age kept. Pinning names the session, which is activity like
         opening is, so a fixture that goes on to test idle times or the recency sort pins this way."""
         paths = list(self.projects.glob(f"*/{session_id}.jsonl"))
         stats = [(p, p.stat()) for p in paths]
@@ -155,7 +155,7 @@ class Sandbox(unittest.TestCase):
         return subprocess.run([sys.executable, str(PIN), *args], input=input, capture_output=True, text=True, env=e)
 
     def run_pin_tty(self, *args: str, columns: int = 100) -> str:
-        """``pin`` with a pseudo-terminal on stdout (the tables add labels there); returns the plain text."""
+        """``pins`` with a pseudo-terminal on stdout (the tables add labels there); returns the plain text."""
         import pty
         import re
         import subprocess
@@ -238,7 +238,7 @@ class TuiSandbox(Sandbox):
 
 
 class PtyMixin:
-    """Driving ``pin`` in a pseudo-terminal: spawn it at a size, wait for what it draws, read until it
+    """Driving ``pins`` in a pseudo-terminal: spawn it at a size, wait for what it draws, read until it
     exits. Each step waits on a redraw, so the tests that use this are few and each proves several
     things. Used with a Sandbox."""
 
@@ -299,8 +299,8 @@ class PtyMixin:
         self.fail("the picker did not exit")
 
     def spawn(self, rows: int, cols: int = 100, *args: str, shell: bool = False) -> tuple[int, int]:
-        """``pin args`` in a new pseudo-terminal of ``rows`` × ``cols``; with ``shell`` an interactive bash
-        with ``pin`` on its PATH instead, for what needs job control."""
+        """``pins args`` in a new pseudo-terminal of ``rows`` × ``cols``; with ``shell`` an interactive bash
+        with ``pins`` on its PATH instead, for what needs job control."""
         import fcntl, pty, struct, termios
         size = struct.pack("HHHH", rows, cols, 0, 0)
         pid, fd = pty.fork()
@@ -310,7 +310,7 @@ class PtyMixin:
             # terminal's LINES and COLUMNS there, and the picker would size itself by them
             env = dict(os.environ)
             if shell:
-                os.symlink(PIN, self.bindir / "pin")
+                os.symlink(PIN, self.bindir / "pins")
                 os.symlink(sys.executable, self.bindir / "python3")     # the shebang's python3 is the test's
                 env["PS1"] = "$ "
                 os.execve(shutil.which("bash"), ["bash", "--norc", "--noprofile", "-i"], env)

@@ -1,6 +1,6 @@
 # claude-pins
 
-Pin Claude Code sessions and reopen them by alias. `bin/pin` is the terminal
+Pin Claude Code sessions and reopen them by alias. `bin/pins` is the terminal
 command (Python 3.10+, standard library only); `commands/` and `skills/` are the
 Claude Code plugin. `README.md` is the user manual.
 
@@ -137,7 +137,7 @@ reasons behind several design choices and are recorded nowhere else.
   to `resize` on 0.46+.
 - The info command runs on every keystroke and the header transform on every
   cursor move (0.44), so both are plain shell over fzf's variables; only a
-  reload may start Python (`pin _rows`, `pin _dirs`, both told `--gap` rather
+  reload may start Python (`pins _rows`, `pins _dirs`, both told `--gap` rather
   than asking fzf its version). fzf runs them under `$SHELL`, and they are
   POSIX sh (`expr`, `printf "%*s"`), so `--with-shell "sh -c"` is passed where
   fzf has it; below 0.51 a fish login shell would break them.
@@ -171,7 +171,7 @@ reasons behind several design choices and are recorded nowhere else.
   the screen (`screen.hold_screen()`) and route messages through headers and
   flashes; the opener queues its banners for the moment the shell is back
   (`launch()` after the restore, or the cancel flash). A prompt run outside a
-  hold (`pin prune`, `pin edit`) drops the screen as soon as it ends so the
+  hold (`pins prune`, `pins edit`) drops the screen as soon as it ends so the
   command's output is seen. The built-in picker keeps the same discipline: it
   enters the alternate screen only when no screen left it up, and never leaves
   it itself.
@@ -184,9 +184,9 @@ reasons behind several design choices and are recorded nowhere else.
   command and the event JSON on stdin, and cannot block a start; but its
   plain-text stdout is added to Claude's context (one of four events where
   that happens), exit 2 shows its stderr to the user as a hook-error notice,
-  and any other nonzero exit is a non-blocking error. That is why `pin _keep`
+  and any other nonzero exit is a non-blocking error. That is why `pins _keep`
   prints nothing and returns 0 on every path, a corrupt or missing store
-  included: those are `pin doctor`'s to report, not something to put in front
+  included: those are `pins doctor`'s to report, not something to put in front
   of the user or the model at every start. The default command timeout is
   600 s; hooks.json sets 10. A session loads a plugin's hooks at start and
   keeps the old version's path after `claude plugin update` until
@@ -204,7 +204,7 @@ reasons behind several design choices and are recorded nowhere else.
 Every screen is a `screen.Screen`; fzf draws it when it is on PATH and ≥ 0.44,
 `tui.py` draws it otherwise. The hooks a screen runs (preview, reload, the rows
 for a query) are named, not closures, because fzf can only run commands: the fzf
-backend lowers each to a `pin _<hook>` subprocess and the built-in one calls the
+backend lowers each to a `pins _<hook>` subprocess and the built-in one calls the
 same function from `hooks.py` in process, which is what makes a reload draw
 exactly what a launch would on either backend. Measured on fzf 0.67.0 in a pty
 through pyte, and `tests/test_fzf_real.py` keeps the two backends cell-for-cell
@@ -245,7 +245,7 @@ gap row and a plain gutter, so the test skips there):
   writes to the same pipe; a resize re-runs the `rows` hook at the new width.
 - A screen shown where there is no terminal (a pipe, a script, `TERM=dumb`) is
   cancelled with a line on stderr rather than asked, since `input()` was the
-  only alternative and it cannot draw a screen; `pin` with no arguments on a
+  only alternative and it cannot draw a screen; `pins` with no arguments on a
   dumb terminal prints the list and where the commands are.
 - The kernel discards SIGTSTP for an orphaned process group, so the ctrl-z test
   runs the picker under an interactive bash in the pty. The macOS runners' own
@@ -270,8 +270,8 @@ gap row and a plain gutter, so the test skips there):
 python3 -m unittest -q                 # must exit 0; check the status, not the last line of output
 python3 -m unittest -v tests.test_fzf_real   # the real fzf on PATH over every screen's rows; must say "ok", not "skipped"
 uv run --group dev python -m unittest tests.test_tui tests.test_fzf_real   # with pyte: the painting test and the fzf parity test (they skip without it; CI installs it)
-shellcheck completions/pin.bash tests/completion_check.sh tests/coverage.sh tests/skills/run.sh tests/skills/triggers.sh
-bash tests/completion_check.sh         # after touching completions/pin.bash or the subcommand list
+shellcheck completions/pins.bash tests/completion_check.sh tests/coverage.sh tests/skills/run.sh tests/skills/triggers.sh
+bash tests/completion_check.sh         # after touching completions/pins.bash or the subcommand list
 docker run --rm -v "$PWD:/repo:ro" zshusers/zsh:5.9 zsh /repo/tests/zsh_completion_check.sh   # no zsh on this machine
 CLAUDE_PINS_TEST_FZF=/path/to/fzf python3 -m unittest tests.test_fzf_real   # another fzf build; CI runs 0.44.1 … 0.74.3
 bash tests/coverage.sh                 # coverage report; needs uv (dev deps live in pyproject.toml)
@@ -324,20 +324,20 @@ tests/terminals/run.sh                 # every key in real Linux terminals under
   runs its flows from a scripted terminal (the fzf stub's counterpart) and its
   frames in process, `tests/test_tui_pty.py` drives the raw-mode terminal for
   what only a terminal shows (cooked mode handed back before claude, the mouse,
-  a resize signal, ctrl-z under bash, `pin _keys`), and `tests/test_fzf_real.py`
+  a resize signal, ctrl-z under bash, `pins _keys`), and `tests/test_fzf_real.py`
   holds the matcher agreement and the pyte parity test against the real fzf. A
   change to the chrome must keep the parity test green rather than be judged by
-  eye. `pin _keys` is the by-hand check on a terminal: GNOME Terminal (VTE),
+  eye. `pins _keys` is the by-hand check on a terminal: GNOME Terminal (VTE),
   Terminal.app, iTerm2, VS Code, Ghostty, Windows Terminal over WSL, tmux,
   Konsole and Kitty are the ones to try.
 - `tests/terminals/` is the terminal checklist made automatic: xdotool presses
   every key into xterm, GNOME Terminal, Konsole, Kitty, Alacritty, Ghostty and
-  tmux under Xvfb and `pin _keys` says what arrived. Its report is the record of
+  tmux under Xvfb and `pins _keys` says what arrived. Its report is the record of
   what each terminal keeps for itself (GNOME Terminal F10 and F11, Konsole
   F11, tmux ctrl-b and the key after it) and that stock xterm sends alt keys
   8-bit until `XTerm*metaSendsEscape: true`, which is why the alt-keys probe
   covers xterm as well as macOS. macOS terminals and Windows Terminal stay a
-  by-hand check (`pin _keys` there). Docker Desktop mounts only paths under
+  by-hand check (`pins _keys` there). Docker Desktop mounts only paths under
   the home directory, so the harness runs from the repository, not from /tmp.
 - fzf support floors at 0.44.1, which lacks `transform`, `--footer`, `print`,
   `exclude` and the `result` event. The CI `fzf` job runs `tests/test_fzf_real.py`
@@ -350,7 +350,7 @@ tests/terminals/run.sh                 # every key in real Linux terminals under
 - The picker's screenshot is generated: run `uv run docs/preview.py` after
   changing the picker's look, and commit `docs/preview.svg` and
   `docs/preview.txt` with the change.
-- Coverage only counts when the `bin/pin` subprocesses are traced, which is
+- Coverage only counts when the `bin/pins` subprocesses are traced, which is
   what `tests/coverage.sh` sets up (plain `coverage run` reports about half).
   Paths ending in `os.execv` are saved by the hook in `tests/coverage_hook/`.
 
@@ -384,7 +384,7 @@ tests/terminals/run.sh                 # every key in real Linux terminals under
   `description` is what decides whether it triggers, so a change to one is
   followed by `tests/skills/triggers.sh` (paid, by hand, after asking) and the
   commit message says whether it ran; a body-only change needs no re-test.
-- `pin list` and `pin sessions` print column labels (and `pin list` the legend)
+- `pins list` and `pins sessions` print column labels (and `pins list` the legend)
   only when stdout is a terminal, so piped output stays bare rows for grep;
   `--json` is the scripting form. Each glyph has one meaning across screens:
   `*` marks a changed field in the editor and details, 🚩/⚑ is keep, and the

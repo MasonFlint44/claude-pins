@@ -69,10 +69,11 @@ def capture(keys: list[bytes]) -> pyte.Screen:
     fx.stub("ccusage", "#!/bin/sh\n[ \"$1\" = --version ] && { echo 'ccusage 20.0.20'; exit 0; }\n"
                        "printf '{\"session\": [{\"period\": \"" + s1 + "\", \"totalCost\": 0.07, \"totalTokens\": 4800000, "
                        "\"modelBreakdowns\": [{\"modelName\": \"claude-fable-5-1\", \"cost\": 0.07, \"inputTokens\": 100}]}]}'\n")
-    pin = str(REPO / "bin" / "pin")
+    pin = str(REPO / "bin" / "pins")
+    # pinning names the session, which is activity: pin_aged keeps the ages the fixture set
     for sid, alias, extra in ((s1, "standup-prep", ["--keep", "--note", "Tuesday standup, uses jira-cards"]),
                               (s2, "cc-collector", []), (s3, "rc-mower", []), (s4, "insurance", ["--fork", "--worktree"])):
-        subprocess.run([pin, "add", sid, alias], check=True, capture_output=True)
+        fx.pin_aged(sid, alias)
         if extra:
             subprocess.run([pin, "edit", alias, *extra], check=True, capture_output=True)
     ps = fx.root / "ps.txt"

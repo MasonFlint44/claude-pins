@@ -253,7 +253,7 @@ def run(items: list[Item], *, prompt: str, header: str = "", expect: list[str] |
 # ---- a Screen as fzf options -----------------------------------------------------------------------------
 
 def hook_command(hook: Hook, *, version: tuple[int, ...] | None = None, width: int | None = None) -> str:
-    """The shell that runs a hook from inside fzf: ``pin`` re-entered with the hidden subcommand, the row
+    """The shell that runs a hook from inside fzf: ``pins`` re-entered with the hidden subcommand, the row
     under the cursor as ``{1}`` and the query as ``{q}``. The rows commands are told the gap row rather
     than asking fzf its version on every reload, and get the launch width as the fallback for builds
     without $FZF_COLUMNS (the width fzf reports wins where it exists)."""

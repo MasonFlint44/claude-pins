@@ -7,9 +7,9 @@ which columns the query matches, and the hooks that run while it is up (the prev
 for the query as typed). Both answer with a :class:`Result`, or None for esc. The picker, the editor and
 the prompts build screens and call :func:`show`; nothing there knows which backend drew it.
 
-Hooks are named, not closures: fzf runs commands, so its backend lowers each to a ``pin _<hook>``
+Hooks are named, not closures: fzf runs commands, so its backend lowers each to a ``pins _<hook>``
 subprocess, while the built-in picker runs the same function in process (``claude_pins.hooks`` holds
-them; the ``pin`` subcommands call the same functions, so a reload draws what a launch would).
+them; the ``pins`` subcommands call the same functions, so a reload draws what a launch would).
 """
 
 from __future__ import annotations
@@ -171,7 +171,7 @@ _held = 0               # depth of hold_screen(): screens that want the next one
 def hold_screen():
     """Keep the alternate screen up between the screens inside this block (the picker's loop, the
     editor's), so they draw over each other; leaving the outermost block returns to the normal screen.
-    A prompt run outside any hold (``pin prune``, ``pin edit``) drops the screen as soon as it ends,
+    A prompt run outside any hold (``pins prune``, ``pins edit``) drops the screen as soon as it ends,
     so what the command prints afterwards is seen."""
     global _held
     _held += 1

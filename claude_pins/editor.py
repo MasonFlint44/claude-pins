@@ -85,7 +85,7 @@ def _commit(store: Store, draft: Pin, original: Pin) -> tuple[str, str]:
     return draft.alias, note
 
 
-# ---- the draft file, read back by ``pin _preview --draft`` -------------------------------------
+# ---- the draft file, read back by ``pins _preview --draft`` -------------------------------------
 
 def write_draft(path: str, draft: Pin, original: Pin) -> None:
     with open(path, "w", encoding="utf-8") as fh:

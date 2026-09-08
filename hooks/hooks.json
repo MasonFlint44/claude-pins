@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/pin\" _keep",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/pins\" _keep",
             "timeout": 10
           }
         ]

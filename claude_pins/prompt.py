@@ -78,7 +78,7 @@ def directory_completions(txt: str) -> list[str]:
 
 
 def directory_rows(txt: str) -> list[str]:
-    """What ``pin _dirs`` prints under the directory field: the typed directory itself first when it
+    """What ``pins _dirs`` prints under the directory field: the typed directory itself first when it
     exists (so enter on the highlighted row keeps what was typed), then its completions."""
     rows = []
     if txt and os.path.isdir(os.path.expanduser(txt)):

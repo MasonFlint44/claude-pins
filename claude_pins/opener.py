@@ -126,7 +126,7 @@ def resolve_directory(store: Store, pin: Pin, color: Palette) -> str | None:
     if action == "unpin":
         store.unpin(pin.alias)
         store.save()
-        _banner(" · ".join(filter(None, [f"✓ unpinned {pin.alias} · pin undo restores it", naming.restore(pin)])), color)
+        _banner(" · ".join(filter(None, [f"✓ unpinned {pin.alias} · pins undo restores it", naming.restore(pin)])), color)
         return None
     return None
 
@@ -168,7 +168,7 @@ def plan_open(store: Store, pin: Pin, *, fork: bool | None = None, worktree: str
     color = palette(sys.stdout)
     transcript = find_transcript(pin.session_id, hint=pin.transcript)
     if transcript is None:
-        raise PinError(f"{pin.alias}: transcript for session {pin.session_id[:8]}… is gone (expired) · pin unpin {pin.alias}")
+        raise PinError(f"{pin.alias}: transcript for session {pin.session_id[:8]}… is gone (expired) · pins unpin {pin.alias}")
     if str(transcript) != pin.transcript:
         pin.transcript = str(transcript)
         store.save()
@@ -222,7 +222,7 @@ def touch_pin(pin: Pin) -> bool:
 
 
 def touch_kept(store: Store) -> list[str]:
-    """Touch every ``keep`` pin's transcript (runs on every ``pin`` invocation)."""
+    """Touch every ``keep`` pin's transcript (runs on every ``pins`` invocation)."""
     touched = []
     for p in store.pins:
         if p.keep and touch_pin(p):

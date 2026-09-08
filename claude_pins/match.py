@@ -1,4 +1,4 @@
-"""Loose matching: ``pin <words…>`` over pins, and ``pin add <session>`` over recent sessions."""
+"""Loose matching: ``pins <words…>`` over pins, and ``pins add <session>`` over recent sessions."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from .model import Pin, is_session_id
 from .sessions import iter_transcripts
 from .transcript import Summary, read_summary
 
-RECENT = 200  # sessions considered by title match and ``pin sessions``, newest first
+RECENT = 200  # sessions considered by title match and ``pins sessions``, newest first
 _ID_PREFIX = re.compile(r"^[0-9a-f-]{8,}$")
 ID_PREFIX_FLOOR = 8
 

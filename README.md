@@ -1,16 +1,16 @@
 # claude-pins
 
 Pin Claude Code sessions so you can find and resume them without remembering a UUID or the
-directory they were launched from. A terminal command `pin` with an fzf picker, plus `/pins:pin`
+directory they were launched from. A terminal command `pins` with an fzf picker, plus `/pins:pin`
 and `/pins:unpin` slash commands shipped as a Claude Code plugin.
 
 ![the pin picker: four pins, a preview pane with branch, model, context and cost](docs/preview.svg)
 
 ```
-$ pin                 # picker: enter opens, ctrl-x actions, ctrl-t pins a recent session, f1 help
-$ pin standup         # one match → cd there and `claude --resume <id>`; several → picker pre-filtered
-$ pin rc-mower --fork # one-off fork (new session id, original untouched)
-$ pin add "rc mower" mower   # pin by title from the terminal; pin sessions lists what it matches
+$ pins                # picker: enter opens, ctrl-x actions, ctrl-t pins a recent session, f1 help
+$ pins standup        # one match → cd there and `claude --resume <id>`; several → picker pre-filtered
+$ pins rc-mower --fork # one-off fork (new session id, original untouched)
+$ pins add "rc mower" mower   # pin by title from the terminal; pins sessions lists what it matches
 ```
 
 Inside Claude: `/pins:pin` pins the current session (Claude drafts an alias and title from the
@@ -32,8 +32,8 @@ own name.
    /plugin install pins@claude-toolbox
    ```
 
-2. Run `/pins:install` once. It symlinks `bin/pin` into `~/.local/bin`, installs bash or zsh
-   completion for the shell you use, and runs `pin doctor`, which checks for **fzf ≥ 0.44**
+2. Run `/pins:install` once. It symlinks `bin/pins` into `~/.local/bin`, installs bash or zsh
+   completion for the shell you use, and runs `pins doctor`, which checks for **fzf ≥ 0.44**
    (optional: without it a built-in picker draws the same screens) and **ccusage** (optional;
    only for the cost line), and on a Mac says whether the terminal sends Option as Meta, which
    the alt keys need. `/pins:doctor` runs the same checks later and explains each line.
@@ -42,7 +42,7 @@ Python 3.10+ standard library only. Linux and macOS (WSL counts as Linux).
 
 **Updating:** `/plugin update pins` (or auto-update for the marketplace in `/plugin`), then
 `/pins:install` again, because the plugin directory moves on each version and the symlink
-points into it, and restart Claude Code so its session-start hook runs from the new version. **Removing:** `/plugin uninstall pins`, delete `~/.local/bin/pin` and the
+points into it, and restart Claude Code so its session-start hook runs from the new version. **Removing:** `/plugin uninstall pins`, delete `~/.local/bin/pins` and the
 completion link; the store and cache below can go too.
 
 ### Plugin commands and skills
@@ -51,8 +51,8 @@ completion link; the store and cache below can go too.
 |---|---|
 | `/pins:pin [alias [title…]]` | pin this session and name it `📌 alias`; with no arguments Claude drafts an alias and title from the conversation and confirms |
 | `/pins:unpin` | unpin this session and put its previous name back; says so if it is not pinned |
-| `/pins:install` | symlink, completion, `pin doctor` |
-| `/pins:doctor` | run `pin doctor` and explain each line with a fix |
+| `/pins:install` | symlink, completion, `pins doctor` |
+| `/pins:doctor` | run `pins doctor` and explain each line with a fix |
 | session-start hook | touches the transcripts of pins with `keep` whenever Claude Code starts, resumes, clears or compacts; silent, comes with the plugin (`hooks/hooks.json`), listed by `/hooks` |
 
 ## How it works
@@ -70,18 +70,18 @@ completion link; the store and cache below can go too.
   box and terminal title. The picker shows it at once; a session that is running picks it up
   within a few turns. The pin's title stays the description you gave it (the session's title
   at pin time by default). Renaming the pin renames the session; unpinning puts back the name
-  the session had before, or clears it if it had none; `pin undo` names it again. A name set
-  inside the session with `/rename` after pinning is yours: `pin` leaves it alone from then on
+  the session had before, or clears it if it had none; `pins undo` names it again. A name set
+  inside the session with `/rename` after pinning is yours: `pins` leaves it alone from then on
   and says nothing about the name. Writing the name is activity, like opening: pinning
   restarts the transcript's retention clock and puts the session at the top of the recency
-  sort, so a pin made on an old session is not swept days later. `pin sessions` and the
+  sort, so a pin made on an old session is not swept days later. `pins sessions` and the
   new-pin screen list a pinned session under the pin's title, next to its 📌 alias tag.
 - Claude Code deletes transcripts untouched for `cleanupPeriodDays` (default 30). A pin is only
   as durable as its transcript, so the picker shows ⏳ in the last 7 days (`CLAUDE_PINS_EXPIRE_WARN`)
   and 🔴 once the transcript is gone. Opening touches the transcript; pins with **keep** (🚩) are
-  touched on every `pin` run and, by the plugin's session-start hook, every time Claude Code
-  starts, so they hold as long as you use Claude at all. `pin prune` unpins the expired ones;
-  `pin undo` restores the last unpin or prune.
+  touched on every `pins` run and, by the plugin's session-start hook, every time Claude Code
+  starts, so they hold as long as you use Claude at all. `pins prune` unpins the expired ones;
+  `pins undo` restores the last unpin or prune.
 - The cost line comes from [ccusage](https://github.com/ryoppippi/ccusage): offline first,
   and when its bundled price table has no price for a model the session used, one online run
   with a short timeout. If neither prices the model, the line says so and names the update
@@ -167,7 +167,7 @@ Every macOS terminal starts with the Option key typing symbols and accents, and 
 any system sends Meta as the character's high bit, so alt-i, alt-t and the other alt keys do
 nothing until the terminal is told to send them as Esc+key. The picker names the switch on its
 status line the first time it runs in such a terminal, keeps the line on the f1 screen until the
-switch is on, and `pin doctor` reports it. The switches:
+switch is on, and `pins doctor` reports it. The switches:
 
 | terminal | setting |
 |---|---|
@@ -185,7 +185,7 @@ and the palette lists every action.
 
 ### Without fzf
 
-When fzf is missing or older than 0.44 (or with `--no-fzf`), `pin` draws the same screens itself:
+When fzf is missing or older than 0.44 (or with `--no-fzf`), `pins` draws the same screens itself:
 the same header, prompt and counter, the same pointer, marker and current-row highlight, the
 preview pane and its size rule, the palette, the editor, the details and help screens and every
 prompt, with the same keys, including the keymap file; a resize re-lays the rows out and the
@@ -195,23 +195,23 @@ with a capital letter is case-sensitive. The mouse works: a click moves the curs
 double-click opens, a right click toggles a selection, the wheel moves through the list or
 scrolls the pane (shift-up / shift-down scroll it from the keyboard); select text with
 shift-drag while the picker is up. Rows keep their order under both pickers (fzf runs with
-`--no-sort`, so the sort you chose holds while you type). `pin doctor` says whether fzf was
-found and how to install it. `pin _keys` names every key and mouse event as the picker reads
+`--no-sort`, so the sort you chose holds while you type). `pins doctor` says whether fzf was
+found and how to install it. `pins _keys` names every key and mouse event as the picker reads
 it, for checking a terminal. A question asked where there is no terminal (a pipe, a script) is
 cancelled.
 
 ## Command line
 
-`pin --help` and `pin <subcommand> --help` print the same information.
+`pins --help` and `pins <subcommand> --help` print the same information.
 
 ```
-pin [words…] [--fork | --resume | -w [name]] [--sort recency|alias|pinned] [--all] [--no-fzf]
+pins [words…] [--fork | --resume | -w [name]] [--sort recency|alias|pinned] [--all] [--no-fzf]
 ```
 
 | | |
 |---|---|
-| `pin` | the picker; enter opens, esc leaves |
-| `pin <words…>` | loose match over alias and title, every word must appear; exactly one hit opens it, several open the picker pre-filtered, none prints "no pin matches" |
+| `pins` | the picker; enter opens, esc leaves |
+| `pins <words…>` | loose match over alias and title, every word must appear; exactly one hit opens it, several open the picker pre-filtered, none prints "no pin matches" |
 | `--fork` / `--resume` / `-w [name]` | one-off open mode: fork the session, plain resume ignoring the pin's modes, or a new worktree (optionally named); these apply to a unique match |
 | `--sort`, `--all`, `--no-fzf` | starting sort, show expired pins from the start, use the built-in picker even though fzf is there |
 
@@ -219,20 +219,20 @@ Every subcommand exits 0 on success and 1 with a one-line message on `stderr` ot
 
 | Subcommand | What it does |
 |---|---|
-| `pin add <session> <alias> [--title …] [--note …] [--cwd …] [--keep] [--fork] [--worktree] [--rename]` | pin a session. `<session>` is a session id, a unique id prefix (8+ characters), or words that must all appear in the title or directory of one of the 200 most recent sessions (quote them: `pin add "rc mower" mower`); several matches are listed with their ids. Title and directory default to the transcript's; a session given by full id with no transcript yet is accepted with a warning. Names the session `📌 alias` and says so. Pinning an already pinned session says "already pinned as X" and, with `--title`/`--note`, updates it, or with `--rename`, renames it (and the session); a taken alias is refused with a suggested `alias-2` |
-| `pin list [--all] [--sort …] [--json]` | the rows the picker shows, expired ones hidden unless `--all`; on a terminal they get the column labels and the marker legend, piped output is bare rows; `--json` adds `state`, `age`, `open`, `markers`, `remaining_days` per pin |
-| `pin sessions [words…] [--json]` | the 200 most recent sessions, newest first, with their short ids, titles, directories, idle times, message counts and, for a pinned one, the pin's title in place of the session's name plus 📌 and the pin's alias; column labels on a terminal. The listed id is the shortest prefix (8 characters, more when two sessions share them) that `pin add` resolves. Words filter the way `pin add` matches. This is what to run when you want to pin something by title from the terminal |
-| `pin edit <alias> [flags]` | set fields directly: `--title`, `--note`, `--cwd`, `--rename <alias>`, `--model`, `--effort`, `--permission-mode` (empty string clears), `--keep`/`--no-keep`, `--fork`/`--no-fork`, `--worktree`/`--no-worktree`. With no flags, the interactive editor |
-| `pin rename <alias> <new-alias>` | rename a pin and its session's name; a taken alias is refused with a suggestion (`pin edit --rename` does the same) |
-| `pin open <alias> [--fork] [--resume] [-w [name]]` | open by exact alias, with the same one-off modes as above; runs the already-open, missing-directory and branch prompts first |
-| `pin rm <alias>` / `pin unpin <alias>` | unpin, no confirmation, and put the session's previous name back (or clear it), saying which; "no pin named x" when there is none |
-| `pin undo` | restore the last unpin or prune (the last ten are kept) and name the session after the pin again; a restored alias that is taken meanwhile comes back as `alias-2` |
-| `pin prune [-y]` | unpin every expired pin after listing them and asking; `-y` skips the question; "nothing to prune" otherwise |
-| `pin touch <alias>` | bump the transcript's mtime, restarting its retention clock |
-| `pin doctor` | fzf version (optional: `·` with the install command when it is missing or old), on a Mac whether the terminal sends Option as Meta, ccusage and its price coverage across your sessions, store health, how many pins have `keep` and whether the plugin's session-start hook runs to touch them (`·` when the plugin is not enabled), projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
+| `pins add <session> <alias> [--title …] [--note …] [--cwd …] [--keep] [--fork] [--worktree] [--rename]` | pin a session. `<session>` is a session id, a unique id prefix (8+ characters), or words that must all appear in the title or directory of one of the 200 most recent sessions (quote them: `pins add "rc mower" mower`); several matches are listed with their ids. Title and directory default to the transcript's; a session given by full id with no transcript yet is accepted with a warning. Names the session `📌 alias` and says so. Pinning an already pinned session says "already pinned as X" and, with `--title`/`--note`, updates it, or with `--rename`, renames it (and the session); a taken alias is refused with a suggested `alias-2` |
+| `pins list [--all] [--sort …] [--json]` | the rows the picker shows, expired ones hidden unless `--all`; on a terminal they get the column labels and the marker legend, piped output is bare rows; `--json` adds `state`, `age`, `open`, `markers`, `remaining_days` per pin |
+| `pins sessions [words…] [--json]` | the 200 most recent sessions, newest first, with their short ids, titles, directories, idle times, message counts and, for a pinned one, the pin's title in place of the session's name plus 📌 and the pin's alias; column labels on a terminal. The listed id is the shortest prefix (8 characters, more when two sessions share them) that `pins add` resolves. Words filter the way `pins add` matches. This is what to run when you want to pin something by title from the terminal |
+| `pins edit <alias> [flags]` | set fields directly: `--title`, `--note`, `--cwd`, `--rename <alias>`, `--model`, `--effort`, `--permission-mode` (empty string clears), `--keep`/`--no-keep`, `--fork`/`--no-fork`, `--worktree`/`--no-worktree`. With no flags, the interactive editor |
+| `pins rename <alias> <new-alias>` | rename a pin and its session's name; a taken alias is refused with a suggestion (`pins edit --rename` does the same) |
+| `pins open <alias> [--fork] [--resume] [-w [name]]` | open by exact alias, with the same one-off modes as above; runs the already-open, missing-directory and branch prompts first |
+| `pins rm <alias>` / `pins unpin <alias>` | unpin, no confirmation, and put the session's previous name back (or clear it), saying which; "no pin named x" when there is none |
+| `pins undo` | restore the last unpin or prune (the last ten are kept) and name the session after the pin again; a restored alias that is taken meanwhile comes back as `alias-2` |
+| `pins prune [-y]` | unpin every expired pin after listing them and asking; `-y` skips the question; "nothing to prune" otherwise |
+| `pins touch <alias>` | bump the transcript's mtime, restarting its retention clock |
+| `pins doctor` | fzf version (optional: `·` with the install command when it is missing or old), on a Mac whether the terminal sends Option as Meta, ccusage and its price coverage across your sessions, store health, how many pins have `keep` and whether the plugin's session-start hook runs to touch them (`·` when the plugin is not enabled), projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
 
 Every run of any of these also touches the transcripts of pins with `keep`, as does the
-plugin's session-start hook (`pin _keep`, which prints nothing).
+plugin's session-start hook (`pins _keep`, which prints nothing).
 
 ## Files and environment
 
@@ -254,7 +254,7 @@ plugin's session-start hook (`pin _keep`, which prints nothing).
 
 ```
 python3 -m unittest            # store, reader, expiry, git worktrees, opener prompts, picker flows, both pickers
-bash tests/coverage.sh         # the same suite under coverage, bin/pin subprocesses included (needs uv)
+bash tests/coverage.sh         # the same suite under coverage, bin/pins subprocesses included (needs uv)
 bash tests/completion_check.sh # bash completion (CI also runs it on bash 3.2 / 4.4 / 5.2 images, plus shellcheck)
 zsh tests/zsh_completion_check.sh                 # zsh completion
 python3 -m unittest -v tests.test_fzf_real        # every screen's rows through the real fzf on PATH (CI: 0.44.1 to 0.74.3)
@@ -273,7 +273,7 @@ and locally it uses whichever fzf is on `PATH`. `tests/test_tui_pty.py` runs the
 in a pseudo-terminal for what only a terminal shows.
 `tests/test_plugin.py` checks the plugin files without a model: frontmatter, the commands'
 dynamic-context snippets against a real store, the install skill's shell steps in a sandbox,
-and that every line the doctor skill explains is one `pin doctor` prints.
+and that every line the doctor skill explains is one `pins doctor` prints.
 
 ```
 tests/skills/run.sh [-m MODEL] [-n RUNS] [CASE...]   # headless skill runs through `claude -p`; paid, by hand
@@ -303,7 +303,7 @@ Whether real terminals deliver the keys is checked in Docker:
 tests/terminals/run.sh [TERMINAL...]   # xterm, GNOME Terminal, Konsole, Kitty, Alacritty, Ghostty, tmux; by hand
 ```
 
-It builds an image with those terminals under Xvfb (about 4 GB, once), runs `pin _keys` in
+It builds an image with those terminals under Xvfb (about 4 GB, once), runs `pins _keys` in
 each while xdotool presses every key the picker binds, the query-editing keys and the mouse,
 takes a screenshot of the picker, and writes a table of what each terminal delivered to
 `tests/terminals/out/report.md`. Keys a terminal keeps for itself show up there as missing

@@ -1,13 +1,13 @@
-# bash completion for `pin` (claude-pins). Works on bash 3.2+.
+# bash completion for `pins` (claude-pins). Works on bash 3.2+.
 #   /pins:install links it into bash-completion's user directory.
 # shellcheck disable=SC2207  # compgen output is split on purpose; bash 3.2 has no mapfile
-_pin_complete() {
+_pins_complete() {
     local cur prev
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     local subs="add list sessions edit rename rm unpin undo prune touch doctor open help"
     local aliases
-    aliases="$(command pin _complete 2>/dev/null)"
+    aliases="$(command pins _complete 2>/dev/null)"
     case "$cur" in
         -*)
             COMPREPLY=( $(compgen -W "--help --version --sort --fork --resume -w --worktree --no-fzf --all --json --title --note --keep --no-keep --no-fork --no-worktree --model --effort --permission-mode --rename -y" -- "$cur") )
@@ -32,4 +32,4 @@ _pin_complete() {
     fi
     return 0
 }
-complete -F _pin_complete pin
+complete -F _pins_complete pins

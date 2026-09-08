@@ -1,6 +1,6 @@
 """The driver ``tests/terminals/run.sh`` runs inside the container: an X server, a fixture HOME with four
-pins, then each terminal in turn runs ``pin _keys`` while xdotool presses every key in ``KEYS`` and
-clicks, and ``pin`` for a screenshot.
+pins, then each terminal in turn runs ``pins _keys`` while xdotool presses every key in ``KEYS`` and
+clicks, and ``pins`` for a screenshot.
 
 The report's columns: ``missing`` keys never reached the app (the terminal kept them: gnome-terminal's
 F10 menu and F11, konsole's F11, tmux's ctrl-b prefix and the key after it); ``wrong`` arrived under
@@ -152,7 +152,7 @@ def run_keys(name: str, env: dict[str, str]) -> dict:
             # a terminal that keeps an F key for its menu or help would keep the focus too: esc closes that,
             # and an esc that reached the app right after an F key is dropped from the comparison
             time.sleep(0.3); xdo("key", "--clearmodifiers", "Escape"); time.sleep(0.3)
-            xdo("key", "--clearmodifiers", "q"); time.sleep(0.15)      # keeps two esc apart (two in a row end pin _keys)
+            xdo("key", "--clearmodifiers", "q"); time.sleep(0.15)      # keeps two esc apart (two in a row end pins _keys)
     time.sleep(0.5)
     # the mouse: a click, a double-click, a right click, the wheel up and down, all on one cell
     geo = dict(line.split("=") for line in xdo("getwindowgeometry", "--shell", wid).splitlines())
@@ -251,7 +251,7 @@ def build_fixture() -> tuple[Fixture, dict[str, str]]:
     fx.stub("ccusage", "#!/bin/sh\n[ \"$1\" = --version ] && { echo 'ccusage 20.0.20'; exit 0; }\n"
                        "printf '{\"session\": [{\"period\": \"" + s1 + "\", \"totalCost\": 0.07, \"totalTokens\": 4800000, "
                        "\"modelBreakdowns\": [{\"modelName\": \"claude-fable-5-1\", \"cost\": 0.07, \"inputTokens\": 100}]}]}'\n")
-    pin = "/repo/bin/pin"
+    pin = "/repo/bin/pins"
     for sid, alias, extra in ((s1, "standup-prep", ["--keep", "--note", "Tuesday standup"]),
                               (s2, "cc-collector", []), (s3, "rc-mower", []), (s4, "insurance", ["--fork", "--worktree"])):
         subprocess.run([sys.executable, pin, "add", sid, alias], check=True, capture_output=True)

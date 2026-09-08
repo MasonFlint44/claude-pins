@@ -141,13 +141,13 @@ class PickerTests(FzfSandbox):
         r = self.run_pin()
         calls = self.fzf_calls()
         self.assertEqual(len(self.pin_rows(calls[0])), 2)
-        self.assertEqual(self.arg(calls[0], "--border-label"), " 1 expired · alt-a show · pin prune ")
+        self.assertEqual(self.arg(calls[0], "--border-label"), " 1 expired · alt-a show · pins prune ")
         self.assertEqual(len(self.pin_rows(calls[1])), 3)
         self.assertRegex(self.pin_rows(calls[1])[-1], r"rc-mower\s.*🔴$")
         ask = calls[2]                                                  # the yes/no is an fzf list
         self.assertEqual(self.arg(ask, "--prompt"), "📌 pins › prune › ")
         self.assertEqual(plain(self.arg(ask, "--header")).split("\n"),
-                         ["enter choose · esc cancel", "prune 1 expired pin(s): rc-mower", "unpin them? (pin undo restores)", " "])
+                         ["enter choose · esc cancel", "prune 1 expired pin(s): rc-mower", "unpin them? (pins undo restores)", " "])
         self.assertEqual([l.split("\t")[1] for l in ask["lines"]], ["yes", "no"])
         self.assertNotIn("--bind", ask["argv"])                          # cursor on yes: no start:pos needed
         self.assertEqual(r.stdout, "")                                    # nothing printed under the screen
@@ -389,7 +389,7 @@ class PickerTests(FzfSandbox):
                    {"key": "alt-t", "select": []}, {"key": "ctrl-x", "select": []}, {"abort": True})
         r = self.run_pin()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("✗ rc-mower: transcript for session 33333333… is gone (expired) · pin unpin rc-mower",
+        self.assertIn("✗ rc-mower: transcript for session 33333333… is gone (expired) · pins unpin rc-mower",
                       self.header_after(2))
         self.assertEqual(len(self.fzf_calls()), 6)  # every empty selection just redraws
         self.assertIsNone(self.claude_calls())
@@ -481,7 +481,7 @@ class PickerTests(FzfSandbox):
         return self.run_pin(*args, **kw)
 
     def test_refresh_reloads_in_place(self):
-        """ctrl-r is a --bind to reload(pin _rows), not an --expect key; the row command carries the sort,
+        """ctrl-r is a --bind to reload(pins _rows), not an --expect key; the row command carries the sort,
         the expired switch and the launch width."""
         self.steps({"key": "alt-s"}, {"key": "alt-a"}, {"abort": True})
         self.run_pin()
@@ -495,7 +495,7 @@ class PickerTests(FzfSandbox):
                       self.binds(calls[2]))
 
     def test_rows_subcommand_matches_the_screen(self):
-        """pin _rows prints exactly the lines the picker sent fzf, label row first, so a reload cannot drift."""
+        """pins _rows prints exactly the lines the picker sent fzf, label row first, so a reload cannot drift."""
         self.steps({"abort": True})
         self.run_pin()
         r = self.run_pin("_rows", "--sort", "recency")
@@ -608,7 +608,7 @@ class PickerTests(FzfSandbox):
         self.steps({"key": "", "select": ["standup-prep"], "unlink": str(self.t1)}, {"abort": True})
         r = self.run_pin()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("✗ standup-prep: transcript for session 11111111… is gone (expired) · pin unpin standup-prep",
+        self.assertIn("✗ standup-prep: transcript for session 11111111… is gone (expired) · pins unpin standup-prep",
                       self.header_after())
         self.assertIsNone(self.claude_calls())
         rows = self.pin_rows(self.fzf_calls()[-1])

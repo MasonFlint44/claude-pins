@@ -391,7 +391,7 @@ def session_label_row(cols: SessionColumns, color: Palette | None = None, sep: s
 
 def session_rows(items: list[tuple[Summary, str]], width: int | None = None, color: Palette | None = None,
                  sep: str = COLUMN_SEP, cols: SessionColumns | None = None) -> list[str]:
-    """Session rows for the new-pin screen and ``pin sessions``: title · dir · age · msgs, then the pin
+    """Session rows for the new-pin screen and ``pins sessions``: title · dir · age · msgs, then the pin
     glyph and alias when the session is already pinned (``items`` pair each summary with that alias, or
     ""), joined by ``sep``."""
     width = width or terminal_width()

@@ -1,4 +1,4 @@
-"""Build the sorted, filtered list of pin views shared by the picker, the menu and ``pin list``."""
+"""Build the sorted, filtered list of pin views shared by the picker, the menu and ``pins list``."""
 
 from __future__ import annotations
 

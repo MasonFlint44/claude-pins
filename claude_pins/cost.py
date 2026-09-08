@@ -200,7 +200,7 @@ def _coverage(rows: list[dict]) -> tuple[dict[str, int], dict[str, int]]:
 
 
 def doctor_line(timeout: float = 8.0) -> str:
-    """For ``pin doctor``: version, and which models across all sessions the offline/online tables cannot price."""
+    """For ``pins doctor``: version, and which models across all sessions the offline/online tables cannot price."""
     binary = ccusage_bin()
     if not binary:
         return f"✗ ccusage: not installed ({UPDATE_HINT}) — cost lines will say so"

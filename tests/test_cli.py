@@ -32,7 +32,7 @@ class CliTests(FzfSandbox):
         self.assertEqual(sorted(d["alias"] for d in data), ["cc-collector", "standup-prep"])
         self.assertEqual({d["alias"]: d["markers"] for d in data}["cc-collector"], "🚩")
         r = self.run_pin("rm", "standup-prep")
-        self.assertIn("✓ unpinned standup-prep · pin undo", r.stdout)
+        self.assertIn("✓ unpinned standup-prep · pins undo", r.stdout)
         r = self.run_pin("rm", "standup-prep")
         self.assertEqual(r.returncode, 1)
         self.assertIn("no pin named standup-prep", r.stderr)
@@ -68,12 +68,12 @@ class CliTests(FzfSandbox):
         r = self.run_pin("list")
         self.assertRegex(r.stdout, r"sp3\s+Standup prep\s+~/git/proj\s+0m")          # the pin's title; naming touched it
         r = self.run_pin("rm", "sp3")
-        self.assertEqual(r.stdout.strip(), "✓ unpinned sp3 · pin undo restores it · session name cleared")
+        self.assertEqual(r.stdout.strip(), "✓ unpinned sp3 · pins undo restores it · session name cleared")
         self.assertEqual(self.last_record(self.t1)["customTitle"], "")
         r = self.run_pin("undo")
         self.assertEqual(r.stdout.strip(), "✓ restored sp3 (unpin) · session named 📌 sp3")
         r = self.run_pin("rm", "third")
-        self.assertEqual(r.stdout.strip(), '✓ unpinned third · pin undo restores it · session named "My name" again')
+        self.assertEqual(r.stdout.strip(), '✓ unpinned third · pins undo restores it · session named "My name" again')
         self.assertEqual(self.last_record(t3)["customTitle"], "My name")
         # renamed inside Claude since: pins leave the name alone and say nothing about it
         with open(self.t1, "a") as fh:
@@ -81,7 +81,7 @@ class CliTests(FzfSandbox):
         r = self.run_pin("rename", "sp3", "sp4")
         self.assertEqual(r.stdout.strip(), "✓ renamed sp3 → sp4")
         r = self.run_pin("rm", "sp4")
-        self.assertEqual(r.stdout.strip(), "✓ unpinned sp4 · pin undo restores it")
+        self.assertEqual(r.stdout.strip(), "✓ unpinned sp4 · pins undo restores it")
         self.assertEqual(self.last_record(self.t1)["customTitle"], "Theirs")
         r = self.run_pin("undo")
         self.assertEqual(r.stdout.strip(), "✓ restored sp4 (unpin)")
@@ -168,7 +168,7 @@ class CliTests(FzfSandbox):
         self.t2.unlink()  # retention sweep took it
         r = self.run_pin("list")
         self.assertNotIn("b ", r.stdout)
-        self.assertIn("1 expired · pin list --all · pin prune", r.stdout)
+        self.assertIn("1 expired · pins list --all · pins prune", r.stdout)
         r = self.run_pin("list", "--all")
         self.assertRegex(r.stdout, r"b\s+Command center collector\s+~/git/cc\s+🔴")
         r = self.run_pin("b")
@@ -198,19 +198,19 @@ class CliTests(FzfSandbox):
         self.assertIn("cleanupPeriodDays 30", r.stdout)
         self.assertIn("✓ store", r.stdout)
         # the keep line says whether the session-start hook runs, which is whether Claude has the plugin enabled
-        self.assertIn("· keep: no pins · touched on every pin run only: the pins plugin is not enabled", r.stdout)
+        self.assertIn("· keep: no pins · touched on every pins run only: the pins plugin is not enabled", r.stdout)
         self.run_pin("add", SID1, "a", "--keep")
         self.write_settings({"enabledPlugins": {"pins@claude-toolbox": False}})
-        self.assertIn("· keep: 1 pin · touched on every pin run only", self.run_pin("doctor").stdout)
+        self.assertIn("· keep: 1 pin · touched on every pins run only", self.run_pin("doctor").stdout)
         self.write_settings({"enabledPlugins": {"pins@claude-toolbox": True}})
         self.run_pin("add", SID2, "b", "--keep")
         r = self.run_pin("doctor")
-        self.assertIn("✓ keep: 2 pins · touched on every pin run and every Claude session start (plugin hook)", r.stdout)
+        self.assertIn("✓ keep: 2 pins · touched on every pins run and every Claude session start (plugin hook)", r.stdout)
         (self.claude_dir / "settings.json").write_text("{")
-        self.assertIn("· keep: 2 pins · touched on every pin run only: the pins plugin is not enabled", self.run_pin("doctor").stdout)
+        self.assertIn("· keep: 2 pins · touched on every pins run only: the pins plugin is not enabled", self.run_pin("doctor").stdout)
 
     def test_keep_hook_touches_kept_pins_and_says_nothing(self):
-        """``pin _keep`` is the plugin's SessionStart hook: its stdout would land in Claude's context and a
+        """``pins _keep`` is the plugin's SessionStart hook: its stdout would land in Claude's context and a
         nonzero exit would show at every session start, so it is silent and exits 0 whatever the store holds."""
         self.run_pin("add", SID1, "a", "--keep")
         self.run_pin("add", SID2, "b")
@@ -270,7 +270,7 @@ class CliTests(FzfSandbox):
         r = self.run_pin("add", SID2[:8], "cc")
         self.assertEqual(r.returncode, 0, r.stderr); self.assertIn("✓ pinned as cc · Command center collector", r.stdout)
         r = self.run_pin("add", "nothing like this", "x")
-        self.assertEqual(r.returncode, 1); self.assertIn("no recent session matches 'nothing like this' · pin sessions lists them", r.stderr)
+        self.assertEqual(r.returncode, 1); self.assertIn("no recent session matches 'nothing like this' · pins sessions lists them", r.stderr)
         r = self.run_pin("add", "1234567", "x")  # too short for a prefix, no title has it either
         self.assertEqual(r.returncode, 1); self.assertIn("no recent session matches", r.stderr)
         r = self.run_pin("add", SID2.upper(), "again")  # a full id is exact, even when already pinned
@@ -297,7 +297,7 @@ class CliTests(FzfSandbox):
         self.assertEqual(r.returncode, 1); self.assertIn("no sessions found", r.stderr)
 
     def test_tables_on_a_terminal(self):
-        """On a tty ``pin list`` gets the picker's column labels and marker legend and ``pin sessions``
+        """On a tty ``pins list`` gets the picker's column labels and marker legend and ``pins sessions``
         its labels; piped output (the other tests) stays bare rows."""
         self.run_pin("add", SID1, "standup-prep", "--keep")
         out = self.run_pin_tty("list")
@@ -333,11 +333,11 @@ class CliTests(FzfSandbox):
 
     def test_help_and_bad_usage(self):
         r = self.run_pin("--help")
-        self.assertEqual(r.returncode, 0); self.assertIn("pin sessions   recent sessions", r.stdout)
+        self.assertEqual(r.returncode, 0); self.assertIn("pins sessions   recent sessions", r.stdout)
         r = self.run_pin("help")
         self.assertEqual(r.returncode, 0); self.assertIn("usage: pin", r.stdout)
         r = self.run_pin("--version")
-        self.assertRegex(r.stdout, r"^pin \d+\.\d+\.\d+$")
+        self.assertRegex(r.stdout, r"^pins \d+\.\d+\.\d+$")
         r = self.run_pin("words", "--bogus")  # query parser errors exit 2 like argparse
         self.assertEqual(r.returncode, 2); self.assertIn("unrecognized arguments", r.stderr)
         r = self.run_pin("add")
@@ -462,5 +462,5 @@ class CliTests(FzfSandbox):
         finally:
             d.chmod(0o700)
         self.assertEqual(r.returncode, 1)
-        self.assertRegex(r.stderr, r"^pin: cannot write .*pins.json: \[Errno 13\]")  # one line, no traceback
+        self.assertRegex(r.stderr, r"^pins: cannot write .*pins.json: \[Errno 13\]")  # one line, no traceback
         self.assertEqual(self.run_pin("_complete").stdout.split(), ["b"])

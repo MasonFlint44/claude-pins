@@ -1,11 +1,11 @@
 ---
-description: Pin this session so `pin` can find and resume it by name
+description: Pin this session so `pins` can find and resume it by name
 argument-hint: "[alias [title…]]"
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/bin/pin:*), AskUserQuestion
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/bin/pins:*), AskUserQuestion
 ---
 
 Pin the current Claude Code session. Session ID: `${CLAUDE_SESSION_ID}`.
-Current pin status (from the store): !`"${CLAUDE_PLUGIN_ROOT}/bin/pin" _status "${CLAUDE_SESSION_ID}"`
+Current pin status (from the store): !`"${CLAUDE_PLUGIN_ROOT}/bin/pins" _status "${CLAUDE_SESSION_ID}"`
 Arguments given: `$ARGUMENTS`
 
 Rules:
@@ -25,19 +25,19 @@ Rules:
 4. Run exactly:
 
    ```
-   "${CLAUDE_PLUGIN_ROOT}/bin/pin" add "${CLAUDE_SESSION_ID}" <alias> --title "<title>"
+   "${CLAUDE_PLUGIN_ROOT}/bin/pins" add "${CLAUDE_SESSION_ID}" <alias> --title "<title>"
    ```
 
    (Bash also sees the session ID as `$CLAUDE_CODE_SESSION_ID`; either works.)
 5. Report the tool's one-line output verbatim. If it says the alias is taken, use its
-   suggestion (`alias-2`) after confirming with the user. Mention that `pin <alias>` (or just
-   `pin`) reopens it from a terminal, and that the pin expires with the transcript after
-   Claude's retention period unless `keep` is set (`pin edit <alias> --keep`; the plugin's
+   suggestion (`alias-2`) after confirming with the user. Mention that `pins <alias>` (or just
+   `pins`) reopens it from a terminal, and that the pin expires with the transcript after
+   Claude's retention period unless `keep` is set (`pins edit <alias> --keep`; the plugin's
    session-start hook then touches the transcript every time Claude starts).
 6. The output ends with `session named 📌 <alias>`: pinning renames this session, the way
    `/rename` does. Tell the user that the `/resume` picker shows the new name at once, and
    that this session's own prompt box and terminal title catch up within a few turns.
    `/pins:unpin` puts the previous name back. Do not run `/rename` to hurry it along: a name
-   set by hand is left alone by `pin` from then on.
+   set by hand is left alone by `pins` from then on.
 
 Never touch the pin store any other way, and never run `claude` yourself.

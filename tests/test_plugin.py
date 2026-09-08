@@ -44,7 +44,7 @@ class PluginFileTests(Sandbox):
         for name in ("pin", "unpin"):
             fm = frontmatter(REPO / "commands" / f"{name}.md")
             self.assertTrue(fm.get("description"))
-            self.assertIn("Bash(${CLAUDE_PLUGIN_ROOT}/bin/pin:*)", fm["allowed-tools"])
+            self.assertIn("Bash(${CLAUDE_PLUGIN_ROOT}/bin/pins:*)", fm["allowed-tools"])
             body = (REPO / "commands" / f"{name}.md").read_text()
             self.assertIn("${CLAUDE_SESSION_ID}", body)
             self.assertNotIn("CLAUDE_SESSION_ID}", body.replace("${CLAUDE_SESSION_ID}", ""))  # no misspelt variants
@@ -69,15 +69,15 @@ class PluginFileTests(Sandbox):
         for name in ("pin", "unpin"):
             self.assertEqual(self.run_snippet(self.snippet(name)), "unpinned")
         self.make_session(SID, title="Standup prep")
-        self.run_snippet(f'"${{CLAUDE_PLUGIN_ROOT}}/bin/pin" add "${{CLAUDE_SESSION_ID}}" standup-prep --title "Standup prep"')
+        self.run_snippet(f'"${{CLAUDE_PLUGIN_ROOT}}/bin/pins" add "${{CLAUDE_SESSION_ID}}" standup-prep --title "Standup prep"')
         for name in ("pin", "unpin"):
             self.assertEqual(self.run_snippet(self.snippet(name)), "pinned\tstandup-prep\tStandup prep")
         # the documented unpin command, verbatim from the command file
         body = (REPO / "commands" / "unpin.md").read_text()
-        m = re.search(r"```\n\s*(\"\$\{CLAUDE_PLUGIN_ROOT\}/bin/pin\" unpin <alias>)\n", body)
+        m = re.search(r"```\n\s*(\"\$\{CLAUDE_PLUGIN_ROOT\}/bin/pins\" unpin <alias>)\n", body)
         self.assertIsNotNone(m)
         out = self.run_snippet(m.group(1).replace("<alias>", "standup-prep"))
-        self.assertIn("✓ unpinned standup-prep · pin undo", out)
+        self.assertIn("✓ unpinned standup-prep · pins undo", out)
 
     def test_install_skill_steps(self):
         blocks = bash_blocks(REPO / "skills" / "install" / "SKILL.md")
@@ -85,14 +85,14 @@ class PluginFileTests(Sandbox):
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(REPO)}
         for block in blocks:
             subprocess.run(["bash", "-eu", "-c", block], capture_output=True, text=True, env=env, check=True)
-        link = self.home / ".local" / "bin" / "pin"
+        link = self.home / ".local" / "bin" / "pins"
         self.assertTrue(link.is_symlink())
-        self.assertEqual(os.path.realpath(link), str(REPO / "bin" / "pin"))
+        self.assertEqual(os.path.realpath(link), str(REPO / "bin" / "pins"))
         out = subprocess.run([str(link), "--version"], capture_output=True, text=True, env=env).stdout
-        self.assertIn("pin ", out)
-        zsh_link = self.home / ".zsh" / "completions" / "_pin"
-        self.assertEqual(os.path.realpath(zsh_link), str(REPO / "completions" / "pin.zsh"))
-        self.assertTrue((REPO / "completions" / "pin.zsh").read_text().startswith("#compdef pin\n"))
+        self.assertIn("pins ", out)
+        zsh_link = self.home / ".zsh" / "completions" / "_pins"
+        self.assertEqual(os.path.realpath(zsh_link), str(REPO / "completions" / "pins.zsh"))
+        self.assertTrue((REPO / "completions" / "pins.zsh").read_text().startswith("#compdef pins\n"))
         # a real file in the way is left alone
         link.unlink(); link.write_text("#!/bin/sh\necho mine\n")
         r = subprocess.run(["bash", "-eu", "-c", blocks[0]], capture_output=True, text=True, env=env)
@@ -110,7 +110,7 @@ class PluginFileTests(Sandbox):
         self.assertNotIn("matcher", group)                       # startup, resume, clear, compact and fork alike
         (hook,) = group["hooks"]
         self.assertEqual(hook["type"], "command")
-        self.assertEqual(hook["command"], '"${CLAUDE_PLUGIN_ROOT}/bin/pin" _keep')
+        self.assertEqual(hook["command"], '"${CLAUDE_PLUGIN_ROOT}/bin/pins" _keep')
         self.assertLessEqual(hook["timeout"], 10)
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(REPO)}
         event = json.dumps({"hook_event_name": "SessionStart", "source": "startup", "session_id": SID})
@@ -120,8 +120,8 @@ class PluginFileTests(Sandbox):
 
         kept = self.make_session(SID, title="Kept", age_days=25)
         plain = self.make_session("22222222-2222-2222-2222-222222222222", title="Plain", age_days=25)
-        self.run_snippet(f'"${{CLAUDE_PLUGIN_ROOT}}/bin/pin" add {SID} kept --keep')
-        self.run_snippet('"${CLAUDE_PLUGIN_ROOT}/bin/pin" add 22222222-2222-2222-2222-222222222222 plain')
+        self.run_snippet(f'"${{CLAUDE_PLUGIN_ROOT}}/bin/pins" add {SID} kept --keep')
+        self.run_snippet('"${CLAUDE_PLUGIN_ROOT}/bin/pins" add 22222222-2222-2222-2222-222222222222 plain')
         for path in (kept, plain):
             self.age(path, 25)
         r = fire()
@@ -137,7 +137,7 @@ class PluginFileTests(Sandbox):
         self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
 
     def test_doctor_skill_table_matches_doctor_output(self):
-        """Every doctor line the skill explains is a line pin doctor can actually print."""
+        """Every doctor line the skill explains is a line pins doctor can actually print."""
         from claude_pins import altkeys, cli, cost, fzf, store
         src = "".join(Path(m.__file__).read_text() for m in (altkeys, cli, cost, fzf, store))
         skill = (REPO / "skills" / "doctor" / "SKILL.md").read_text()
@@ -176,7 +176,7 @@ class ReadmeTests(Sandbox):
         for sub in SUBCOMMANDS:
             if sub.startswith("_") or sub in ("help", "ls"):
                 continue
-            self.assertIn(f"pin {sub}", section, f"subcommand {sub} missing from the README")
+            self.assertIn(f"pins {sub}", section, f"subcommand {sub} missing from the README")
 
     def test_env_knobs_documented(self):
         src = "".join(p.read_text() for p in (REPO / "claude_pins").glob("*.py"))

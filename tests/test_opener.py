@@ -358,7 +358,7 @@ class OpenerScreenTests(FzfSandbox):
         self.assertEqual(r.returncode, 1); self.assertEqual(r.stdout, "")
         self.steps({"key": "", "select": ["unpin"]})
         r = self.run_pin("sp")
-        self.assertEqual(r.returncode, 1); self.assertIn("✓ unpinned sp · pin undo restores it", r.stdout)
+        self.assertEqual(r.returncode, 1); self.assertIn("✓ unpinned sp · pins undo restores it", r.stdout)
         self.assertEqual(self.stored(), {})
 
     def test_notes_reach_the_picker_flash(self):
@@ -369,7 +369,7 @@ class OpenerScreenTests(FzfSandbox):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(r.stdout, "")
         calls = self.fzf_calls()
-        self.assertIn("✓ unpinned sp · pin undo restores it · session name cleared · cancelled", plain(self.arg(calls[-1], "--header")))
+        self.assertIn("✓ unpinned sp · pins undo restores it · session name cleared · cancelled", plain(self.arg(calls[-1], "--header")))
         self.assertEqual(self.stored(), {})
 
     def test_already_open_and_branch_screens(self):

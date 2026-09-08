@@ -6,6 +6,14 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
 ## Unreleased
 
+- **The terminal command is now `pins`.** It shows and opens pins rather than making them
+  (that is `/pins:pin` inside Claude), it matches the plugin, the slash commands and the
+  `CLAUDE_PINS_*` variables, and it no longer shares a name with Intel Pin's launcher. Every
+  subcommand reads the same way after it: `pins add`, `pins doctor`, `pins undo`. The
+  completion files are `completions/pins.bash` and `completions/pins.zsh` (`_pins`). Nothing
+  else moves: the store, cache and keymap paths already said claude-pins. After updating,
+  run `/pins:install` again for the new symlink and completion link, and delete the old
+  `~/.local/bin/pin` and its completion link by hand.
 - **Kept pins hold without running `pin`.** The plugin now carries a session-start hook that
   touches the transcript of every pin with `keep` whenever Claude Code starts, resumes,
   clears or compacts, so a kept session survives Claude's `cleanupPeriodDays` sweep as long

@@ -5,8 +5,8 @@
 #                                            # ghostty tmux-in-xterm xterm-metaSendsEscape
 #
 # Builds a Docker image (Arch: Xvfb, openbox, xdotool, the terminals; about 4 GB, once) and runs
-# tests/terminals/inside.py in it: a fixture HOME with four pins, then each terminal runs `pin _keys`
-# while xdotool presses every keymap key, the query-editing keys and the mouse, and `pin` for a
+# tests/terminals/inside.py in it: a fixture HOME with four pins, then each terminal runs `pins _keys`
+# while xdotool presses every keymap key, the query-editing keys and the mouse, and `pins` for a
 # screenshot. About five minutes for the full set. Results in tests/terminals/out: report.md (a
 # table of what each terminal delivered), <terminal>.png, <terminal>.keys.log. By hand, not in CI.
 set -euo pipefail

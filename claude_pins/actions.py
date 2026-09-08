@@ -37,9 +37,9 @@ def expired_flash(view: View) -> str:
     """Why an expired pin cannot open: its transcript is on the way out or already gone."""
     alias = view.pin.alias
     if view.summary:
-        return f"✗ {alias} has expired · unpin it or pin prune"
+        return f"✗ {alias} has expired · unpin it or pins prune"
     return (f"✗ {alias}: transcript for session {view.pin.session_id[:8]}… is gone (expired)"
-            f" · pin unpin {alias}")
+            f" · pins unpin {alias}")
 
 
 def open_plan(store: Store, view: View, action: str) -> tuple[Plan | None, str]:

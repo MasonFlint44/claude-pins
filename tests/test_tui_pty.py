@@ -151,11 +151,11 @@ class NativePtyTests(PtyMixin, Sandbox):
         pid, fd = self.spawn(30, 100, shell=True)
         try:
             self.wait_for(fd, r"\$ ")
-            os.write(fd, b"pin\r")
+            os.write(fd, b"pins\r")
             self.wait_for(fd, COUNT3)
             self.out = b""
             os.write(fd, b"\x1a")
-            self.wait_for(fd, r"Stopped\s+pin[\s\S]*\$ ")               # bash's job line, then its prompt
+            self.wait_for(fd, r"Stopped\s+pins[\s\S]*\$ ")               # bash's job line, then its prompt
             self.assertIn(b"\x1b[?1049l", self.out)                    # the normal screen while stopped
             self.out = b""
             os.write(fd, b"fg\r")

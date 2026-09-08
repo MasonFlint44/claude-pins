@@ -24,7 +24,7 @@
 │ context    ~121k (61%)                                                                           │
 │ cost       est $0.07 (ccusage)                                                                   │
 │ transcript 84 msgs · 36 KB                                                                       │
-│ created    2026-09-01 · last activity 0m ago · pinned 2026-09-07 · expires 29d                   │
+│ created    2026-09-01 · last activity 0m ago · pinned 2026-09-08 · expires 29d                   │
 │ keep       on — touched every run                                                                │
 │ session    11111111-1111-1111-1111-111111111111                                                  │
 │                                                                                                  │

@@ -1,7 +1,7 @@
 """Put this directory on PYTHONPATH (tests/coverage.sh does) and every Python process started
-during the test run records coverage, including the ``bin/pin`` subprocesses.
+during the test run records coverage, including the ``bin/pins`` subprocesses.
 
-``pin`` ends by exec-ing ``claude``, which would discard that process's data before coverage
+``pins`` ends by exec-ing ``claude``, which would discard that process's data before coverage
 could write it, so exec is wrapped to save first.
 """
 import os
