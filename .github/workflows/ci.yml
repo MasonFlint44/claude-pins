@@ -32,7 +32,7 @@ jobs:
           zsh tests/zsh_completion_check.sh
       - name: shellcheck
         if: runner.os == 'Linux'
-        run: shellcheck completions/pin.bash tests/completion_check.sh tests/coverage.sh tests/skills/run.sh tests/skills/triggers.sh
+        run: shellcheck completions/pin.bash tests/completion_check.sh tests/coverage.sh tests/skills/run.sh tests/skills/triggers.sh tests/terminals/run.sh tests/terminals/wrap.sh
 
   fzf:
     # The picker's rows and options against real fzf builds: the supported floor, the last release before

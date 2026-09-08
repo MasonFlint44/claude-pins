@@ -275,6 +275,19 @@ tests/skills/triggers.sh [-m MODEL] [SKILL...]                # optimizer: propo
 The optimizer never edits `SKILL.md`; it prints the best description it found, scored on a
 held-out split, for you to paste in. `-e -m haiku -r 1` is a two-minute smoke test per skill.
 
+Whether real terminals deliver the keys is checked in Docker:
+
+```
+tests/terminals/run.sh [TERMINAL...]   # xterm, GNOME Terminal, Konsole, Kitty, Alacritty, Ghostty, tmux; by hand
+```
+
+It builds an image with those terminals under Xvfb (about 4 GB, once), runs `pin _keys` in
+each while xdotool presses every key the picker binds, the query-editing keys and the mouse,
+takes a screenshot of the picker, and writes a table of what each terminal delivered to
+`tests/terminals/out/report.md`. Keys a terminal keeps for itself show up there as missing
+(GNOME Terminal's F10 and F11, Konsole's F11, tmux's ctrl-b prefix); stock xterm needs
+`XTerm*metaSendsEscape: true` before alt keys arrive at all.
+
 **Releasing:** add a `CHANGELOG.md` section, bump `version` in `.claude-plugin/plugin.json`
 and `claude_pins/__init__.py` (a test keeps the three in step), commit `Version X.Y.Z`, tag
 `vX.Y.Z` with the section as its message, `gh release create` with the same notes. The

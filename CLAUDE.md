@@ -223,6 +223,7 @@ bash tests/completion_check.sh         # after touching completions/pin.bash or 
 docker run --rm -v "$PWD:/repo:ro" zshusers/zsh:5.9 zsh /repo/tests/zsh_completion_check.sh   # no zsh on this machine
 CLAUDE_PINS_TEST_FZF=/path/to/fzf python3 -m unittest tests.test_fzf_real   # another fzf build; CI runs 0.44.1 … 0.74.3
 bash tests/coverage.sh                 # coverage report; needs uv (dev deps live in pyproject.toml)
+tests/terminals/run.sh                 # every key in real Linux terminals under Docker (5 min, 4 GB image); after touching keys.py or the keymap
 ```
 
 - Tests never launch the real `claude`: a stub on PATH records argv and cwd, so
@@ -260,6 +261,15 @@ bash tests/coverage.sh                 # coverage report; needs uv (dev deps liv
   eye. `pin _keys` is the by-hand check on a terminal: GNOME Terminal (VTE),
   Terminal.app, iTerm2, VS Code, Ghostty, Windows Terminal over WSL, tmux,
   Konsole and Kitty are the ones to try.
+- `tests/terminals/` is the terminal checklist made automatic: xdotool presses
+  every key into xterm, GNOME Terminal, Konsole, Kitty, Alacritty, Ghostty and
+  tmux under Xvfb and `pin _keys` says what arrived. Its report is the record of
+  what each terminal keeps for itself (GNOME Terminal F10 and F11, Konsole
+  F11, tmux ctrl-b and the key after it) and that stock xterm sends alt keys
+  8-bit until `XTerm*metaSendsEscape: true`, which is why the alt-keys probe
+  covers xterm as well as macOS. macOS terminals and Windows Terminal stay a
+  by-hand check (`pin _keys` there). Docker Desktop mounts only paths under
+  the home directory, so the harness runs from the repository, not from /tmp.
 - fzf support floors at 0.44.1, which lacks `transform`, `--footer`, `print`,
   `exclude` and the `result` event. The CI `fzf` job runs `tests/test_fzf_real.py`
   against 0.44.1, 0.53.0, 0.64.0 and 0.74.3; add a version there when a release
