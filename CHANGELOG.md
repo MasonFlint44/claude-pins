@@ -4,7 +4,7 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
-## Unreleased
+## 0.7.0 — 2026-09-08
 
 - **Pins name their sessions.** Pinning renames the Claude session to `📌 alias`, the way
   `/rename` does, so the pin shows in Claude's own `/resume` picker, prompt box and

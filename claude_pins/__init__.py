@@ -1,3 +1,3 @@
 """claude-pins: pin Claude Code sessions and resume them by name."""
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
