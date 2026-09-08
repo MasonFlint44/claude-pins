@@ -4,6 +4,15 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
+## Unreleased
+
+- The built-in picker gives a lone esc its whole delay even when the preview
+  or a resize wakes it part-way through, so on a terminal that sends ESC and
+  the rest of a key separately, alt-i pressed right after a cursor move can
+  no longer be read as esc. It also no longer repaints an identical frame
+  when the preview's last post arrives, which could leave a stale frame
+  after a resize.
+
 ## 0.6.0 — 2026-09-07
 
 - **The same picker without fzf.** The numbered menu is gone. When fzf is

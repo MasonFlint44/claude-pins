@@ -95,6 +95,11 @@ class DecoderTests(unittest.TestCase):
                     if c is None:               # nothing came: the wait ran out
                         self.waits.append(timeout); self.t += timeout
                         return b""
+                    if c == "wake":             # woken part-way through the wait, by a preview post or a resize
+                        self.waits.append(timeout); self.t += 0.03
+                        return None
+                    if timeout is not None:     # bytes within a wait: the wait is recorded too
+                        self.waits.append(timeout)
                     return c
                 self.t += timeout or 0
                 return b""
@@ -112,6 +117,22 @@ class DecoderTests(unittest.TestCase):
         f = Fake([b"\x1b[", None, b"\x1b[A"])                # a partial sequence left alone is dropped
         r = Reader(f.read, esc_delay=0.1, clock=f.clock)
         self.assertEqual(r.next(), Key("up"))
+        f = Fake([b"\x1b", "wake", b"x"])                    # a wake during the delay: handed back, the wait resumed
+        r = Reader(f.read, esc_delay=0.1, clock=f.clock)
+        self.assertIsNone(r.next())
+        self.assertEqual(r.next(), Key("alt-x"))              # still alt-x: the wake did not decide the ESC
+        self.assertAlmostEqual(f.waits[-1], 0.07)             # the rest of the delay, not a fresh one
+        f = Fake([b"\x1b", "wake", None, b"x"])              # a wake, then the rest of the delay runs out: esc, then x
+        r = Reader(f.read, esc_delay=0.1, clock=f.clock)
+        self.assertEqual([r.next(), r.next(), r.next()], [None, Key("esc"), Key("char", "x")])
+        self.assertAlmostEqual(f.waits[-1], 0.07)
+        f = Fake([b"\x1b[", "wake", None, b"\x1b[A"])       # a partial sequence survives the wake and is dropped in time
+        r = Reader(f.read, esc_delay=0.1, clock=f.clock)
+        self.assertEqual([r.next(), r.next()], [None, Key("up")])
+        f = Fake([b"\x1b", "wake", "wake", "wake", "wake", b"x"])   # wakes past the delay: decided on the next call
+        r = Reader(f.read, esc_delay=0.1, clock=f.clock)
+        self.assertEqual([r.next() for _ in range(4)], [None] * 4)
+        self.assertEqual([r.next(), r.next()], [Key("esc"), Key("char", "x")])
         f = Fake([b"\x1bt\x1b[B"])                           # several events in one read
         r = Reader(f.read, esc_delay=0.1, clock=f.clock)
         self.assertEqual([r.next(), r.next()], [Key("alt-t"), Key("down")])

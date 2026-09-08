@@ -182,7 +182,10 @@ def _mouse(buf: bytes) -> tuple[Mouse | None, int]:
 
 class Reader:
     """Turns what a terminal sends into events, holding a lone ESC or a partial sequence for the esc
-    delay before deciding. ``read(timeout)`` returns bytes (empty on timeout); ``clock`` is for tests."""
+    delay before deciding. ``read(timeout)`` returns bytes, empty when the wait ran out, or None when
+    the loop was woken for something other than input (a preview post, a resize): ``next`` then returns
+    None with the held bytes kept and their delay resumed on the next call, so the wake is handled and
+    the ESC is still given its whole delay. ``clock`` is for tests."""
 
     def __init__(self, read: Callable[[float], bytes], *, esc_delay: float | None = None,
                  clock: Callable[[], float] = time.monotonic):
@@ -192,7 +195,7 @@ class Reader:
         env = os.environ.get("ESCDELAY", "")
         self.esc_delay = esc_delay if esc_delay is not None else (int(env) / 1000 if env.isdigit() else DEFAULT_ESC_DELAY)
         self._last_down: tuple[float, int, int] | None = None
-        self.woken = False              # a wake arrived while a partial sequence was being waited out
+        self._held_until: float | None = None       # when the held bytes' delay runs out
 
     def next(self, timeout: float | None = None) -> Event | None:
         """The next event, waiting at most ``timeout`` (None: for ever) for bytes; None on timeout."""
@@ -206,12 +209,16 @@ class Reader:
                 self.buf = self.buf[n:]
                 continue
             if self.buf:                # a lone ESC or a partial sequence: give the rest the esc delay
-                more = self.read(self.esc_delay)
+                if self._held_until is None:
+                    self._held_until = self.clock() + self.esc_delay
+                left = max(0.0, self._held_until - self.clock())
+                more = self.read(left) if left else b""
+                if more is None:        # woken: the caller handles it and comes back for the rest of the delay
+                    return None
+                self._held_until = None
                 if more:
                     self.buf += more
                     continue
-                if more is None:
-                    self.woken = True
                 if self.buf == b"\x1b":
                     self.buf = b""
                     return Key("esc")
