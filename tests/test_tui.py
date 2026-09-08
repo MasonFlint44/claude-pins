@@ -416,7 +416,7 @@ class FrameTests(TuiSandbox):
 
     def test_resize_reloads_the_rows(self):
         self.make_session(SID1, cwd=str(self.home / "git" / "proj"), age_days=1, title="Standup prep")
-        self.run_pin("add", SID1, "standup-prep")
+        self.pin_aged(SID1, "standup-prep")
         from claude_pins.hooks import pin_rows
         items = pin_rows("recency", False, width=60)
         screen = Screen(items, prompt="> ", header_lines=1, nth="1..3", reload=Hook("rows", ("recency", "")),
@@ -428,7 +428,7 @@ class FrameTests(TuiSandbox):
         self.assertGreater(len(frame[2]), 40)                                   # the label row laid out for 120 columns
         # the refresh key reloads: a pin added meanwhile appears
         self.make_session(SID2, age_days=0.5, title="Late")
-        self.run_pin("add", SID2, "late")
+        self.pin_aged(SID2, "late")
         res, frame = self.run_screen(screen, ["@ctrl-r", "@enter"], cols=60, rows=12)
         self.assertTrue(any(l.startswith("▌ late") for l in frame))
         self.assertEqual(res.ids, ["standup-prep"])                              # the cursor stayed on its row
@@ -490,7 +490,7 @@ class FlowTests(TuiSandbox):
         super().setUp()
         self.t1 = self.make_session(SID1, age_days=2, title="Standup prep")
         self.t2 = self.make_session(SID2, cwd=str(self.home), age_days=26, title="Navimow schedule debug")
-        self.run_pin("add", SID1, "standup-prep"); self.run_pin("add", SID2, "rc-mower")
+        self.pin_aged(SID1, "standup-prep"); self.pin_aged(SID2, "rc-mower")
 
     def stored(self):
         return {p["alias"]: p for p in json.loads(self.store_path().read_text())["pins"]}

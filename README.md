@@ -71,9 +71,10 @@ completion link; the store and cache below can go too.
   at pin time by default). Renaming the pin renames the session; unpinning puts back the name
   the session had before, or clears it if it had none; `pin undo` names it again. A name set
   inside the session with `/rename` after pinning is yours: `pin` leaves it alone from then on
-  and says nothing about the name. The transcript's modification time is kept, so naming
-  neither resets the idle time nor the retention clock. `pin sessions` and the new-pin screen
-  list a pinned session under the pin's title, next to its 📌 alias tag.
+  and says nothing about the name. Writing the name is activity, like opening: pinning
+  restarts the transcript's retention clock and puts the session at the top of the recency
+  sort, so a pin made on an old session is not swept days later. `pin sessions` and the
+  new-pin screen list a pinned session under the pin's title, next to its 📌 alias tag.
 - Claude Code deletes transcripts untouched for `cleanupPeriodDays` (default 30). A pin is only
   as durable as its transcript, so the picker shows ⏳ in the last 7 days (`CLAUDE_PINS_EXPIRE_WARN`)
   and 🔴 once the transcript is gone. Opening touches the transcript; pins with **keep** (🚩) are

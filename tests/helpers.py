@@ -134,6 +134,16 @@ class Sandbox(unittest.TestCase):
         t = time.time() - days * 86400
         os.utime(path, (t, t))
 
+    def pin_aged(self, session_id: str, alias: str, *args: str):
+        """``pin add`` with the transcript's age kept. Pinning names the session, which is activity like
+        opening is, so a fixture that goes on to test idle times or the recency sort pins this way."""
+        paths = list(self.projects.glob(f"*/{session_id}.jsonl"))
+        stats = [(p, p.stat()) for p in paths]
+        r = self.run_pin("add", session_id, alias, *args)
+        for p, st in stats:
+            os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+        return r
+
     def store_path(self) -> Path:
         return self.home / ".local" / "state" / "claude-pins" / "pins.json"
 

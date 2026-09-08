@@ -29,8 +29,8 @@ class NamingTests(Sandbox):
         self.assertEqual(self.pin.prior_title, "")
         self.assertEqual(read_summary(self.t).custom_title, "📌 standup")
         self.assertEqual(read_summary(self.t).title, "📌 standup")
-        # a rename is not activity: the idle time, the sort and the retention sweep keep the old mtime
-        self.assertEqual(self.t.stat().st_mtime_ns, before.st_mtime_ns)
+        # naming is activity, like opening: the idle time, the recency sort and the retention clock restart
+        self.assertGreater(self.t.stat().st_mtime, before.st_mtime + 86400)
 
     def test_claim_keeps_the_prior_name(self):
         t = self.make_session("22222222-2222-2222-2222-222222222222", custom="Mine", age_days=1)

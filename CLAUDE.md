@@ -31,8 +31,11 @@ reasons behind several design choices and are recorded nowhere else.
   32 KB written) and adopts it, which took four short haiku turns when
   measured, so no hook is involved and the plugin commands say the prompt box
   catches up within a few turns. Both were checked on 2.1.263. The append
-  would bump the mtime that the idle column, the recency sort and the
-  retention sweep read, so `set_title` restores it. Claude's transcript GC
+  bumps the mtime that the idle column, the recency sort and the retention
+  sweep read, and that is kept on purpose: a pin made on an old session
+  would otherwise be swept days later, and the tool already counts opening
+  and `keep` as activity (`tests/helpers.pin_aged` pins without it for the
+  fixtures that test ages). Claude's transcript GC
   (off by default, files over 5 MB) keeps only the last copy of a
   last-wins record, custom-title included, which is why `transcript.py`'s
   whole-file scan treats an empty title as a clear rather than skipping it.

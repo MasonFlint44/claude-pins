@@ -73,7 +73,7 @@ class RealFzfTests(FzfSandbox):
         self.make_session(SID2, cwd=str(self.home / "git" / "command-center"), age_days=9, title="Command center collector")
         self.make_session(SID3, cwd=str(self.home / "git" / "dotclaude"), age_days=1, title="Standup prep")
         for sid, alias in ((SID1, "rc-mower"), (SID2, "cc-collector"), (SID3, "standup")):
-            self.run_pin("add", sid, alias)
+            self.pin_aged(sid, alias)
         self.calls: list[tuple[list[fzf.Item], dict]] = []
 
     def recorder(self, items, **kw):
@@ -387,7 +387,7 @@ class InteractiveSmokeTest(PtyMixin, FzfSandbox):
         self.make_session(SID2, cwd=str(self.home / "git" / "command-center"), age_days=9, title="Command center collector")
         self.make_session(SID3, cwd=str(self.home / "git" / "dotclaude"), age_days=1, title="Standup prep")
         for sid, alias in ((SID1, "rc-mower"), (SID2, "cc-collector"), (SID3, "standup")):
-            self.run_pin("add", sid, alias)
+            self.pin_aged(sid, alias)
         # This claude stub also records whether the terminal was back in cooked mode when it started.
         self.stub_claude_tty()
 

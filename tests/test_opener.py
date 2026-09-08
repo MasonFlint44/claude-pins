@@ -25,7 +25,7 @@ class OpenerTests(TuiSandbox):
 
     def pin_in(self, cwd: str, **kw):
         self.make_session(SID, cwd=cwd, **kw)
-        r = self.run_pin("add", SID, "sp")
+        r = self.pin_aged(SID, "sp")
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def stored(self):

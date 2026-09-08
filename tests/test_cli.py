@@ -24,7 +24,7 @@ class CliTests(FzfSandbox):
         self.assertEqual(r.returncode, 0, r.stderr)
         r = self.run_pin("list")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertRegex(r.stdout, r"standup-prep\s+Standup prep\s+~/git/proj\s+2d")
+        self.assertRegex(r.stdout, r"standup-prep\s+Standup prep\s+~/git/proj\s+0m")   # naming the session is activity
         self.assertRegex(r.stdout, r"cc-collector\s+CC\s+~/git/cc\s+0m\s+🚩")  # keep → touched on every run
         r = self.run_pin("list", "--json")
         data = json.loads(r.stdout)
@@ -65,7 +65,7 @@ class CliTests(FzfSandbox):
         self.assertEqual(r.stdout.strip(), "already pinned as sp3 · renamed to sp3 · session named 📌 sp3")
         self.assertEqual(self.last_record(self.t1)["customTitle"], "📌 sp3")
         r = self.run_pin("list")
-        self.assertRegex(r.stdout, r"sp3\s+Standup prep\s+~/git/proj\s+2d")          # the pin's title, and no touch
+        self.assertRegex(r.stdout, r"sp3\s+Standup prep\s+~/git/proj\s+0m")          # the pin's title; naming touched it
         r = self.run_pin("rm", "sp3")
         self.assertEqual(r.stdout.strip(), "✓ unpinned sp3 · pin undo restores it · session name cleared")
         self.assertEqual(self.last_record(self.t1)["customTitle"], "")
@@ -90,7 +90,7 @@ class CliTests(FzfSandbox):
         self.assertIn("no transcript found", r.stderr)
 
     def test_sessions_show_a_pinned_one_under_its_pin_title(self):
-        self.run_pin("add", SID1, "sp", "--title", "The pin's title")
+        self.pin_aged(SID1, "sp", "--title", "The pin's title")
         r = self.run_pin("sessions")
         self.assertRegex(r.stdout.splitlines()[0], rf"^{SID1[:8]}  The pin's title\s+~/git/proj\s+2d\s+2 msgs\s+📌 sp$")
         data = json.loads(self.run_pin("sessions", "--json", "pin's").stdout)
@@ -246,7 +246,7 @@ class CliTests(FzfSandbox):
         self.assertIn("already pinned as cc", r.stdout)
 
     def test_sessions_listing(self):
-        self.run_pin("add", SID1, "sp")
+        self.pin_aged(SID1, "sp")
         r = self.run_pin("sessions")
         self.assertEqual(r.returncode, 0, r.stderr)
         lines = r.stdout.splitlines()

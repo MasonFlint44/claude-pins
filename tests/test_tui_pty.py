@@ -32,7 +32,7 @@ class NativePtyTests(PtyMixin, Sandbox):
         self.make_session(SID2, cwd=str(self.home / "git" / "command-center"), age_days=9, title="Command center collector")
         self.make_session(SID3, cwd=str(self.home / "git" / "dotclaude"), age_days=1, title="Standup prep")
         for sid, alias in ((SID1, "rc-mower"), (SID2, "cc-collector"), (SID3, "standup")):
-            self.run_pin("add", sid, alias)
+            self.pin_aged(sid, alias)
         self.stub_claude_tty()
         from claude_pins import config
         config.noted_file().parent.mkdir(parents=True, exist_ok=True)

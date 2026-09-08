@@ -21,7 +21,7 @@ class PickerTests(FzfSandbox):
         self.t2 = self.make_session(SID2, cwd=str(self.home / "git" / "cc"), age_days=9, title="Command center collector")
         self.t3 = self.make_session(SID3, cwd=str(self.home), age_days=26, title="Navimow schedule debug")
         for sid, alias in ((SID1, "standup-prep"), (SID2, "cc-collector"), (SID3, "rc-mower")):
-            self.run_pin("add", sid, alias)
+            self.pin_aged(sid, alias)
 
     def stored(self):
         return {p["alias"]: p for p in json.loads(self.store_path().read_text())["pins"]}

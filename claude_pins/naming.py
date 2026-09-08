@@ -48,7 +48,6 @@ def set_title(transcript: str | os.PathLike, session_id: str, title: str) -> boo
     record = {"type": "custom-title", "customTitle": title, "sessionId": session_id}
     line = json.dumps(record, separators=(",", ":"), ensure_ascii=False) + "\n"
     try:
-        st = path.stat()
         with open(path, "r+b") as fh:
             fh.seek(0, os.SEEK_END)
             end = fh.tell()
@@ -57,9 +56,6 @@ def set_title(transcript: str | os.PathLike, session_id: str, title: str) -> boo
                 if fh.read(1) != b"\n":       # a transcript cut mid-record: do not glue onto its last line
                     fh.write(b"\n")
             fh.write(line.encode("utf-8"))
-        # The write bumped the mtime that the idle column, the recency sort and Claude's retention sweep
-        # all read; a rename is not activity, so the transcript keeps the time of its last real turn.
-        os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns))
     except OSError:
         return False
     sidecar = path.parent / path.stem / "custom-title.json"
