@@ -4,7 +4,7 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
-## 0.6.0 — unreleased
+## 0.6.0 — 2026-09-07
 
 - **The same picker without fzf.** The numbered menu is gone. When fzf is
   missing or older than 0.44 (or with `--no-fzf`), `pin` draws every screen
@@ -36,7 +36,10 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   ctrl-t; the f1 screen's reset-all is alt-r. Alt keys stay for the rest. A
   saved `keys.toml` keeps whatever it names.
 - `pin _keys` names every key and mouse event as the picker reads it, for
-  checking a terminal or a bug report.
+  checking a terminal or a bug report. `tests/terminals/run.sh` does that for
+  xterm, GNOME Terminal, Konsole, Kitty, Alacritty, Ghostty and tmux under
+  Docker; the keys those terminals keep for themselves are recorded in the
+  README, and none of them is bound.
 - A question asked where there is no terminal (a pipe, a script) is now
   cancelled with a line on stderr instead of read from stdin; `TERM=dumb` gets
   the list and a pointer at the commands.
