@@ -194,10 +194,6 @@ gap row and a plain gutter, so the test skips there):
   a ccusage cache miss and the cursor must not wait; results are cached per
   (row, pane width) for the screen's life and dropped on reload. SIGWINCH
   writes to the same pipe; a resize re-runs the `rows` hook at the new width.
-  The worker posts the whole text after each chunk and once more when it is
-  done, so a wake that changes nothing must not repaint: the two posts land
-  in one wake or two, and the second paint of the same frame came after a
-  resize about one run in thirty of the pty test (`test_mouse_and_resize`).
 - A screen shown where there is no terminal (a pipe, a script, `TERM=dumb`) is
   cancelled with a line on stderr rather than asked, since `input()` was the
   only alternative and it cannot draw a screen; `pin` with no arguments on a
@@ -258,6 +254,13 @@ tests/terminals/run.sh                 # every key in real Linux terminals under
   alternate-screen entry.
   The stub-driven tests are where a hidden-field bug hid for four releases: do
   not judge matching by them.
+- One test run at a time on a machine. Open-session detection reads the real
+  `ps` table unless a test sets `CLAUDE_PINS_PS`, so two suites running at
+  once see each other's stub `claude --resume` processes, land on the
+  already-open prompt and fail across the opener and cli tests for no reason
+  in the code. A flake is hunted by looping the suite sequentially with each
+  run's output kept in a file: `tail -1` on the 0.6.0 release verify run
+  discarded the one failure in eight, and finding it again took thirty runs.
 - The built-in picker is tested the same two ways plus one: `tests/test_tui.py`
   runs its flows from a scripted terminal (the fzf stub's counterpart) and its
   frames in process, `tests/test_tui_pty.py` drives the raw-mode terminal for
