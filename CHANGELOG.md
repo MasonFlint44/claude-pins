@@ -17,8 +17,8 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
 - **Kept pins hold without running `pin`.** The plugin now carries a session-start hook that
   touches the transcript of every pin with `keep` whenever Claude Code starts, resumes,
   clears or compacts, so a kept session survives Claude's `cleanupPeriodDays` sweep as long
-  as you use Claude at all, not only while you run `pin`. The hook prints nothing and never
-  blocks a start; it comes with the plugin and `/hooks` lists it. `pin doctor` gained a
+  as you use Claude at all, not only while you run `pins`. The hook prints nothing and never
+  blocks a start; it comes with the plugin and `/hooks` lists it. `pins doctor` gained a
   `keep` line that counts the kept pins and says whether the hook runs, with the fix when
   the plugin is not enabled. Restart Claude Code after updating the plugin so the hook is
   picked up.
