@@ -4,6 +4,17 @@ Versions follow the `version` field in `.claude-plugin/plugin.json`; Claude
 Code offers a plugin update when that field changes. Each version is a git
 tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
+## Unreleased
+
+- **Kept pins hold without running `pin`.** The plugin now carries a session-start hook that
+  touches the transcript of every pin with `keep` whenever Claude Code starts, resumes,
+  clears or compacts, so a kept session survives Claude's `cleanupPeriodDays` sweep as long
+  as you use Claude at all, not only while you run `pin`. The hook prints nothing and never
+  blocks a start; it comes with the plugin and `/hooks` lists it. `pin doctor` gained a
+  `keep` line that counts the kept pins and says whether the hook is in place, with the fix
+  when the installed plugin predates it or is not enabled. Restart Claude Code after
+  updating the plugin so the hook is picked up.
+
 ## 0.7.0 — 2026-09-08
 
 - **Pins name their sessions.** Pinning renames the Claude session to `📌 alias`, the way

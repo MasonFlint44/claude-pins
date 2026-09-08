@@ -22,7 +22,7 @@ from .store import Store, load_store
 from .transcript import Summary, read_summary
 
 SUBCOMMANDS = ("add", "list", "ls", "sessions", "edit", "rename", "rm", "unpin", "undo", "prune", "touch", "doctor", "open",
-               "_preview", "_spreview", "_rows", "_dirs", "_status", "_complete", "_keys", "help")
+               "_preview", "_spreview", "_rows", "_dirs", "_status", "_complete", "_keep", "_keys", "help")
 
 
 def _global_options(p: argparse.ArgumentParser) -> None:
@@ -98,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     o.add_argument("--fork", action="store_true"); o.add_argument("--resume", action="store_true")
     o.add_argument("-w", "--worktree", nargs="?", const="", metavar="NAME")
 
-    for hidden in ("_preview", "_spreview", "_dirs", "_status", "_complete", "_keys"):
+    for hidden in ("_preview", "_spreview", "_dirs", "_status", "_complete", "_keep", "_keys"):
         h = sub.add_parser(hidden)
         h.add_argument("arg", nargs="?")
         if hidden == "_preview":
@@ -161,7 +161,7 @@ def dispatch(opts, parser) -> int:
         "undo": cmd_undo, "prune": cmd_prune, "touch": cmd_touch, "doctor": cmd_doctor, "open": cmd_open,
         "_preview": cmd_preview, "_spreview": cmd_spreview, "_rows": cmd_rows, "_dirs": cmd_dirs, "_status": cmd_status,
         "_keys": cmd_keys,
-        "_complete": cmd_complete,
+        "_complete": cmd_complete, "_keep": cmd_keep,
     }[cmd](opts)
 
 
@@ -459,6 +459,17 @@ def cmd_doctor(opts) -> int:
     try:
         store = load_store()
         print(f"✓ store {config.tilde(path)}: {len(store.pins)} pins, {len(store.undo)} undo entries")
+        kept = sum(1 for p in store.pins if p.keep)
+        count = f"{kept} {'pin' if kept == 1 else 'pins'}" if kept else "no pins"
+        hook = config.plugin_hook_state()
+        if hook == "hook":
+            print(f"✓ keep: {count} · touched on every pin run and every Claude session start (plugin hook)")
+        elif hook == "old":
+            print(f"· keep: {count} · touched on every pin run only: the installed pins plugin "
+                  "predates the session-start hook (/plugin update pins, then restart Claude)")
+        else:
+            print(f"· keep: {count} · touched on every pin run only: "
+                  "the pins plugin is not enabled, so no session-start hook (/plugin install pins@claude-toolbox, then restart Claude)")
     except PinError as e:
         print(f"✗ store: {e}"); ok = False
     pd = config.projects_dir()
@@ -532,4 +543,15 @@ def cmd_status(opts) -> int:
 def cmd_complete(opts) -> int:
     for a in load_store().aliases():
         print(a)
+    return 0
+
+
+def cmd_keep(opts) -> int:
+    """For the plugin's SessionStart hook: touch every ``keep`` pin's transcript and say nothing. A
+    SessionStart hook's stdout lands in Claude's context and a nonzero exit is shown to the user at
+    every start, so a store that is missing, corrupt or unreadable is left for ``pin doctor``."""
+    try:
+        touch_kept(load_store())
+    except Exception:
+        pass
     return 0

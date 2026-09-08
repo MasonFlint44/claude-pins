@@ -1,9 +1,10 @@
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 
-from tests.helpers import FzfSandbox
+from tests.helpers import REPO, FzfSandbox
 
 SID1 = "11111111-1111-1111-1111-111111111111"
 SID2 = "22222222-2222-2222-2222-222222222222"
@@ -196,6 +197,42 @@ class CliTests(FzfSandbox):
         self.assertIn("✓ fzf 0.44.1", r.stdout)
         self.assertIn("cleanupPeriodDays 30", r.stdout)
         self.assertIn("✓ store", r.stdout)
+        # the keep line names the plugin state Claude records: not enabled, enabled but old, or with the hook
+        self.assertIn("· keep: no pins · touched on every pin run only: the pins plugin is not enabled", r.stdout)
+        self.run_pin("add", SID1, "a", "--keep")
+        self.write_settings({"enabledPlugins": {"pins@claude-toolbox": True}})
+        installed = self.claude_dir / "plugins" / "installed_plugins.json"
+        installed.parent.mkdir()
+        old = self.root / "plugin-0.7.0"; old.mkdir()
+        installed.write_text(json.dumps({"plugins": {"pins@claude-toolbox": [{"installPath": str(old)}]}}))
+        r = self.run_pin("doctor")
+        self.assertIn("· keep: 1 pin · touched on every pin run only: the installed pins plugin predates", r.stdout)
+        installed.write_text(json.dumps({"plugins": {"pins@claude-toolbox": [{"installPath": str(old)},
+                                                                            {"installPath": str(REPO)}]}}))
+        self.run_pin("add", SID2, "b", "--keep")
+        r = self.run_pin("doctor")
+        self.assertIn("✓ keep: 2 pins · touched on every pin run and every Claude session start (plugin hook)", r.stdout)
+        installed.write_text("{")
+        self.assertIn("· keep: 2 pins · touched on every pin run only: the pins plugin is not enabled", self.run_pin("doctor").stdout)
+
+    def test_keep_hook_touches_kept_pins_and_says_nothing(self):
+        """``pin _keep`` is the plugin's SessionStart hook: its stdout would land in Claude's context and a
+        nonzero exit would show at every session start, so it is silent and exits 0 whatever the store holds."""
+        self.run_pin("add", SID1, "a", "--keep")
+        self.run_pin("add", SID2, "b")
+        self.age(self.t1, 25); self.age(self.t2, 25)
+        r = self.run_pin("_keep")
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+        self.assertLess(abs(self.t1.stat().st_mtime - time.time()), 5)
+        self.assertLess(abs(self.t2.stat().st_mtime - (time.time() - 25 * 86400)), 5)
+        from claude_pins import config
+        for broken in ("{", "[]"):
+            config.pins_file().write_text(broken)
+            r = self.run_pin("_keep")
+            self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+        config.pins_file().unlink()
+        r = self.run_pin("_keep")
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
 
     def test_no_color_and_color(self):
         self.run_pin("add", SID1, "a")

@@ -42,7 +42,7 @@ Python 3.10+ standard library only. Linux and macOS (WSL counts as Linux).
 
 **Updating:** `/plugin update pins` (or auto-update for the marketplace in `/plugin`), then
 `/pins:install` again, because the plugin directory moves on each version and the symlink
-points into it. **Removing:** `/plugin uninstall pins`, delete `~/.local/bin/pin` and the
+points into it, and restart Claude Code so its session-start hook runs from the new version. **Removing:** `/plugin uninstall pins`, delete `~/.local/bin/pin` and the
 completion link; the store and cache below can go too.
 
 ### Plugin commands and skills
@@ -53,6 +53,7 @@ completion link; the store and cache below can go too.
 | `/pins:unpin` | unpin this session and put its previous name back; says so if it is not pinned |
 | `/pins:install` | symlink, completion, `pin doctor` |
 | `/pins:doctor` | run `pin doctor` and explain each line with a fix |
+| session-start hook | touches the transcripts of pins with `keep` whenever Claude Code starts, resumes, clears or compacts; silent, comes with the plugin (`hooks/hooks.json`), listed by `/hooks` |
 
 ## How it works
 
@@ -78,8 +79,9 @@ completion link; the store and cache below can go too.
 - Claude Code deletes transcripts untouched for `cleanupPeriodDays` (default 30). A pin is only
   as durable as its transcript, so the picker shows ⏳ in the last 7 days (`CLAUDE_PINS_EXPIRE_WARN`)
   and 🔴 once the transcript is gone. Opening touches the transcript; pins with **keep** (🚩) are
-  touched on every `pin` run and never expire while you use the tool. `pin prune` unpins the
-  expired ones; `pin undo` restores the last unpin or prune.
+  touched on every `pin` run and, by the plugin's session-start hook, every time Claude Code
+  starts, so they hold as long as you use Claude at all. `pin prune` unpins the expired ones;
+  `pin undo` restores the last unpin or prune.
 - The cost line comes from [ccusage](https://github.com/ryoppippi/ccusage): offline first,
   and when its bundled price table has no price for a model the session used, one online run
   with a short timeout. If neither prices the model, the line says so and names the update
@@ -227,9 +229,10 @@ Every subcommand exits 0 on success and 1 with a one-line message on `stderr` ot
 | `pin undo` | restore the last unpin or prune (the last ten are kept) and name the session after the pin again; a restored alias that is taken meanwhile comes back as `alias-2` |
 | `pin prune [-y]` | unpin every expired pin after listing them and asking; `-y` skips the question; "nothing to prune" otherwise |
 | `pin touch <alias>` | bump the transcript's mtime, restarting its retention clock |
-| `pin doctor` | fzf version (optional: `·` with the install command when it is missing or old), on a Mac whether the terminal sends Option as Meta, ccusage and its price coverage across your sessions, store health, projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
+| `pin doctor` | fzf version (optional: `·` with the install command when it is missing or old), on a Mac whether the terminal sends Option as Meta, ccusage and its price coverage across your sessions, store health, how many pins have `keep` and whether the plugin's session-start hook is in place to touch them (`·` when the installed plugin predates it or is not enabled), projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
 
-Every run of any of these also touches the transcripts of pins with `keep`.
+Every run of any of these also touches the transcripts of pins with `keep`, as does the
+plugin's session-start hook (`pin _keep`, which prints nothing).
 
 ## Files and environment
 

@@ -32,7 +32,8 @@ Rules:
 5. Report the tool's one-line output verbatim. If it says the alias is taken, use its
    suggestion (`alias-2`) after confirming with the user. Mention that `pin <alias>` (or just
    `pin`) reopens it from a terminal, and that the pin expires with the transcript after
-   Claude's retention period unless `keep` is set (`pin edit <alias> --keep`).
+   Claude's retention period unless `keep` is set (`pin edit <alias> --keep`; the plugin's
+   session-start hook then touches the transcript every time Claude starts).
 6. The output ends with `session named 📌 <alias>`: pinning renames this session, the way
    `/rename` does. Tell the user that the `/resume` picker shows the new name at once, and
    that this session's own prompt box and terminal title catch up within a few turns.

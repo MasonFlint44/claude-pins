@@ -28,6 +28,9 @@ skill runs it and turns each line into a fix.
    | `· ccusage …: online fallback unreachable` | no network from this shell | the offline estimate stays; nothing to fix in pins |
    | `✗ store: … corrupt` | `pins.json` is not valid JSON; a copy was kept at `pins.json.bak` and the original untouched | fix the JSON by hand or move it aside; `pin undo` cannot help here |
    | `✗ projects dir … not found (set CLAUDE_CONFIG_DIR?)` | Claude's transcripts live elsewhere | set `CLAUDE_CONFIG_DIR` to the directory that holds `projects/` |
+   | `✓ keep: N pins · touched on every pin run and every Claude session start (plugin hook)` | the plugin's SessionStart hook runs `pin _keep`, which touches every keep pin's transcript, so kept pins hold as long as the user opens Claude | nothing |
+   | `· keep: … predates the session-start hook` | the installed plugin version has no `hooks/hooks.json`; keep pins are touched only when `pin` itself runs | `/plugin update pins`, then restart Claude; check `/hooks` lists the pins SessionStart hook |
+   | `· keep: … the pins plugin is not enabled` | `pin` runs from a checkout or an old symlink and Claude's `settings.json` does not enable the plugin, so the hook never runs | `/plugin install pins@claude-toolbox` (or enable it in `/plugin`), then restart Claude |
    | `cleanupPeriodDays N` | Claude deletes transcripts untouched for N days; pins expire with them | expected; `pin edit <alias> --keep` protects a pin, `pin prune` clears expired ones |
 
    A pin marked ✗ in the picker means its transcript was already deleted by that sweep; nothing

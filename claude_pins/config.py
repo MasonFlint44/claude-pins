@@ -77,6 +77,27 @@ def cleanup_period_days() -> int:
     return DEFAULT_CLEANUP_DAYS
 
 
+def plugin_hook_state() -> str:
+    """Whether Claude will run the plugin's SessionStart hook (the one that touches ``keep`` pins):
+    ``"hook"`` when the pins plugin is enabled in Claude's settings.json and its installed copy has
+    ``hooks/hooks.json``, ``"old"`` when it is enabled but the installed version predates the hook,
+    ``"none"`` when it is not enabled or nothing can be read. Claude records each install's path in
+    ``plugins/installed_plugins.json`` under the config directory."""
+    try:
+        settings = json.loads((claude_config_dir() / "settings.json").read_text(encoding="utf-8"))
+        enabled = [k for k, v in (settings.get("enabledPlugins") or {}).items() if v and k.startswith("pins@")]
+        if not enabled:
+            return "none"
+        installed = json.loads((claude_config_dir() / "plugins" / "installed_plugins.json").read_text(encoding="utf-8"))
+        for key in enabled:
+            for entry in installed.get("plugins", {}).get(key) or []:
+                if (Path(str(entry.get("installPath", ""))) / "hooks" / "hooks.json").is_file():
+                    return "hook"
+        return "old"
+    except (OSError, ValueError, AttributeError):
+        return "none"
+
+
 def expire_warn_days() -> int:
     raw = os.environ.get("CLAUDE_PINS_EXPIRE_WARN")
     try:

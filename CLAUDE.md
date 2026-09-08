@@ -175,6 +175,28 @@ reasons behind several design choices and are recorded nowhere else.
   command's output is seen. The built-in picker keeps the same discipline: it
   enters the alternate screen only when no screen left it up, and never leaves
   it itself.
+- A plugin's hooks are `hooks/hooks.json` at its root, in the shape a
+  `settings.json` `hooks` block has, and they register when the plugin is
+  enabled with no settings edit by the user (`claude plugin validate .` checks
+  the file, `/hooks` lists what registered). A `SessionStart` hook runs on
+  `startup`, `resume`, `clear`, `compact` and `fork` (its matcher values; no
+  matcher means all of them), gets `${CLAUDE_PLUGIN_ROOT}` expanded in its
+  command and the event JSON on stdin, and cannot block a start; but its
+  plain-text stdout is added to Claude's context (one of four events where
+  that happens), exit 2 shows its stderr to the user as a hook-error notice,
+  and any other nonzero exit is a non-blocking error. That is why `pin _keep`
+  prints nothing and returns 0 on every path, a corrupt or missing store
+  included: those are `pin doctor`'s to report, not something to put in front
+  of the user or the model at every start. The default command timeout is
+  600 s; hooks.json sets 10. A session loads a plugin's hooks at start and
+  keeps the old version's path after `claude plugin update` until
+  `/reload-plugins` or a restart (a skill's SKILL.md is the one part re-read
+  live), so the docs, the doctor and the changelog say to restart. Claude
+  records enabled plugins in `settings.json` (`enabledPlugins`, `pins@…`) and
+  each install's `installPath` in `plugins/installed_plugins.json` under the
+  config directory, which is how the doctor's keep line tells "hook", "old
+  plugin" and "not enabled" apart. Checked against the hooks and plugins
+  references on 2026-09-08.
 - Terminal automation (opening a new tab for the resumed session) was dropped on
   purpose: Ghostty's D-Bus surface offers new-window only.
 
@@ -289,7 +311,9 @@ tests/terminals/run.sh                 # every key in real Linux terminals under
   appears in Claude's `/resume` picker, so a picker check needs an interactive
   pty session with one haiku prompt; a running-session check needs about
   32 KB of new transcript (four 400-word prompts) before the name is re-read.
-  A few cents on haiku each.
+  A few cents on haiku each. The session-start hook is a free check: after a
+  plugin update and a restart, `/hooks` lists it and a kept pin's transcript
+  mtime moves on the next start.
 - One test run at a time on a machine. Open-session detection reads the real
   `ps` table unless a test sets `CLAUDE_PINS_PS`, so two suites running at
   once see each other's stub `claude --resume` processes, land on the

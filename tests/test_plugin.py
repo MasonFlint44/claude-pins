@@ -6,6 +6,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 
 from tests.helpers import REPO, Sandbox
@@ -98,6 +99,43 @@ class PluginFileTests(Sandbox):
         self.assertIn("not a symlink", r.stdout)
         self.assertEqual(link.read_text(), "#!/bin/sh\necho mine\n")
 
+    def test_session_start_hook_touches_kept_pins_silently(self):
+        """hooks/hooks.json registers when the plugin is enabled; its command is run here the way Claude runs
+        it (a shell, CLAUDE_PLUGIN_ROOT set, the event JSON on stdin) and must print nothing and exit 0: a
+        SessionStart hook's stdout goes into Claude's context and a nonzero exit shows at every start."""
+        data = json.loads((REPO / "hooks" / "hooks.json").read_text())
+        self.assertEqual(list(data), ["hooks"])
+        self.assertEqual(list(data["hooks"]), ["SessionStart"])
+        (group,) = data["hooks"]["SessionStart"]
+        self.assertNotIn("matcher", group)                       # startup, resume, clear, compact and fork alike
+        (hook,) = group["hooks"]
+        self.assertEqual(hook["type"], "command")
+        self.assertEqual(hook["command"], '"${CLAUDE_PLUGIN_ROOT}/bin/pin" _keep')
+        self.assertLessEqual(hook["timeout"], 10)
+        env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(REPO)}
+        event = json.dumps({"hook_event_name": "SessionStart", "source": "startup", "session_id": SID})
+
+        def fire():
+            return subprocess.run(["bash", "-c", hook["command"]], input=event, capture_output=True, text=True, env=env)
+
+        kept = self.make_session(SID, title="Kept", age_days=25)
+        plain = self.make_session("22222222-2222-2222-2222-222222222222", title="Plain", age_days=25)
+        self.run_snippet(f'"${{CLAUDE_PLUGIN_ROOT}}/bin/pin" add {SID} kept --keep')
+        self.run_snippet('"${CLAUDE_PLUGIN_ROOT}/bin/pin" add 22222222-2222-2222-2222-222222222222 plain')
+        for path in (kept, plain):
+            self.age(path, 25)
+        r = fire()
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+        self.assertLess(abs(kept.stat().st_mtime - time.time()), 5)
+        self.assertLess(abs(plain.stat().st_mtime - (time.time() - 25 * 86400)), 5)
+        from claude_pins import config
+        config.pins_file().write_text("{")                       # corrupt: the doctor's business, not the hook's
+        r = fire()
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+        config.pins_file().unlink()
+        r = fire()
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
     def test_doctor_skill_table_matches_doctor_output(self):
         """Every doctor line the skill explains is a line pin doctor can actually print."""
         from claude_pins import altkeys, cli, cost, fzf, store
@@ -105,7 +143,8 @@ class PluginFileTests(Sandbox):
         skill = (REPO / "skills" / "doctor" / "SKILL.md").read_text()
         for phrase in ("fzf: not found", "need ≥ 0.44", "alt keys:", "ccusage: not installed",
                        "offline table has no price for", "even online", "online fallback unreachable", "corrupt",
-                       "not found (set CLAUDE_CONFIG_DIR?)", "cleanupPeriodDays"):
+                       "not found (set CLAUDE_CONFIG_DIR?)", "keep:", "predates the session-start hook",
+                       "the pins plugin is not enabled", "cleanupPeriodDays"):
             self.assertIn(phrase, skill, f"skill does not explain {phrase!r}")
             self.assertIn(phrase.split(" (")[0], src, f"doctor never prints {phrase[:30]!r}")
 

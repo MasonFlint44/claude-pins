@@ -42,7 +42,10 @@ idempotent; run it again after a plugin update.
    (optional: without it a built-in picker draws the same screens, and the doctor prints the
    one-line static-binary install), on a Mac whether the terminal sends Option as Meta (the alt
    keys need it; the line names the terminal's setting), whether ccusage is installed
-   (`npm i -g ccusage`; optional, only for the cost line), the pin store, and the Claude
-   projects directory.
+   (`npm i -g ccusage`; optional, only for the cost line), the pin store, whether the plugin's
+   session-start hook is in place (it ships with the plugin and needs no install step; a `·`
+   keep line means the installed plugin is older than the hook or not enabled, and its fix is
+   `/plugin update pins` or `/plugin install pins@claude-toolbox`, then a restart of Claude),
+   and the Claude projects directory.
 5. Finish with the two-line usage reminder: `pin` opens the picker, `/pins:pin` pins the current
    session. Do not run `pin` itself (it is interactive) and never run `claude`.
