@@ -194,6 +194,10 @@ gap row and a plain gutter, so the test skips there):
   a ccusage cache miss and the cursor must not wait; results are cached per
   (row, pane width) for the screen's life and dropped on reload. SIGWINCH
   writes to the same pipe; a resize re-runs the `rows` hook at the new width.
+  The worker posts the whole text after each chunk and once more when it is
+  done, so a wake that changes nothing must not repaint: the two posts land
+  in one wake or two, and the second paint of the same frame came after a
+  resize about one run in thirty of the pty test (`test_mouse_and_resize`).
 - A screen shown where there is no terminal (a pipe, a script, `TERM=dumb`) is
   cancelled with a line on stderr rather than asked, since `input()` was the
   only alternative and it cannot draw a screen; `pin` with no arguments on a

@@ -318,6 +318,50 @@ class FrameTests(TuiSandbox):
         res, frame = self.run_screen(screen, ["@shift-down", "@shift-down", "@enter"], rows=14)
         self.assertFalse(any(l.startswith("╭") for l in frame))
 
+    def test_a_wake_with_nothing_new_paints_nothing(self):
+        """The preview worker posts the pane's text after each chunk and once more when it is done, waking the
+        loop each time; the last post repeats the one before it. Taken in one wake or two, the pane is painted
+        once: a second, identical paint could land after a resize and show a stale frame (which is what the
+        pty resize test saw about one run in thirty)."""
+        import time
+        self.make_session(SID1, cwd=str(self.home / "git" / "proj"), age_days=1, title="Standup prep")
+        self.run_pin("add", SID1, "sp")
+        screen = Screen([Item("-", "alias"), Item("sp", "sp\tStandup prep")], prompt="> ", header_lines=1,
+                        preview=Hook("preview"), label_from_row=True)
+        wakes, paints = [], []
+
+        class Waking(tui.ScriptedTerminal):
+            """Every read is a wake for the worker's posts: the first after its chunks, the second after its
+            done post, then the script is over."""
+            def async_preview(self):
+                return True
+
+            def read(self, timeout):
+                wakes.append(len(wakes))
+                if len(wakes) > 2:
+                    self.exhausted = True
+                    return None
+                q = self.session.preview_queue
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    posted = list(q.queue)
+                    done = any(post[4] for post in posted) or bool(self.session.preview_cache)
+                    if done or (len(wakes) == 1 and len(posted) >= 2):
+                        return None
+                    time.sleep(0.005)
+                raise AssertionError("the preview worker never finished")
+
+        self.steps([])
+        term = Waking(str(self.script), str(self.tui_log))
+        term.rows = 20
+        session = tui.Session(screen, term)
+        draw = session.draw
+        session.draw = lambda: (paints.append(len(paints)), draw())
+        session.run()
+        self.assertEqual(len(wakes), 3)
+        self.assertEqual(len(paints), 2, "the first frame, then the pane once")
+        self.assertIn("│ transcript 2 msgs", "\n".join(self.screens()[-1]["frame"]))     # the second chunk was painted
+
     def test_preview_scrolls(self):
         text = "\n".join(f"line {i}" for i in range(1, 40))
         self.make_session(SID1, age_days=1, title="Long", answer=text, n_turns=1)

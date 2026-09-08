@@ -400,14 +400,17 @@ class Session:
             self.draw()
             while True:
                 ev = reader.next(None)
+                changed = False
                 if self.term.resized:
                     self.term.resized = False
                     self.resize()
-                self.take_preview()
+                    changed = True
+                changed = self.take_preview() or changed
                 if ev is None:
                     if isinstance(term, ScriptedTerminal) and term.exhausted:
                         break
-                    self.draw()
+                    if changed:         # a wake with nothing new (the worker's "done" after its last chunk) paints nothing
+                        self.draw()
                     continue
                 outcome = self.handle(ev)
                 if outcome is not None:
@@ -660,15 +663,20 @@ class Session:
             work()
             self.take_preview()
 
-    def take_preview(self) -> None:
+    def take_preview(self) -> bool:
+        """Take what the worker has posted; whether the pane's text changed. The worker posts the whole text
+        after every chunk and once more when it is done, so the last post repeats the one before it."""
+        changed = False
         while True:
             try:
                 gen, cid, width, text, done = self.preview_queue.get_nowait()
             except queue.Empty:
-                return
+                return changed
             if gen != self.preview_gen:
                 continue
-            self.preview_text = text
+            if text != self.preview_text:
+                self.preview_text = text
+                changed = True
             if done:
                 self.preview_cache[(cid, width)] = text
 
