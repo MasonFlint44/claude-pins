@@ -33,5 +33,10 @@ Rules:
    suggestion (`alias-2`) after confirming with the user. Mention that `pin <alias>` (or just
    `pin`) reopens it from a terminal, and that the pin expires with the transcript after
    Claude's retention period unless `keep` is set (`pin edit <alias> --keep`).
+6. The output ends with `session named 📌 <alias>`: pinning renames this session, the way
+   `/rename` does. Tell the user that the `/resume` picker shows the new name at once, and
+   that this session's own prompt box and terminal title catch up within a few turns.
+   `/pins:unpin` puts the previous name back. Do not run `/rename` to hurry it along: a name
+   set by hand is left alone by `pin` from then on.
 
 Never touch the pin store any other way, and never run `claude` yourself.

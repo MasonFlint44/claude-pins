@@ -18,6 +18,11 @@ conversation and confirms), `/pins:unpin` removes it. Claude Code namespaces plu
 with the plugin name, so that is how they appear in the command list. Everything else is
 terminal-only.
 
+A pinned session is also named after its pin inside Claude: its `/resume` picker, prompt box
+and terminal title show `📌 rc-mower` for as long as the pin exists, and the name it had
+before comes back when it is unpinned. A fork opened from a pin gets the plain alias as its
+own name.
+
 ## Install
 
 1. Add the marketplace and the plugin in Claude Code:
@@ -44,8 +49,8 @@ completion link; the store and cache below can go too.
 
 | | |
 |---|---|
-| `/pins:pin [alias [title…]]` | pin this session; with no arguments Claude drafts an alias and title from the conversation and confirms |
-| `/pins:unpin` | unpin this session; says so if it is not pinned |
+| `/pins:pin [alias [title…]]` | pin this session and name it `📌 alias`; with no arguments Claude drafts an alias and title from the conversation and confirms |
+| `/pins:unpin` | unpin this session and put its previous name back; says so if it is not pinned |
 | `/pins:install` | symlink, completion, `pin doctor` |
 | `/pins:doctor` | run `pin doctor` and explain each line with a fix |
 
@@ -56,8 +61,19 @@ completion link; the store and cache below can go too.
   overrides). Local per machine; atomic writes; a corrupt file is copied to `.bak` and never
   clobbered.
 - Opening a pin runs `cd <dir> && claude --resume <id>` plus the pin's launch flags. Per-pin
-  **fork** mode adds `--fork-session`; **worktree** mode adds `--worktree`. `--fork`, `-w [name]`
+  **fork** mode adds `--fork-session --name <alias>` (a fork inherits the session's name, so it
+  gets the plain alias as its own); **worktree** mode adds `--worktree`. `--fork`, `-w [name]`
   and `--resume` are one-off overrides.
+- Pinning names the session `📌 <alias>` the way `/rename` does, by appending Claude's own
+  custom-title record to the transcript, so the pin shows in Claude's `/resume` picker, prompt
+  box and terminal title. The picker shows it at once; a session that is running picks it up
+  within a few turns. The pin's title stays the description you gave it (the session's title
+  at pin time by default). Renaming the pin renames the session; unpinning puts back the name
+  the session had before, or clears it if it had none; `pin undo` names it again. A name set
+  inside the session with `/rename` after pinning is yours: `pin` leaves it alone from then on
+  and says nothing about the name. The transcript's modification time is kept, so naming
+  neither resets the idle time nor the retention clock. `pin sessions` and the new-pin screen
+  list a pinned session under the pin's title, next to its 📌 alias tag.
 - Claude Code deletes transcripts untouched for `cleanupPeriodDays` (default 30). A pin is only
   as durable as its transcript, so the picker shows ⏳ in the last 7 days (`CLAUDE_PINS_EXPIRE_WARN`)
   and 🔴 once the transcript is gone. Opening touches the transcript; pins with **keep** (🚩) are
@@ -200,14 +216,14 @@ Every subcommand exits 0 on success and 1 with a one-line message on `stderr` ot
 
 | Subcommand | What it does |
 |---|---|
-| `pin add <session> <alias> [--title …] [--note …] [--cwd …] [--keep] [--fork] [--worktree] [--rename]` | pin a session. `<session>` is a session id, a unique id prefix (8+ characters), or words that must all appear in the title or directory of one of the 200 most recent sessions (quote them: `pin add "rc mower" mower`); several matches are listed with their ids. Title and directory default to the transcript's; a session given by full id with no transcript yet is accepted with a warning. Pinning an already pinned session says "already pinned as X" and, with `--title`/`--note`, updates it, or with `--rename`, renames it; a taken alias is refused with a suggested `alias-2` |
+| `pin add <session> <alias> [--title …] [--note …] [--cwd …] [--keep] [--fork] [--worktree] [--rename]` | pin a session. `<session>` is a session id, a unique id prefix (8+ characters), or words that must all appear in the title or directory of one of the 200 most recent sessions (quote them: `pin add "rc mower" mower`); several matches are listed with their ids. Title and directory default to the transcript's; a session given by full id with no transcript yet is accepted with a warning. Names the session `📌 alias` and says so. Pinning an already pinned session says "already pinned as X" and, with `--title`/`--note`, updates it, or with `--rename`, renames it (and the session); a taken alias is refused with a suggested `alias-2` |
 | `pin list [--all] [--sort …] [--json]` | the rows the picker shows, expired ones hidden unless `--all`; on a terminal they get the column labels and the marker legend, piped output is bare rows; `--json` adds `state`, `age`, `open`, `markers`, `remaining_days` per pin |
-| `pin sessions [words…] [--json]` | the 200 most recent sessions, newest first, with their short ids, titles, directories, idle times, message counts and, for a pinned one, 📌 and the pin's alias; column labels on a terminal. The listed id is the shortest prefix (8 characters, more when two sessions share them) that `pin add` resolves. Words filter the way `pin add` matches. This is what to run when you want to pin something by title from the terminal |
+| `pin sessions [words…] [--json]` | the 200 most recent sessions, newest first, with their short ids, titles, directories, idle times, message counts and, for a pinned one, the pin's title in place of the session's name plus 📌 and the pin's alias; column labels on a terminal. The listed id is the shortest prefix (8 characters, more when two sessions share them) that `pin add` resolves. Words filter the way `pin add` matches. This is what to run when you want to pin something by title from the terminal |
 | `pin edit <alias> [flags]` | set fields directly: `--title`, `--note`, `--cwd`, `--rename <alias>`, `--model`, `--effort`, `--permission-mode` (empty string clears), `--keep`/`--no-keep`, `--fork`/`--no-fork`, `--worktree`/`--no-worktree`. With no flags, the interactive editor |
-| `pin rename <alias> <new-alias>` | rename a pin; a taken alias is refused with a suggestion (`pin edit --rename` does the same) |
+| `pin rename <alias> <new-alias>` | rename a pin and its session's name; a taken alias is refused with a suggestion (`pin edit --rename` does the same) |
 | `pin open <alias> [--fork] [--resume] [-w [name]]` | open by exact alias, with the same one-off modes as above; runs the already-open, missing-directory and branch prompts first |
-| `pin rm <alias>` / `pin unpin <alias>` | unpin, no confirmation; "no pin named x" when there is none |
-| `pin undo` | restore the last unpin or prune (the last ten are kept); a restored alias that is taken meanwhile comes back as `alias-2` |
+| `pin rm <alias>` / `pin unpin <alias>` | unpin, no confirmation, and put the session's previous name back (or clear it), saying which; "no pin named x" when there is none |
+| `pin undo` | restore the last unpin or prune (the last ten are kept) and name the session after the pin again; a restored alias that is taken meanwhile comes back as `alias-2` |
 | `pin prune [-y]` | unpin every expired pin after listing them and asking; `-y` skips the question; "nothing to prune" otherwise |
 | `pin touch <alias>` | bump the transcript's mtime, restarting its retention clock |
 | `pin doctor` | fzf version (optional: `·` with the install command when it is missing or old), on a Mac whether the terminal sends Option as Meta, ccusage and its price coverage across your sessions, store health, projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |

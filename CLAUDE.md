@@ -17,6 +17,31 @@ reasons behind several design choices and are recorded nowhere else.
 - `--resume` finds a session in any project directory. `--fork-session` writes a
   new transcript, with the copied records' `cwd` rewritten, and never touches the
   original, so a fork alone would not extend the original's life.
+- A session's name is the last `custom-title` record in its transcript: `/rename`
+  and `claude --name` both append `{"type":"custom-title","customTitle":"…",
+  "sessionId":"…"}` (and rewrite the sidecar `<dir>/<id>/custom-title.json`
+  when one exists; an empty title clears the name and deletes the sidecar).
+  `claude_pins/naming.py` writes that record itself, byte for byte compact
+  JSON, because Claude recognises the line by the substrings
+  `"type":"custom-title"` and `"customTitle":"`: a line with spaces after the
+  colons was ignored and overridden by the session's own re-append. Claude's
+  `/resume` picker reads a head and a tail chunk of each transcript and takes
+  the title from either, the sidecar only as a fallback; a running session
+  re-reads the last record before each of its metadata re-appends (every
+  32 KB written) and adopts it, which took four short haiku turns when
+  measured, so no hook is involved and the plugin commands say the prompt box
+  catches up within a few turns. Both were checked on 2.1.263. The append
+  would bump the mtime that the idle column, the recency sort and the
+  retention sweep read, so `set_title` restores it. Claude's transcript GC
+  (off by default, files over 5 MB) keeps only the last copy of a
+  last-wins record, custom-title included, which is why `transcript.py`'s
+  whole-file scan treats an empty title as a clear rather than skipping it.
+- `--name` combines with `--resume` and with `--fork-session`, and a fork made
+  without it inherits the original's custom title (the record is copied), so
+  the opener names a fork with the plain alias. Two live sessions with one
+  name are suffixed by Claude itself, and names are compared after NFKC,
+  lowercase and whitespace-to-dash with emoji kept, so `📌 mower` and `mower`
+  never collide.
 - `gitBranch` in a worktree session's records is stale (captured before the
   worktree checkout), so the preview reads the branch from git.
 - Inside a session the Bash tool sees `CLAUDE_CODE_SESSION_ID`; command templates
@@ -254,6 +279,14 @@ tests/terminals/run.sh                 # every key in real Linux terminals under
   alternate-screen entry.
   The stub-driven tests are where a hidden-field bug hid for four releases: do
   not judge matching by them.
+- Checking Claude's own behaviour by hand: `claude` started from a Claude
+  session's Bash tool inherits `CLAUDE_CODE_CHILD_SESSION` and turns transcript
+  saving off, so unset every `CLAUDE_*` variable first (`env -u …`). An empty
+  session writes no transcript, and a `-p` session (entrypoint sdk-cli) never
+  appears in Claude's `/resume` picker, so a picker check needs an interactive
+  pty session with one haiku prompt; a running-session check needs about
+  32 KB of new transcript (four 400-word prompts) before the name is re-read.
+  A few cents on haiku each.
 - One test run at a time on a machine. Open-session detection reads the real
   `ps` table unless a test sets `CLAUDE_PINS_PS`, so two suites running at
   once see each other's stub `claude --resume` processes, land on the

@@ -7,7 +7,7 @@ import shutil
 import sys
 from dataclasses import dataclass
 
-from . import config, gitutil, prompt
+from . import config, gitutil, naming, prompt
 from .model import Pin, PinError
 from .render import Palette, crumb, palette
 from .screen import leave_screen, screen_held
@@ -29,7 +29,8 @@ class Plan:
 def build_argv(pin: Pin, *, fork: bool, worktree: str | None) -> list[str]:
     argv = ["claude", "--resume", pin.session_id]
     if fork:
-        argv.append("--fork-session")
+        # a fork copies the session's name, so without its own it would show as 📌 alias too
+        argv += ["--fork-session", "--name", pin.alias]
     if worktree is not None:
         argv.append("--worktree")
         if worktree:
@@ -125,7 +126,7 @@ def resolve_directory(store: Store, pin: Pin, color: Palette) -> str | None:
     if action == "unpin":
         store.unpin(pin.alias)
         store.save()
-        _banner(f"✓ unpinned {pin.alias} · pin undo restores it", color)
+        _banner(" · ".join(filter(None, [f"✓ unpinned {pin.alias} · pin undo restores it", naming.restore(pin)])), color)
         return None
     return None
 

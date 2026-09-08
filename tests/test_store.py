@@ -44,6 +44,20 @@ class StoreTests(Sandbox):
         self.assertTrue(s2.pins[0].pinned_at)
         self.assertEqual(oct(self.store_path().stat().st_mode & 0o777), "0o600")
 
+    def test_prior_title_round_trips_and_old_stores_load(self):
+        s = Store().load()
+        s.add(pin("one", prior_title="Their name"))
+        s.unpin("one")
+        s.save()
+        s2 = Store().load()
+        self.assertEqual(s2.restore_last()[1][0].prior_title, "Their name")     # kept through the tombstone
+        s2.save()
+        self.assertEqual(Store().load().pins[0].prior_title, "Their name")
+        data = json.loads(self.store_path().read_text())
+        del data["pins"][0]["prior_title"]                                      # a store from before 0.7.0
+        self.store_path().write_text(json.dumps(data))
+        self.assertEqual(Store().load().pins[0].prior_title, "")
+
     def test_uniqueness(self):
         s = Store().load()
         s.add(pin("one", "11111111-1111-1111-1111-111111111111", title="First"))

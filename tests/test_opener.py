@@ -39,6 +39,17 @@ class OpenerTests(TuiSandbox):
     def options(self, n: int) -> list[str]:
         return [l.split("\t", 1)[1] for l in self.screens()[n]["items"]]
 
+    def test_fork_gets_its_own_name(self):
+        """A fork copies the session's custom title, so it would show as 📌 alias too; --name gives it the
+        plain alias. A plain resume or a worktree open keeps the session's name."""
+        from claude_pins.model import Launch, Pin
+        from claude_pins.opener import build_argv
+        pin = Pin(alias="sp", session_id=SID, launch=Launch(model="opus"))
+        self.assertEqual(build_argv(pin, fork=True, worktree=None),
+                         ["claude", "--resume", SID, "--fork-session", "--name", "sp", "--model", "opus"])
+        self.assertEqual(build_argv(pin, fork=False, worktree=None), ["claude", "--resume", SID, "--model", "opus"])
+        self.assertEqual(build_argv(pin, fork=False, worktree="wt"), ["claude", "--resume", SID, "--worktree", "wt", "--model", "opus"])
+
     # tier 1: exists → silent
     def test_existing_dir_silent(self):
         self.pin_in(str(self.home / "git" / "proj"))
@@ -358,7 +369,7 @@ class OpenerScreenTests(FzfSandbox):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(r.stdout, "")
         calls = self.fzf_calls()
-        self.assertIn("✓ unpinned sp · pin undo restores it · cancelled", plain(self.arg(calls[-1], "--header")))
+        self.assertIn("✓ unpinned sp · pin undo restores it · session name cleared · cancelled", plain(self.arg(calls[-1], "--header")))
         self.assertEqual(self.stored(), {})
 
     def test_already_open_and_branch_screens(self):

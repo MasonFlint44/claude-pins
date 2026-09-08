@@ -7,9 +7,9 @@ import json
 import os
 import sys
 
-from . import __version__, altkeys, config, fzf, hooks
+from . import __version__, altkeys, config, fzf, hooks, naming
 from .cost import doctor_line
-from .listing import build_views
+from .listing import build_views, session_pairs
 from .match import loose_match, match_sessions, recent_sessions, short_ids
 from .model import Launch, Pin, PinError, is_session_id, validate_alias, PERMISSION_MODES, EFFORT_LEVELS
 from .opener import launch, plan_open, touch_kept, touch_pin
@@ -215,16 +215,17 @@ def cmd_open(opts) -> int:
 
 # ---- subcommands ---------------------------------------------------------------------------------
 
-def session_table(sessions: list[Summary], pinned: dict[str, str], *, all_sessions: list[Summary] | None = None,
+def session_table(sessions: list[Summary], store: Store | None, *, all_sessions: list[Summary] | None = None,
                   color: Palette | None = None, labels: bool = False) -> list[str]:
     """``pin sessions``' lines: the listed id prefix (unique among ``all_sessions``, the ones a prefix is
-    resolved against), then the session row; with ``labels`` a dim label row first."""
+    resolved against), then the session row (a pinned one tagged, under the pin's title, when ``store`` is
+    given); with ``labels`` a dim label row first."""
     color = color or Palette(False)
     ids = [s.session_id for s in (all_sessions or sessions)]
     prefixes = dict(zip(ids, short_ids(ids)))
     id_w = max(cells(prefixes[s.session_id]) for s in sessions)
     width = terminal_width() - id_w - 2
-    pairs = [(s, pinned.get(s.session_id, "")) for s in sessions]
+    pairs = session_pairs(store, sessions) if store else [(s, "") for s in sessions]
     cols = session_layout(pairs, width)
     lines = []
     if labels:
@@ -234,30 +235,42 @@ def session_table(sessions: list[Summary], pinned: dict[str, str], *, all_sessio
     return lines
 
 
-def resolve_session(text: str) -> str:
+def _recent(store: Store) -> list[Summary]:
+    """The recent sessions as the tables show them: a pinned one under its pin's title, so words match
+    what is listed rather than the session's name ``📌 alias``."""
+    return [s for s, _ in session_pairs(store, recent_sessions())]
+
+
+def resolve_session(text: str, store: Store) -> str:
     """The session id named by ``text`` (see ``match_sessions``). Ambiguity and no match are errors."""
     if is_session_id(text.strip().lower()):
         return text.strip().lower()
-    sessions = recent_sessions()
+    sessions = _recent(store)
     hits = match_sessions(text, sessions)
     if len(hits) == 1:
         return hits[0].session_id
     if not hits:
         raise PinError(f"no recent session matches {text!r} · pin sessions lists them")
     lines = [f"{len(hits)} sessions match {text!r}; give the id or more words:"]
-    lines += [f"  {line}" for line in session_table(hits, {}, all_sessions=sessions)]
+    lines += [f"  {line}" for line in session_table(hits, store, all_sessions=sessions)]
     raise PinError("\n".join(lines))
+
+
+def _line(*parts: str) -> str:
+    """One report line: the parts that are not empty, joined by `` · ``."""
+    return " · ".join(p for p in parts if p)
 
 
 def cmd_add(opts) -> int:
     store = load_store()
-    sid = resolve_session(opts.session)
+    sid = resolve_session(opts.session, store)
     alias = validate_alias(opts.alias)
     existing = store.by_session(sid)
     if existing is not None:
         if opts.rename and alias != existing.alias:
-            store.rename(existing.alias, alias)
-            changed = [f"renamed to {alias}"]
+            old = existing.alias
+            store.rename(old, alias)
+            changed = [f"renamed to {alias}", naming.rename(existing, old)]
         else:
             changed = []
         if opts.title and opts.title != existing.title:
@@ -266,7 +279,7 @@ def cmd_add(opts) -> int:
             existing.note = opts.note; changed.append("note updated")
         if changed:
             store.save()
-            print(f"already pinned as {existing.alias} · {', '.join(changed)}")
+            print(_line(f"already pinned as {existing.alias}", *changed))
         else:
             print(f"already pinned as {existing.alias} · pass --title/--note to update, or --rename with a new alias")
         return 0
@@ -280,8 +293,9 @@ def cmd_add(opts) -> int:
     pin = Pin(alias=alias, session_id=sid, title=title, cwd=cwd, transcript=str(transcript or ""),
               note=opts.note, keep=opts.keep, fork=opts.fork, worktree=opts.worktree)
     store.add(pin)
+    note = naming.claim(pin)
     store.save()
-    print(f"✓ pinned as {alias} · {title}")
+    print(_line(f"✓ pinned as {alias}", title, note))
     return 0
 
 
@@ -319,18 +333,18 @@ def cmd_list(opts) -> int:
 
 def cmd_sessions(opts) -> int:
     store = load_store()
-    pinned = {p.session_id: p.alias for p in store.pins}
-    sessions = recent_sessions()
+    sessions = _recent(store)
     if opts.words:
         sessions = match_sessions(" ".join(opts.words), sessions)
     if opts.json:
         print(json.dumps([{"session_id": s.session_id, "title": s.title, "cwd": s.cwd, "mtime": s.mtime,
-                           "messages": s.messages, "alias": pinned.get(s.session_id)} for s in sessions], indent=2))
+                           "messages": s.messages, "alias": alias or None}
+                          for s, alias in session_pairs(store, sessions)], indent=2))
         return 0
     if not sessions:
         print("no matching sessions" if opts.words else "no sessions found", file=sys.stderr)
         return 1
-    for line in session_table(sessions, pinned, all_sessions=recent_sessions(), color=palette(sys.stdout),
+    for line in session_table(sessions, store, all_sessions=_recent(store), color=palette(sys.stdout),
                               labels=sys.stdout.isatty()):
         print(line)
     return 0
@@ -341,7 +355,7 @@ def cmd_rename(opts) -> int:
     old = store.require(opts.alias).alias
     pin = store.rename(old, validate_alias(opts.new_alias))
     store.save()
-    print(f"✓ renamed {old} → {pin.alias}")
+    print(_line(f"✓ renamed {old} → {pin.alias}", naming.rename(pin, old)))
     return 0
 
 
@@ -353,10 +367,13 @@ def cmd_edit(opts) -> int:
     if all(v is None for v in flags.values()):
         from .editor import edit_pin
         saved = edit_pin(store, opts.alias)
-        print(f"✓ saved {saved}" if saved else "no changes")
+        print(_line(f"✓ saved {saved[0]}", saved[1]) if saved else "no changes")
         return 0
+    note = ""
     if flags["rename"]:
-        store.rename(pin.alias, flags["rename"])
+        old = pin.alias
+        store.rename(old, flags["rename"])
+        note = naming.rename(pin, old)
     for k in ("title", "note"):
         if flags[k] is not None:
             setattr(pin, k, flags[k])
@@ -372,7 +389,7 @@ def cmd_edit(opts) -> int:
         if flags[k] is not None:
             setattr(pin, k, flags[k])
     store.save()
-    print(f"✓ saved {pin.alias}")
+    print(_line(f"✓ saved {pin.alias}", note))
     return 0
 
 
@@ -380,7 +397,7 @@ def cmd_unpin(opts) -> int:
     store = load_store()
     pin = store.unpin(opts.alias)
     store.save()
-    print(f"✓ unpinned {pin.alias} · pin undo restores it")
+    print(_line(f"✓ unpinned {pin.alias} · pin undo restores it", naming.restore(pin)))
     return 0
 
 
@@ -389,7 +406,7 @@ def cmd_undo(opts) -> int:
     kind, restored = store.restore_last()
     store.save()
     names = ", ".join(p.alias for p in restored) or "nothing (already re-pinned)"
-    print(f"✓ restored {names} ({kind})")
+    print(_line(f"✓ restored {names} ({kind})", *[naming.reclaim(p) for p in restored]))
     return 0
 
 

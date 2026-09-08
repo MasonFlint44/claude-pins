@@ -182,7 +182,7 @@ def _has(line: bytes, pats: tuple[bytes, ...]) -> bool:
 
 
 def _scan_counts(path: Path, summary: Summary) -> None:
-    """Whole-file byte scan: prompt/reply counts plus any title records outside the head/tail."""
+    """Whole-file byte scan: prompt/reply counts plus every title record, in file order."""
     prompts = replies = 0
     with open(path, "rb") as fh:
         for line in fh:
@@ -197,8 +197,10 @@ def _scan_counts(path: Path, summary: Summary) -> None:
                     rec = json.loads(line)
                 except ValueError:
                     continue
-                if rec.get("type") == "custom-title" and rec.get("customTitle"):
-                    summary.custom_title = str(rec["customTitle"])
+                if rec.get("type") == "custom-title":
+                    # last wins, an empty one included: /rename with nothing clears the name, and the
+                    # head/tail pass above must not leave an older name standing over the clear
+                    summary.custom_title = str(rec.get("customTitle") or "")
                 elif rec.get("type") == "ai-title" and rec.get("aiTitle"):
                     summary.ai_title = str(rec["aiTitle"])
     summary.prompts = prompts

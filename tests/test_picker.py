@@ -92,7 +92,7 @@ class PickerTests(FzfSandbox):
     def test_fork_and_worktree_keys(self):
         self.steps({"key": "alt-o", "select": ["standup-prep"]})
         self.run_pin()
-        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID1, "--fork-session"])
+        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID1, "--fork-session", "--name", "standup-prep"])
         self.steps({"key": "alt-w", "select": ["standup-prep"]})
         self.run_pin()
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID1, "--worktree"])
@@ -129,10 +129,11 @@ class PickerTests(FzfSandbox):
         self.steps({"key": "alt-x", "select": ["cc-collector"]}, {"key": "alt-z"}, {"abort": True})
         self.run_pin()
         calls = self.fzf_calls()
-        self.assertIn("✓ unpinned cc-collector · alt-z undo", plain(self.arg(calls[1], "--header")))
+        self.assertIn("✓ unpinned cc-collector · alt-z undo · session name cleared", plain(self.arg(calls[1], "--header")))
         self.assertEqual(len(self.pin_rows(calls[1])), 2)
-        self.assertIn("✓ restored cc-collector (unpin)", plain(self.arg(calls[2], "--header")))
+        self.assertIn("✓ restored cc-collector (unpin) · session named 📌 cc-collector", plain(self.arg(calls[2], "--header")))
         self.assertEqual(len(self.pin_rows(calls[2])), 3)
+        self.assertEqual(json.loads(self.t2.read_text().splitlines()[-1])["customTitle"], "📌 cc-collector")
 
     def test_expired_footer_show_prune(self):
         self.t3.unlink()
@@ -296,8 +297,11 @@ class PickerTests(FzfSandbox):
         self.assertIn("suggested from the title", plain(self.arg(ask, "--header")))
         self.assertIn("tax-prep-questions", self.stored())
         self.assertEqual(self.stored()["tax-prep-questions"]["title"], "Tax prep questions")
-        self.assertIn("✓ pinned as tax-prep-questions", plain(self.arg(calls[3], "--header")))
+        self.assertIn("✓ pinned as tax-prep-questions · session named 📌 tax-prep-questions",
+                      plain(self.arg(calls[3], "--header")))
         self.assertTrue(self.pin_rows(calls[3])[0].startswith("tax-prep-questions\t"))
+        self.assertIn('"customTitle":"📌 tax-prep-questions"',
+                      (self.project_dir(str(self.home / "Documents")) / f"{sid4}.jsonl").read_text())
 
     def test_new_pin_already_pinned(self):
         self.steps({"key": "ctrl-t"}, {"key": "", "select": [SID1]}, {"abort": True})
@@ -369,6 +373,12 @@ class PickerTests(FzfSandbox):
         self.assertEqual(self.stored()["standup-prep"]["title"], "Standup prep (Tue)")
         self.assertEqual(self.arg(self.fzf_calls()[2], "--prompt"), "📌 pins › standup-prep › edit › title › ")
         self.assertIn("✓ saved standup-prep", plain(self.arg(self.fzf_calls()[-1], "--header")))
+        self.assertNotIn("session named", plain(self.arg(self.fzf_calls()[-1], "--header")))   # the alias did not change
+        self.steps({"key": "f2", "select": ["standup-prep"]}, {"key": "", "select": ["alias"]}, {"query": "sp"},
+                   {"key": "alt-s"}, {"abort": True})
+        self.run_pin()
+        self.assertIn("✓ saved sp · session named 📌 sp", plain(self.arg(self.fzf_calls()[-1], "--header")))
+        self.assertEqual(json.loads(self.t1.read_text().splitlines()[-1])["customTitle"], "📌 sp")
 
     def header_after(self, index=-1):
         return plain(self.arg(self.fzf_calls()[index], "--header"))

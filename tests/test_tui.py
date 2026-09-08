@@ -514,7 +514,7 @@ class FlowTests(TuiSandbox):
         self.steps(["@alt-o"])
         r = self.run_pin("e")                                                   # two hits: the picker, prefiltered
         self.assertEqual(self.screens()[0]["query"], "e")
-        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID1, "--fork-session"])
+        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID1, "--fork-session", "--name", "standup-prep"])
         self.steps(["@alt-w"])
         self.run_pin()
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID1, "--worktree"])
@@ -525,8 +525,8 @@ class FlowTests(TuiSandbox):
         self.assertEqual(r.returncode, 0, r.stderr)
         headers = [s["header"].split("\n")[-1] for s in self.screens()]
         self.assertEqual(headers[1], "✓ touched rc-mower")
-        self.assertEqual(headers[2], "✓ unpinned rc-mower · alt-z undo")         # touched → newest → the cursor stayed on it
-        self.assertEqual(headers[3], "✓ restored rc-mower (unpin)")
+        self.assertEqual(headers[2], "✓ unpinned rc-mower · alt-z undo · session name cleared")         # touched → newest → the cursor stayed on it
+        self.assertEqual(headers[3], "✓ restored rc-mower (unpin) · session named 📌 rc-mower")
         self.assertEqual(headers[4], "nothing to prune")
         self.assertIsNone(self.claude_calls())
         self.assertEqual(sorted(self.stored()), ["rc-mower", "standup-prep"])
@@ -547,7 +547,7 @@ class FlowTests(TuiSandbox):
         self.assertIn("│ session    " + SID3, "\n".join(screens[1]["frame"]))   # the session's preview
         self.assertEqual(screens[2]["prompt"], "📌 pins › new › alias › ")
         self.assertEqual(screens[2]["query"], "tax-prep-questions")
-        self.assertEqual(screens[3]["header"].split("\n")[-1], "✓ pinned as tax-prep-questions")
+        self.assertEqual(screens[3]["header"].split("\n")[-1], "✓ pinned as tax-prep-questions · session named 📌 tax-prep-questions")
         self.assertTrue(screens[3]["frame"][6].startswith("> tax-prep-questions"))      # the cursor on the new pin
         self.assertEqual(screens[4]["header"].split("\n")[-1], "sort: alias")
         self.assertIn("tax-prep-questions", self.stored())
@@ -584,6 +584,13 @@ class FlowTests(TuiSandbox):
         self.assertEqual(screens[5]["header"].split("\n")[-1], "✓ saved standup-prep")
         p = self.stored()["standup-prep"]
         self.assertEqual(p["title"], "Standup prep (Tue)"); self.assertTrue(p["keep"])
+        # the alias field: the session follows the pin's new name
+        self.steps(["@f2"], ["@down", "@enter"], ["@ctrl-u", "sp", "@enter"], ["@alt-s"], ["@esc", "@pause"])
+        r = self.run_pin()
+        screens = self.screens()
+        self.assertEqual(screens[2]["prompt"], "📌 pins › standup-prep › edit › alias › ")
+        self.assertEqual(screens[4]["header"].split("\n")[-1], "✓ saved sp · session named 📌 sp")
+        self.assertEqual(json.loads(self.t1.read_text().splitlines()[-1])["customTitle"], "📌 sp")
 
     def test_editor_fields_and_cancel(self):
         (self.home / "git" / "cc").mkdir(parents=True)
@@ -651,7 +658,7 @@ class FlowTests(TuiSandbox):
         screens = self.screens()
         self.assertEqual(screens[1]["prompt"], "📌 pins › standup-prep › open › ")
         self.assertIn("standup-prep: directory ~/git/proj is missing", screens[1]["header"])
-        self.assertEqual(screens[2]["header"].split("\n")[-1], "✓ unpinned standup-prep · pin undo restores it · cancelled")
+        self.assertEqual(screens[2]["header"].split("\n")[-1], "✓ unpinned standup-prep · pin undo restores it · session name cleared · cancelled")
         self.assertNotIn("standup-prep", self.stored())
 
     def test_empty_store_and_dumb_terminal(self):

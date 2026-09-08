@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from . import naming
 from .listing import next_sort
 from .model import Pin, PinError
 from .opener import Plan, plan_open, take_notes, touch_pin
@@ -73,10 +74,15 @@ def toggle(store: Store, views: list[View], action: str) -> Outcome:
     return Outcome(f"✓ {attr} {'on' if value else 'off'} for {_names(views)}")
 
 
+def _with(flash: str, notes: list[str]) -> str:
+    return " · ".join([flash, *[n for n in notes if n]])
+
+
 def unpin(store: Store, views: list[View], undo_hint: str) -> Outcome:
-    store.unpin_many([v.pin.alias for v in views])
+    pins = store.unpin_many([v.pin.alias for v in views])
     store.save()
-    return Outcome(f"✓ unpinned {_names(views)} · {undo_hint} undo", cursor="")
+    notes = [naming.restore(p) for p in pins]
+    return Outcome(_with(f"✓ unpinned {_names(views)} · {undo_hint} undo", notes), cursor="")
 
 
 def undo(store: Store) -> Outcome:
@@ -86,7 +92,8 @@ def undo(store: Store) -> Outcome:
         return Outcome(str(e))
     store.save()
     names = ", ".join(p.alias for p in restored) or "nothing (already re-pinned)"
-    return Outcome(f"✓ restored {names} ({kind})", cursor=restored[0].alias if restored else None)
+    notes = [naming.reclaim(p) for p in restored]
+    return Outcome(_with(f"✓ restored {names} ({kind})", notes), cursor=restored[0].alias if restored else None)
 
 
 def prune(store: Store, views: list[View], confirm: Callable[[list[str]], bool], undo_hint: str) -> Outcome:
@@ -103,10 +110,11 @@ def prune(store: Store, views: list[View], confirm: Callable[[list[str]], bool],
 
 def pin_session(store: Store, summary: Summary, alias: str) -> Outcome:
     """Pin a session under ``alias``; raises PinError (alias taken, session pinned) for the caller to retry."""
-    store.add(Pin(alias=alias, session_id=summary.session_id, title=summary.title, cwd=summary.cwd,
-                  transcript=summary.path))
+    pin = store.add(Pin(alias=alias, session_id=summary.session_id, title=summary.title, cwd=summary.cwd,
+                        transcript=summary.path))
+    note = naming.claim(pin)
     store.save()
-    return Outcome(f"✓ pinned as {alias}", cursor=alias)
+    return Outcome(_with(f"✓ pinned as {alias}", [note]), cursor=alias)
 
 
 def cycle_sort(current: str) -> tuple[str, Outcome]:

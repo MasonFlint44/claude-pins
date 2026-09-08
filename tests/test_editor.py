@@ -82,6 +82,8 @@ class EditorTests(FzfSandbox):
         self.assertEqual(self.arg(calls[1], "--query"), "standup-prep")
         self.assertIn("✗ alias other is taken", self.arg(calls[3], "--header"))     # the form says why it stayed
         self.assertIn("sp", self.stored()); self.assertNotIn("standup-prep", self.stored())
+        self.assertEqual(r.stdout.strip(), "✓ saved sp · session named 📌 sp")
+        self.assertEqual(self.stored()["sp"]["prior_title"], "")
 
     def test_cancel_row(self):
         self.steps({"key": "", "select": ["note"]}, {"query": "a note"}, {"key": "", "select": ["cancel"]})

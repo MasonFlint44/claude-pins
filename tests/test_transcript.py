@@ -37,6 +37,26 @@ class TranscriptTests(Sandbox):
         p = write_jsonl(self.projects / "x" / f"{sid}.jsonl", recs)
         self.assertEqual(read_summary(p, use_cache=False).title, "first words of a prompt")
 
+    def test_last_title_record_wins_even_when_empty(self):
+        """/rename with nothing clears the name; a clear in the middle of a big file must not lose to an
+        older name the head/tail pass saw, and a later name in the tail beats a clear in the middle."""
+        sid = "44444444-4444-4444-4444-444444444444"
+        recs = session_records(sid, "/x", title="AI", custom="Head name")
+        recs.append({"type": "custom-title", "customTitle": "", "sessionId": sid})
+        p = write_jsonl(self.projects / "x" / f"{sid}.jsonl", recs)
+        s = read_summary(p, use_cache=False)
+        self.assertEqual((s.custom_title, s.title), ("", "AI"))
+        filler = {"type": "user", "cwd": "/x", "sessionId": sid, "message": {"role": "user", "content": "x" * 2000}}
+        middle = [filler] * 100
+        middle.insert(50, {"type": "custom-title", "customTitle": "", "sessionId": sid})
+        big = write_jsonl(self.projects / "x" / "big.jsonl", recs[:-1] + middle + recs[-1:])
+        self.assertGreater(big.stat().st_size, 2 * transcript.WINDOW)
+        s = read_summary(big, use_cache=False)
+        self.assertEqual((s.custom_title, s.title), ("", "AI"))
+        with open(big, "a") as fh:
+            fh.write(json.dumps({"type": "custom-title", "customTitle": "Tail name", "sessionId": sid}) + "\n")
+        self.assertEqual(read_summary(big, use_cache=False).title, "Tail name")
+
     def test_missing_and_empty_and_malformed(self):
         s = read_summary(self.projects / "nope.jsonl", use_cache=False)
         self.assertFalse(s.exists)

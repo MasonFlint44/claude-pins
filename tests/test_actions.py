@@ -52,7 +52,7 @@ class ActionTests(Sandbox):
         self.assertEqual((out.flash, out.cursor), ("✓ unpinned mower · alt-z undo", ""))
         self.assertEqual(self.reload().aliases(), ["standup"])
         out = actions.undo(self.store)
-        self.assertEqual((out.flash, out.cursor), ("✓ restored mower (unpin)", "mower"))
+        self.assertEqual((out.flash, out.cursor), ("✓ restored mower (unpin) · session named 📌 mower", "mower"))
         self.assertEqual(sorted(self.reload().aliases()), ["mower", "standup"])
         out = actions.undo(self.store)
         self.assertEqual((out.flash, out.cursor), ("nothing to undo", None))
@@ -88,7 +88,7 @@ class ActionTests(Sandbox):
     def test_pin_session_and_sort(self):
         t3 = self.make_session("33333333-3333-3333-3333-333333333333", title="Third")
         out = actions.pin_session(self.store, read_summary(t3), "third")
-        self.assertEqual((out.flash, out.cursor), ("✓ pinned as third", "third"))
+        self.assertEqual((out.flash, out.cursor), ("✓ pinned as third · session named 📌 third", "third"))
         self.assertEqual(self.reload().require("third").session_id, "33333333-3333-3333-3333-333333333333")
         with self.assertRaises(PinError):
             actions.pin_session(self.store, read_summary(t3), "another")      # the session is already pinned

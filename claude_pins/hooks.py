@@ -17,6 +17,7 @@ from typing import Iterator
 from . import config
 from .gitutil import current_branch, is_repo
 from . import render
+from .listing import session_pairs
 from .render import Palette, palette, preview, session_preview
 from .screen import Hook, Item
 from .store import load_store
@@ -29,7 +30,8 @@ def preview_text(hook: Hook, row: str, width: int | None = None, color: Palette 
         yield from pin_preview(row, width, color)
     elif hook.name == "spreview":
         if row:
-            yield session_preview(read_summary(row), width, color) + "\n"
+            summary = session_pairs(load_store(), [read_summary(row)])[0][0]     # a pinned one under its pin's title
+            yield session_preview(summary, width, color) + "\n"
     elif hook.name == "draft":
         yield draft_preview(hook.args[0], width, color)
     else:

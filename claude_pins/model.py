@@ -96,6 +96,7 @@ class Pin:
     cwd: str = ""
     transcript: str = ""
     note: str = ""
+    prior_title: str = ""   # the session's own name when it was pinned, put back on unpin; not editable
     pinned_at: str = ""
     fork: bool = False
     worktree: bool = False
@@ -110,6 +111,7 @@ class Pin:
             "cwd": self.cwd,
             "transcript": self.transcript,
             "note": self.note,
+            "prior_title": self.prior_title,
             "pinned_at": self.pinned_at,
             "fork": bool(self.fork),
             "worktree": bool(self.worktree),
@@ -126,6 +128,7 @@ class Pin:
             cwd=str(data.get("cwd", "") or ""),
             transcript=str(data.get("transcript", "") or ""),
             note=str(data.get("note", "") or ""),
+            prior_title=str(data.get("prior_title", "") or ""),
             pinned_at=str(data.get("pinned_at", "") or ""),
             fork=bool(data.get("fork", False)),
             worktree=bool(data.get("worktree", False)),

@@ -6,6 +6,17 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
 
 ## Unreleased
 
+- **Pins name their sessions.** Pinning renames the Claude session to `📌 alias`, the way
+  `/rename` does, so the pin shows in Claude's own `/resume` picker, prompt box and
+  terminal title; the picker shows it at once and a running session catches up within a
+  few turns. `pin rename` and `pin edit --rename` rename the session too, unpinning puts
+  back the name the session had before (or clears it), and `pin undo` names it again; each
+  command says what it did to the name. A name you set with `/rename` after pinning is
+  left alone. A fork opened from a pin is named with the plain alias instead of inheriting
+  `📌 alias`. `pin sessions` and the new-pin screen list a pinned session under the pin's
+  title, next to its 📌 tag. Naming keeps the transcript's modification time, so it changes
+  neither the idle time nor the retention clock. A pin made before this release does not
+  name its session until it is unpinned and pinned again.
 - The built-in picker gives a lone esc its whole delay even when the preview
   or a resize wakes it part-way through, so on a terminal that sends ESC and
   the rest of a key separately, alt-i pressed right after a cursor move can

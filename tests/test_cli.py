@@ -40,6 +40,67 @@ class CliTests(FzfSandbox):
         r = self.run_pin("undo")
         self.assertEqual(r.returncode, 1); self.assertIn("nothing to undo", r.stderr)
 
+    def last_record(self, path: Path) -> dict:
+        return json.loads(path.read_text().splitlines()[-1])
+
+    def stored(self, alias: str) -> dict:
+        return next(p for p in json.loads(self.store_path().read_text())["pins"] if p["alias"] == alias)
+
+    def test_pinning_names_the_session(self):
+        """add, rename, edit --rename, rm and undo each rename the session and say so; the pin's own
+        title is untouched, and the session's prior name comes back on unpin."""
+        t3 = self.make_session(SID3, age_days=3, title="Third", custom="My name")
+        r = self.run_pin("add", SID1, "standup-prep")
+        self.assertEqual(r.stdout.strip(), "✓ pinned as standup-prep · Standup prep · session named 📌 standup-prep")
+        self.assertEqual(self.last_record(self.t1), {"type": "custom-title", "customTitle": "📌 standup-prep", "sessionId": SID1})
+        self.assertEqual(self.stored("standup-prep")["prior_title"], "")
+        r = self.run_pin("add", SID3, "third", "--title", "Mine")
+        self.assertEqual(r.stdout.strip(), "✓ pinned as third · Mine · session named 📌 third")
+        self.assertEqual((self.stored("third")["title"], self.stored("third")["prior_title"]), ("Mine", "My name"))
+        r = self.run_pin("rename", "standup-prep", "sp")
+        self.assertEqual(r.stdout.strip(), "✓ renamed standup-prep → sp · session named 📌 sp")
+        r = self.run_pin("edit", "sp", "--rename", "sp2", "--note", "n")
+        self.assertEqual(r.stdout.strip(), "✓ saved sp2 · session named 📌 sp2")
+        r = self.run_pin("add", SID1, "sp3", "--rename")
+        self.assertEqual(r.stdout.strip(), "already pinned as sp3 · renamed to sp3 · session named 📌 sp3")
+        self.assertEqual(self.last_record(self.t1)["customTitle"], "📌 sp3")
+        r = self.run_pin("list")
+        self.assertRegex(r.stdout, r"sp3\s+Standup prep\s+~/git/proj\s+2d")          # the pin's title, and no touch
+        r = self.run_pin("rm", "sp3")
+        self.assertEqual(r.stdout.strip(), "✓ unpinned sp3 · pin undo restores it · session name cleared")
+        self.assertEqual(self.last_record(self.t1)["customTitle"], "")
+        r = self.run_pin("undo")
+        self.assertEqual(r.stdout.strip(), "✓ restored sp3 (unpin) · session named 📌 sp3")
+        r = self.run_pin("rm", "third")
+        self.assertEqual(r.stdout.strip(), '✓ unpinned third · pin undo restores it · session named "My name" again')
+        self.assertEqual(self.last_record(t3)["customTitle"], "My name")
+        # renamed inside Claude since: pins leave the name alone and say nothing about it
+        with open(self.t1, "a") as fh:
+            fh.write(json.dumps({"type": "custom-title", "customTitle": "Theirs", "sessionId": SID1}) + "\n")
+        r = self.run_pin("rename", "sp3", "sp4")
+        self.assertEqual(r.stdout.strip(), "✓ renamed sp3 → sp4")
+        r = self.run_pin("rm", "sp4")
+        self.assertEqual(r.stdout.strip(), "✓ unpinned sp4 · pin undo restores it")
+        self.assertEqual(self.last_record(self.t1)["customTitle"], "Theirs")
+        r = self.run_pin("undo")
+        self.assertEqual(r.stdout.strip(), "✓ restored sp4 (unpin)")
+        # no transcript yet: the warning as before, no name line
+        r = self.run_pin("add", "44444444-4444-4444-4444-444444444444", "fresh")
+        self.assertEqual(r.stdout.strip(), "✓ pinned as fresh · fresh")
+        self.assertIn("no transcript found", r.stderr)
+
+    def test_sessions_show_a_pinned_one_under_its_pin_title(self):
+        self.run_pin("add", SID1, "sp", "--title", "The pin's title")
+        r = self.run_pin("sessions")
+        self.assertRegex(r.stdout.splitlines()[0], rf"^{SID1[:8]}  The pin's title\s+~/git/proj\s+2d\s+2 msgs\s+📌 sp$")
+        data = json.loads(self.run_pin("sessions", "--json", "pin's").stdout)
+        self.assertEqual([(d["title"], d["alias"]) for d in data], [("The pin's title", "sp")])
+        self.assertEqual(json.loads(self.run_pin("sessions", "--json", "📌").stdout), [])
+        r = self.run_pin("add", "pin's title", "other")                        # words match the shown title
+        self.assertIn("already pinned as sp", r.stdout)
+        r = self.run_pin("_spreview", str(self.t1))
+        self.assertTrue(r.stdout.startswith("The pin's title\n"), r.stdout)
+
     def test_add_idempotency(self):
         self.run_pin("add", SID1, "standup-prep")
         r = self.run_pin("add", SID1, "standup-prep")
@@ -69,7 +130,7 @@ class CliTests(FzfSandbox):
         self.argv_log.unlink()
         r = self.run_pin("center", "collector", "--fork")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID2, "--fork-session"])
+        self.assertEqual(self.claude_calls()["argv"], ["--resume", SID2, "--fork-session", "--name", "cc-collector"])
         # worktree one-off with a name
         r = self.run_pin("cc-collector", "-w", "feat")
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID2, "--worktree", "feat"])
@@ -83,7 +144,7 @@ class CliTests(FzfSandbox):
         self.run_pin("edit", "sp", "--model", "opus", "--effort", "high", "--permission-mode", "plan")
         self.run_pin("sp")
         self.assertEqual(self.claude_calls()["argv"],
-                         ["--resume", SID1, "--fork-session", "--worktree", "--model", "opus", "--effort", "high", "--permission-mode", "plan"])
+                         ["--resume", SID1, "--fork-session", "--name", "sp", "--worktree", "--model", "opus", "--effort", "high", "--permission-mode", "plan"])
         self.run_pin("sp", "--resume")
         self.assertEqual(self.claude_calls()["argv"], ["--resume", SID1, "--model", "opus", "--effort", "high", "--permission-mode", "plan"])
         self.run_pin("edit", "sp", "--no-fork", "--no-worktree", "--effort", "", "--rename", "sp2")

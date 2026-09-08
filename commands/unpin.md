@@ -15,3 +15,8 @@ Current pin status: !`"${CLAUDE_PLUGIN_ROOT}/bin/pin" _status "${CLAUDE_SESSION_
 
   and report its one-line output verbatim (it mentions `pin undo`, which restores the pin from
   a terminal). No confirmation is needed: unpinning is undoable.
+- The output ends with what happened to the session's name: `session named "…" again` means
+  the name it had before it was pinned is back, `session name cleared` means it had none. The
+  `/resume` picker shows that at once; this session's prompt box and terminal title catch up
+  within a few turns. If the line says nothing about the name, the session was renamed by hand
+  since it was pinned, and `pin` left that name alone.

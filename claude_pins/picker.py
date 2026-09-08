@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from . import actions, altkeys, config, prompt
 from .editor import edit_pin
 from .keymap import ACTIONS, BY_ID, GROUPS, Keymap, key_warning, validate_key
-from .listing import build_views
+from .listing import build_views, session_pairs
 from .model import PinError, kebab, next_free_alias
 from .opener import launch, touch_kept
 from .render import (FZF_COLUMN_SEP, View, crumb, grouped, label_row, layout, legend, palette, preview, rows,
@@ -233,10 +233,11 @@ class Picker:
         if first is None:
             return None
         if action == "edit":
-            changed = edit_pin(self.store, first.pin.alias)
-            if changed:
-                self.state.cursor = changed
-                self.state.flash = f"✓ saved {changed}"
+            saved = edit_pin(self.store, first.pin.alias)
+            if saved:
+                alias, note = saved
+                self.state.cursor = alias
+                self.state.flash = " · ".join(filter(None, [f"✓ saved {alias}", note]))
             return None
         if action == "touch":
             self.apply(actions.touch(selected))
@@ -385,7 +386,7 @@ class Picker:
         pinned = {p.session_id: p.alias for p in self.store.pins}
         paths = iter_transcripts()[:200]
         summaries = [read_summary(p) for p in paths]
-        pairs = [(s, pinned.get(s.session_id, "")) for s in summaries if s.exists]
+        pairs = session_pairs(self.store, [s for s in summaries if s.exists])
         if not pairs:
             self.state.flash = "no sessions found under " + config.tilde(config.projects_dir())
             return

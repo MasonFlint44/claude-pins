@@ -8,7 +8,7 @@ import os
 import sys
 import tempfile
 
-from . import prompt
+from . import naming, prompt
 from .model import EFFORT_LEVELS, PERMISSION_MODES, Pin, PinError, validate_alias
 from .render import crumb, display_dir, grouped, palette
 from .screen import Header, Hook, Item, Screen, hold_screen, show
@@ -73,12 +73,16 @@ def _validate(store: Store, draft: Pin, original: Pin) -> None:
         raise PinError(f"alias {draft.alias} is taken")
 
 
-def _commit(store: Store, draft: Pin, original: Pin) -> str:
-    target = store.require(original.alias)
+def _commit(store: Store, draft: Pin, original: Pin) -> tuple[str, str]:
+    """Write the draft. Returns the saved alias and the session-name note (empty unless the alias changed
+    and the session still carried the old one)."""
+    target = store.require(original.alias)      # the store's own pin, which ``original`` may be
+    old_alias = original.alias
     for _, f, _, _ in FIELDS:
         _set(target, f, _get(draft, f))
     store.save()
-    return draft.alias
+    note = naming.rename(target, old_alias) if draft.alias != old_alias else ""
+    return draft.alias, note
 
 
 # ---- the draft file, read back by ``pin _preview --draft`` -------------------------------------
@@ -98,8 +102,8 @@ def read_draft(path: str) -> tuple[Pin, set[str]]:
 
 # ---- the editor ---------------------------------------------------------------------------------
 
-def edit_pin(store: Store, alias: str) -> str | None:
-    """Interactive edit. Returns the (possibly new) alias if saved, else None."""
+def edit_pin(store: Store, alias: str) -> tuple[str, str] | None:
+    """Interactive edit. Returns the (possibly new) alias and the session-name note if saved, else None."""
     color = palette(sys.stdout)
     original = store.require(alias)
     draft = original.copy()
@@ -108,7 +112,7 @@ def edit_pin(store: Store, alias: str) -> str | None:
     fd, draft_path = tempfile.mkstemp(prefix="pin-draft-", suffix=".json")
     os.close(fd)
 
-    def save() -> str | None:
+    def save() -> tuple[str, str] | None:
         nonlocal flash
         try:
             _validate(store, draft, original)
