@@ -261,7 +261,7 @@ tests/terminals/run.sh                 # every key in real Linux terminals under
   CI spends nothing. `tests/skills/run.sh` runs the skills through `claude -p`
   for real money (about $0.50 on sonnet); only run it by hand. So does
   `tests/skills/triggers.sh`, which scores the skill descriptions' triggering with
-  the skill-creator plugin's evaluator; run it after changing a description.
+  the skill-creator plugin's evaluator (when to run it is under Conventions).
 - fzf is tested two ways, and both are needed. The flow tests use
   `tests/fzf_stub.py`, a scripted user: the real fzf wants a terminal and a
   person typing, and the stub answers each screen from a script in milliseconds
@@ -342,13 +342,34 @@ tests/terminals/run.sh                 # every key in real Linux terminals under
   rewriting a file when the result is the same. Proceed on reversible steps
   that follow from the request; ask before anything destructive or that changes
   the scope (a release, a paid skill test).
+- A change lands with its tests in the same commit, and `bash tests/coverage.sh`
+  stays where it was (96% at 0.7.0): the suite is what stands in for a person
+  at a terminal, since nothing here runs the real `claude`. A new subcommand,
+  screen or hook gets its test in the module that covers its kind
+  (`tests/test_cli.py`, `tests/test_fzf_real.py` with `tests/test_tui.py`,
+  `tests/test_plugin.py`), and the plugin files (manifest, commands, skills,
+  hooks) are checked by `tests/test_plugin.py`, which runs their shell
+  snippets against this checkout.
+- This file is read into context at every session start, so it holds only what
+  the code does not show, each fact with the reason the code depends on it, and
+  an edit removes what it makes false: a bare rule without its reason gets
+  reinterpreted, and a stale fact gets trusted.
+- `commands/*.md` and `skills/*/SKILL.md` are followed at run time by whatever
+  model the user has, usually a Sonnet, so they are numbered steps, each
+  concrete (the exact command, the exact line to quote), with a "Do not" list
+  for what a model would otherwise try, and no emphasis or persuasion. A skill's
+  `description` is what decides whether it triggers, so a change to one is
+  followed by `tests/skills/triggers.sh` (paid, by hand, after asking) and the
+  commit message says whether it ran; a body-only change needs no re-test.
 - `pin list` and `pin sessions` print column labels (and `pin list` the legend)
   only when stdout is a terminal, so piped output stays bare rows for grep;
   `--json` is the scripting form. Each glyph has one meaning across screens:
   `*` marks a changed field in the editor and details, 🚩/⚑ is keep, and the
   pinned tag on the session lists is 📌/⚲ with the pin's alias.
 - A new subcommand needs a row in the README command table, the list in both
-  completion scripts, and their check scripts.
+  completion scripts, and their check scripts; a hidden one (`_status`, `_rows`)
+  needs none of those, since the README check and the completions skip the
+  underscore names.
 - Plugin commands stay namespaced (`/pins:pin`); do not add bare `/pin` shims.
 - ccusage cost is read from `ccusage session --json`: try `--offline` first and
   go online only for models offline cannot price (see `claude_pins/cost.py`).
