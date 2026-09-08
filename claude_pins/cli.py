@@ -461,12 +461,8 @@ def cmd_doctor(opts) -> int:
         print(f"✓ store {config.tilde(path)}: {len(store.pins)} pins, {len(store.undo)} undo entries")
         kept = sum(1 for p in store.pins if p.keep)
         count = f"{kept} {'pin' if kept == 1 else 'pins'}" if kept else "no pins"
-        hook = config.plugin_hook_state()
-        if hook == "hook":
+        if config.plugin_enabled():
             print(f"✓ keep: {count} · touched on every pin run and every Claude session start (plugin hook)")
-        elif hook == "old":
-            print(f"· keep: {count} · touched on every pin run only: the installed pins plugin "
-                  "predates the session-start hook (/plugin update pins, then restart Claude)")
         else:
             print(f"· keep: {count} · touched on every pin run only: "
                   "the pins plugin is not enabled, so no session-start hook (/plugin install pins@claude-toolbox, then restart Claude)")

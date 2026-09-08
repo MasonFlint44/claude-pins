@@ -191,12 +191,11 @@ reasons behind several design choices and are recorded nowhere else.
   600 s; hooks.json sets 10. A session loads a plugin's hooks at start and
   keeps the old version's path after `claude plugin update` until
   `/reload-plugins` or a restart (a skill's SKILL.md is the one part re-read
-  live), so the docs, the doctor and the changelog say to restart. Claude
-  records enabled plugins in `settings.json` (`enabledPlugins`, `pins@…`) and
-  each install's `installPath` in `plugins/installed_plugins.json` under the
-  config directory, which is how the doctor's keep line tells "hook", "old
-  plugin" and "not enabled" apart. Checked against the hooks and plugins
-  references on 2026-09-08.
+  live), so the docs and the changelog say to restart. Claude records enabled
+  plugins in `settings.json` (`enabledPlugins`, `pins@<marketplace>: true`),
+  which is all the doctor's keep line reads: no installed plugin predates the
+  hook, so there is no older version to tell apart. Checked against the hooks
+  and plugins references on 2026-09-08.
 - Terminal automation (opening a new tab for the resumed session) was dropped on
   purpose: Ghostty's D-Bus surface offers new-window only.
 

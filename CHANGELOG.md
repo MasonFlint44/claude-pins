@@ -11,9 +11,9 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
   clears or compacts, so a kept session survives Claude's `cleanupPeriodDays` sweep as long
   as you use Claude at all, not only while you run `pin`. The hook prints nothing and never
   blocks a start; it comes with the plugin and `/hooks` lists it. `pin doctor` gained a
-  `keep` line that counts the kept pins and says whether the hook is in place, with the fix
-  when the installed plugin predates it or is not enabled. Restart Claude Code after
-  updating the plugin so the hook is picked up.
+  `keep` line that counts the kept pins and says whether the hook runs, with the fix when
+  the plugin is not enabled. Restart Claude Code after updating the plugin so the hook is
+  picked up.
 
 ## 0.7.0 — 2026-09-08
 

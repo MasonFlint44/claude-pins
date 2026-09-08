@@ -229,7 +229,7 @@ Every subcommand exits 0 on success and 1 with a one-line message on `stderr` ot
 | `pin undo` | restore the last unpin or prune (the last ten are kept) and name the session after the pin again; a restored alias that is taken meanwhile comes back as `alias-2` |
 | `pin prune [-y]` | unpin every expired pin after listing them and asking; `-y` skips the question; "nothing to prune" otherwise |
 | `pin touch <alias>` | bump the transcript's mtime, restarting its retention clock |
-| `pin doctor` | fzf version (optional: `·` with the install command when it is missing or old), on a Mac whether the terminal sends Option as Meta, ccusage and its price coverage across your sessions, store health, how many pins have `keep` and whether the plugin's session-start hook is in place to touch them (`·` when the installed plugin predates it or is not enabled), projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
+| `pin doctor` | fzf version (optional: `·` with the install command when it is missing or old), on a Mac whether the terminal sends Option as Meta, ccusage and its price coverage across your sessions, store health, how many pins have `keep` and whether the plugin's session-start hook runs to touch them (`·` when the plugin is not enabled), projects directory, cleanup period, keymap file; exit 1 if anything is ✗ |
 
 Every run of any of these also touches the transcripts of pins with `keep`, as does the
 plugin's session-start hook (`pin _keep`, which prints nothing).

@@ -4,7 +4,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from tests.helpers import REPO, FzfSandbox
+from tests.helpers import FzfSandbox
 
 SID1 = "11111111-1111-1111-1111-111111111111"
 SID2 = "22222222-2222-2222-2222-222222222222"
@@ -197,22 +197,16 @@ class CliTests(FzfSandbox):
         self.assertIn("✓ fzf 0.44.1", r.stdout)
         self.assertIn("cleanupPeriodDays 30", r.stdout)
         self.assertIn("✓ store", r.stdout)
-        # the keep line names the plugin state Claude records: not enabled, enabled but old, or with the hook
+        # the keep line says whether the session-start hook runs, which is whether Claude has the plugin enabled
         self.assertIn("· keep: no pins · touched on every pin run only: the pins plugin is not enabled", r.stdout)
         self.run_pin("add", SID1, "a", "--keep")
+        self.write_settings({"enabledPlugins": {"pins@claude-toolbox": False}})
+        self.assertIn("· keep: 1 pin · touched on every pin run only", self.run_pin("doctor").stdout)
         self.write_settings({"enabledPlugins": {"pins@claude-toolbox": True}})
-        installed = self.claude_dir / "plugins" / "installed_plugins.json"
-        installed.parent.mkdir()
-        old = self.root / "plugin-0.7.0"; old.mkdir()
-        installed.write_text(json.dumps({"plugins": {"pins@claude-toolbox": [{"installPath": str(old)}]}}))
-        r = self.run_pin("doctor")
-        self.assertIn("· keep: 1 pin · touched on every pin run only: the installed pins plugin predates", r.stdout)
-        installed.write_text(json.dumps({"plugins": {"pins@claude-toolbox": [{"installPath": str(old)},
-                                                                            {"installPath": str(REPO)}]}}))
         self.run_pin("add", SID2, "b", "--keep")
         r = self.run_pin("doctor")
         self.assertIn("✓ keep: 2 pins · touched on every pin run and every Claude session start (plugin hook)", r.stdout)
-        installed.write_text("{")
+        (self.claude_dir / "settings.json").write_text("{")
         self.assertIn("· keep: 2 pins · touched on every pin run only: the pins plugin is not enabled", self.run_pin("doctor").stdout)
 
     def test_keep_hook_touches_kept_pins_and_says_nothing(self):

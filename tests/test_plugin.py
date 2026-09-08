@@ -143,8 +143,8 @@ class PluginFileTests(Sandbox):
         skill = (REPO / "skills" / "doctor" / "SKILL.md").read_text()
         for phrase in ("fzf: not found", "need ≥ 0.44", "alt keys:", "ccusage: not installed",
                        "offline table has no price for", "even online", "online fallback unreachable", "corrupt",
-                       "not found (set CLAUDE_CONFIG_DIR?)", "keep:", "predates the session-start hook",
-                       "the pins plugin is not enabled", "cleanupPeriodDays"):
+                       "not found (set CLAUDE_CONFIG_DIR?)", "keep:", "the pins plugin is not enabled",
+                       "cleanupPeriodDays"):
             self.assertIn(phrase, skill, f"skill does not explain {phrase!r}")
             self.assertIn(phrase.split(" (")[0], src, f"doctor never prints {phrase[:30]!r}")
 
