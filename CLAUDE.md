@@ -49,18 +49,21 @@ reasons behind several design choices and are recorded nowhere else.
   f2, new pin ctrl-t and the help screen's reset-all alt-r; help stays f1
   because the palette lists it. Alt keys reach the shell there on Linux and
   Windows but on macOS only with `terminal.integrated.macOptionIsMeta`.
-- Every macOS terminal starts with Option typing symbols and accents, so the
-  alt keys are dead until a per-terminal switch is on. `claude_pins/mac.py`
-  names the terminal from `TERM_PROGRAM` (Apple_Terminal, iTerm.app, vscode,
-  ghostty, WezTerm), `KITTY_WINDOW_ID` or `TERM=xterm-kitty`, and
-  `ALACRITTY_WINDOW_ID`, and reads the switch where each keeps it: Terminal.app
+- Every macOS terminal starts with Option typing symbols and accents, and
+  stock xterm on any system sets the high bit for Meta, so the alt keys are
+  dead until a per-terminal switch is on. `claude_pins/altkeys.py` names the
+  terminal from `TERM_PROGRAM` (Apple_Terminal, iTerm.app, vscode, ghostty,
+  WezTerm), `KITTY_WINDOW_ID` or `TERM=xterm-kitty`, `ALACRITTY_WINDOW_ID`
+  and `XTERM_VERSION`, and reads the switch where each keeps it: Terminal.app
   `~/Library/Preferences/com.apple.Terminal.plist` (the default profile's
   `useOptionAsMetaKey`), iTerm2 `com.googlecode.iterm2.plist` (the
   `ITERM_PROFILE` entry of "New Bookmarks", "Option Key Sends" 2 is Esc+; 1 is
   Meta, which sets the high bit and is no use), VS Code's user `settings.json`
   (searched, not parsed: it allows comments), Ghostty's config (the
   Application Support file is loaded after the XDG one and wins), `kitty.conf`,
-  `alacritty.toml`; WezTerm sends Meta by default. Over ssh only iTerm2 says
+  `alacritty.toml`; WezTerm sends Meta by default; xterm's `metaSendsEscape`
+  (or `eightBitInput` false) from `xrdb -query`, the resources the X server
+  holds, else `~/.Xresources` and `~/.Xdefaults`. Over ssh only iTerm2 says
   who it is (`LC_TERMINAL`). Unreadable or unparsable is unknown, which shows
   the note like off; only a switch read as on silences it, so a user who set it
   is never nagged. The keymap is not per-OS: one shortcut inside and outside

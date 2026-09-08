@@ -7,7 +7,7 @@ import json
 import os
 import sys
 
-from . import __version__, config, fzf, hooks, mac
+from . import __version__, altkeys, config, fzf, hooks
 from .cost import doctor_line
 from .listing import build_views
 from .match import loose_match, match_sessions, recent_sessions, short_ids
@@ -434,7 +434,7 @@ def cmd_doctor(opts) -> int:
         print(f"· fzf {'.'.join(map(str, v))}: need ≥ 0.44 ({fzf.OPTIONAL_NOTE}) · {fzf.install_hint()}")
     else:
         print(f"✓ fzf {'.'.join(map(str, v))}")
-    probe = mac.option_as_meta()
+    probe = altkeys.probe()
     if probe:
         print(probe.doctor_line())
     print(doctor_line())

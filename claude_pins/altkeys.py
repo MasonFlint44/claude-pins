@@ -1,11 +1,13 @@
-"""Whether alt keys reach the picker on macOS.
+"""Whether alt keys reach the picker in this terminal.
 
 Every macOS terminal starts with the Option key typing symbols and accents (alt-t is †, alt-i is a dead
 key), so an alt binding arrives as text until the terminal's Option-as-Meta setting is on, and each
-terminal keeps that setting somewhere different. This reads the setting where the terminal keeps it, so
-the picker can say once which switch a user needs and stay quiet for one who has already set it, and
-``pin doctor`` can report it. Everything is read with the standard library and any file that cannot be
-read or parsed leaves the state unknown, which is treated like off: the note shows, the doctor says so.
+terminal keeps that setting somewhere different. Stock xterm is the same on any system: Meta sets the
+high bit of the character until ``XTerm*metaSendsEscape`` is true. This reads the setting where the
+terminal keeps it, so the picker can say once which switch a user needs and stay quiet for one who has
+already set it, and ``pin doctor`` can report it. Everything is read with the standard library and
+any file that cannot be read or parsed leaves the state unknown, which is treated like off: the note
+shows, the doctor says so.
 """
 
 from __future__ import annotations
@@ -13,6 +15,8 @@ from __future__ import annotations
 import os
 import plistlib
 import re
+import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,7 +26,7 @@ ON, OFF, UNKNOWN = "on", "off", "unknown"
 
 @dataclass(frozen=True)
 class Probe:
-    terminal: str   # "Terminal.app", "iTerm2", "VS Code", "Ghostty", "Kitty", "Alacritty", "WezTerm", "" if unknown
+    terminal: str   # "Terminal.app", "iTerm2", "VS Code", "Ghostty", "Kitty", "Alacritty", "WezTerm", "xterm", "" if unknown
     state: str      # ON, OFF or UNKNOWN
     setting: str    # the switch's name in that terminal, "" for an unknown terminal
 
@@ -37,13 +41,13 @@ class Probe:
         return "alt keys need the terminal's Option as Meta setting"
 
     def doctor_line(self) -> str:
-        where = f"in {self.terminal}" if self.terminal else "(terminal not recognised)"
+        if not self.terminal:
+            return "· alt keys: not sure this terminal sends them · set its Option as Meta switch"
         if self.on:
-            return f"✓ alt keys: Option as Meta on {where}"
-        fix = f"set {self.setting}" if self.terminal else "set the terminal's Option as Meta switch"
-        if self.state == UNKNOWN and self.terminal:
-            fix = f"check {self.setting}"
-        return f"· alt keys: Option as Meta {self.state} {where} · {fix}"
+            return f"✓ alt keys: {self.terminal} sends them"
+        if self.state == UNKNOWN:
+            return f"· alt keys: not sure {self.terminal} sends them · check {self.setting}"
+        return f"· alt keys: {self.terminal} does not send them · set {self.setting}"
 
 
 def platform() -> str:
@@ -53,18 +57,20 @@ def platform() -> str:
 
 
 def applies(env: dict[str, str] | None = None) -> bool:
-    """A Mac, or an ssh session from iTerm2 (the one terminal that says so across ssh)."""
+    """A Mac, an ssh session from iTerm2 (the one terminal that says so across ssh), or xterm anywhere."""
     env = os.environ if env is None else env
-    return platform() == "darwin" or env.get("LC_TERMINAL") == "iTerm2"
+    return platform() == "darwin" or env.get("LC_TERMINAL") == "iTerm2" or bool(env.get("XTERM_VERSION"))
 
 
-def option_as_meta(env: dict[str, str] | None = None, home: Path | None = None) -> Probe | None:
-    """The terminal and its Option-as-Meta state, or None where the question does not arise."""
+def probe(env: dict[str, str] | None = None, home: Path | None = None) -> Probe | None:
+    """The terminal and whether it sends alt keys, or None where the question does not arise."""
     env = dict(os.environ) if env is None else env
     if not applies(env):
         return None
     home = home or Path(os.path.expanduser("~"))
     program = env.get("TERM_PROGRAM", "")
+    if env.get("XTERM_VERSION") and not program:
+        return Probe("xterm", _xterm(home, env), "XTerm*metaSendsEscape: true")
     if program == "Apple_Terminal":
         return Probe("Terminal.app", _terminal_app(home), '"Use Option as Meta key"')
     if program == "iTerm.app" or env.get("LC_TERMINAL") == "iTerm2":
@@ -187,4 +193,32 @@ def _alacritty(home: Path, env: dict[str, str]) -> str:
     return OFF
 
 
-__all__ = ["Probe", "ON", "OFF", "UNKNOWN", "applies", "option_as_meta", "platform"]
+_XTERM_META = re.compile(r"^\s*[^:!\n]*metaSendsEscape\s*:\s*(\S+)", re.M | re.I)
+_XTERM_8BIT = re.compile(r"^\s*[^:!\n]*eightBitInput\s*:\s*(\S+)", re.M | re.I)
+
+
+def _xterm(home: Path, env: dict[str, str]) -> str:
+    """``metaSendsEscape`` true or ``eightBitInput`` false in the X resources: what ``xrdb -query`` has
+    loaded into the server when xrdb is there, else ``~/.Xresources`` and ``~/.Xdefaults``; the last
+    line for a resource wins, and nothing said is xterm's default, off."""
+    text = None
+    xrdb = shutil.which("xrdb", path=env.get("PATH"))
+    if xrdb:
+        try:
+            p = subprocess.run([xrdb, "-query"], capture_output=True, text=True, timeout=2, env=env)
+            if p.returncode == 0:
+                text = p.stdout
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if text is None:
+        text = "\n".join(t for t in (_read(home / ".Xresources"), _read(home / ".Xdefaults")) if t is not None)
+    meta = _XTERM_META.findall(text)
+    eight = _XTERM_8BIT.findall(text)
+    if meta and meta[-1].lower() in ("true", "on", "yes", "1"):
+        return ON
+    if eight and eight[-1].lower() in ("false", "off", "no", "0"):
+        return ON
+    return OFF
+
+
+__all__ = ["Probe", "ON", "OFF", "UNKNOWN", "applies", "probe", "platform"]

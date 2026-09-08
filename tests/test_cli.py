@@ -311,25 +311,27 @@ class CliTests(FzfSandbox):
         self.assertIn("· fzf 0.38.0: need ≥ 0.44 (optional; the built-in picker draws the same screens)", r.stdout)
 
     def test_doctor_alt_keys_on_a_mac(self):
-        """On a Mac the doctor reports the terminal's Option-as-Meta switch: ✓ when it is on, · with the
-        switch to set when it is off, and · with the switch to check when the terminal is unknown."""
+        """On a Mac, and in xterm anywhere, the doctor reports whether the terminal sends alt keys: ✓ when
+        its switch is on, · with the switch to set when it is off, and · with the switch to check when the
+        state is unknown."""
         env = {"CLAUDE_PINS_OS": "darwin", "TERM_PROGRAM": "iTerm.app", "ITERM_PROFILE": "Work"}
         r = self.run_pin("doctor", env=env)
-        self.assertIn('· alt keys: Option as Meta unknown in iTerm2 · check "Left Option key: Esc+"', r.stdout)
+        self.assertIn('· alt keys: not sure iTerm2 sends them · check "Left Option key: Esc+"', r.stdout)
         import plistlib
         prefs = self.home / "Library" / "Preferences" / "com.googlecode.iterm2.plist"
         prefs.parent.mkdir(parents=True)
         prefs.write_bytes(plistlib.dumps({"New Bookmarks": [{"Name": "Default", "Option Key Sends": 0},
                                                             {"Name": "Work", "Option Key Sends": 2}]}))
-        self.assertIn("✓ alt keys: Option as Meta on in iTerm2", self.run_pin("doctor", env=env).stdout)
+        self.assertIn("✓ alt keys: iTerm2 sends them", self.run_pin("doctor", env=env).stdout)
         r = self.run_pin("doctor", env={**env, "ITERM_PROFILE": "Default"})
-        self.assertIn('· alt keys: Option as Meta off in iTerm2 · set "Left Option key: Esc+"', r.stdout)
+        self.assertIn('· alt keys: iTerm2 does not send them · set "Left Option key: Esc+"', r.stdout)
         r = self.run_pin("doctor", env={"CLAUDE_PINS_OS": "darwin", "TERM_PROGRAM": "tmux"})
-        self.assertIn("· alt keys: Option as Meta unknown (terminal not recognised) · set the terminal's Option as Meta switch",
-                      r.stdout)
+        self.assertIn("· alt keys: not sure this terminal sends them · set its Option as Meta switch", r.stdout)
         r = self.run_pin("doctor", env={"CLAUDE_PINS_OS": "linux", "LC_TERMINAL": "iTerm2"})      # ssh from iTerm2
-        self.assertIn('· alt keys: Option as Meta off in iTerm2 · set "Left Option key: Esc+"', r.stdout)
+        self.assertIn('· alt keys: iTerm2 does not send them · set "Left Option key: Esc+"', r.stdout)
         self.assertNotIn("alt keys", self.run_pin("doctor", env={"CLAUDE_PINS_OS": "linux"}).stdout)
+        r = self.run_pin("doctor", env={"CLAUDE_PINS_OS": "linux", "XTERM_VERSION": "XTerm(379)"})    # stock xterm
+        self.assertIn("· alt keys: xterm does not send them · set XTerm*metaSendsEscape: true", r.stdout)
 
     def test_doctor_without_fzf_exits_zero(self):
         r = self.run_pin("doctor", env={"CLAUDE_PINS_FZF": str(self.root / "no-such-fzf")})

@@ -6,7 +6,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-from . import actions, config, mac, prompt
+from . import actions, altkeys, config, prompt
 from .editor import edit_pin
 from .keymap import ACTIONS, BY_ID, GROUPS, Keymap, key_warning, validate_key
 from .listing import build_views
@@ -44,9 +44,10 @@ def list_items(views: list[View], km: Keymap, color, width: int | None = None) -
 
 
 def alt_keys_note() -> str:
-    """What the help screen says about alt keys: on a Mac whose terminal is not sending Option as Meta,
-    the switch to set (``mac.option_as_meta``); nothing elsewhere or once the switch is on."""
-    probe = mac.option_as_meta()
+    """What the help screen says about alt keys: in a terminal that is not sending them (a Mac's Option
+    as Meta, xterm's metaSendsEscape), the switch to set (``altkeys.probe``); nothing elsewhere or once
+    the switch is on."""
+    probe = altkeys.probe()
     return probe.note() if probe and not probe.on else ""
 
 

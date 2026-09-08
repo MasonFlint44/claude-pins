@@ -22,13 +22,14 @@ tag (`v0.3.1`) and a GitHub release with this section as its notes.
 - **fzf is optional.** `pin doctor` marks a missing or old fzf with `·` and
   exits 0, saying that the built-in picker draws the same screens and how to
   install fzf. The doctor and install skills say the same.
-- **Alt keys on macOS.** Every Mac terminal types symbols on Option until it is
-  told to send it as Meta, which is why alt-i and the other alt keys did
-  nothing there. On a Mac the picker now names the switch for the terminal it
-  is in (Terminal.app, iTerm2, VS Code, Ghostty, Kitty, Alacritty; WezTerm is
-  on already) on its status line the first time it runs and on the f1 screen,
-  reading each terminal's settings so a user who has set it sees nothing, and
-  `pin doctor` reports it. The README has the table.
+- **Alt keys on macOS and in xterm.** Every Mac terminal types symbols on
+  Option until it is told to send it as Meta, and stock xterm sets the high
+  bit, which is why alt-i and the other alt keys did nothing there. The picker
+  now names the switch for the terminal it is in (Terminal.app, iTerm2, VS
+  Code, Ghostty, Kitty, Alacritty, xterm; WezTerm is on already) on its status
+  line the first time it runs and on the f1 screen, reading each terminal's
+  settings so a user who has set it sees nothing, and `pin doctor` reports it.
+  The README has the table.
 - **Keys that reach the picker everywhere.** The actions palette is ctrl-x
   (ctrl-space never reaches a program in VS Code's terminal, which keeps it
   for its own suggestions), refresh is ctrl-r, edit is f2 and new pin is

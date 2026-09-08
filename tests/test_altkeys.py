@@ -1,4 +1,5 @@
-"""The macOS Option-as-Meta probe: which terminal, and whether its switch is on, read from a fake home."""
+"""The alt-keys probe: which terminal, and whether its Option-as-Meta or metaSendsEscape switch is on, read
+from a fake home."""
 
 from __future__ import annotations
 
@@ -8,8 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from claude_pins import mac
-from claude_pins.mac import OFF, ON, UNKNOWN, Probe, option_as_meta
+from claude_pins import altkeys
+from claude_pins.altkeys import OFF, ON, UNKNOWN, Probe, probe
 
 
 class ProbeTests(unittest.TestCase):
@@ -27,7 +28,7 @@ class ProbeTests(unittest.TestCase):
             os.environ["CLAUDE_PINS_OS"] = self._os
 
     def probe(self, **env) -> Probe | None:
-        return option_as_meta(env, self.home)
+        return probe(env, self.home)
 
     def write(self, *parts: str, text: str = "", data: bytes = b"") -> Path:
         path = self.home.joinpath(*parts)
@@ -38,17 +39,18 @@ class ProbeTests(unittest.TestCase):
             path.write_text(text)
         return path
 
-    def test_only_on_a_mac_or_over_ssh_from_iterm2(self):
+    def test_only_on_a_mac_over_ssh_from_iterm2_or_in_xterm(self):
         os.environ["CLAUDE_PINS_OS"] = "linux"
         self.assertIsNone(self.probe(TERM_PROGRAM="vscode"))
+        self.assertEqual(self.probe(XTERM_VERSION="XTerm(379)").terminal, "xterm")
         self.assertEqual(self.probe(LC_TERMINAL="iTerm2"), Probe("iTerm2", UNKNOWN, '"Left Option key: Esc+"'))
         os.environ["CLAUDE_PINS_OS"] = "darwin"
         self.assertEqual(self.probe(), Probe("", UNKNOWN, ""))
         self.assertEqual(self.probe(TERM_PROGRAM="tmux").note(), "alt keys need the terminal's Option as Meta setting")
-        self.assertEqual(mac.platform(), "darwin")
+        self.assertEqual(altkeys.platform(), "darwin")
         os.environ.pop("CLAUDE_PINS_OS")
         import sys
-        self.assertEqual(mac.platform(), sys.platform)
+        self.assertEqual(altkeys.platform(), sys.platform)
 
     def test_terminal_app(self):
         env = dict(TERM_PROGRAM="Apple_Terminal")
@@ -139,15 +141,46 @@ class ProbeTests(unittest.TestCase):
         probe = self.probe(TERM_PROGRAM="WezTerm")
         self.assertEqual(probe.state, ON)
         self.assertTrue(probe.on)
-        self.assertEqual(probe.doctor_line(), "✓ alt keys: Option as Meta on in WezTerm")
+        self.assertEqual(probe.doctor_line(), "✓ alt keys: WezTerm sends them")
+
+    def test_xterm(self):
+        """xterm on any system: metaSendsEscape true or eightBitInput false in what xrdb has loaded, else in
+        ~/.Xresources and ~/.Xdefaults; nothing said is off. A tmux started inside xterm inherits
+        XTERM_VERSION and is xterm underneath; a TERM_PROGRAM names another terminal over it."""
+        os.environ["CLAUDE_PINS_OS"] = "linux"
+        env = dict(XTERM_VERSION="XTerm(379)")
+        self.assertEqual(self.probe(**env), Probe("xterm", OFF, "XTerm*metaSendsEscape: true"))
+        self.assertEqual(self.probe(**env).note(), "alt keys need XTerm*metaSendsEscape: true in xterm")
+        res = self.write(".Xresources", text="XTerm*faceName: Mono\nXTerm*metaSendsEscape: true\n")
+        self.assertEqual(self.probe(**env).state, ON)
+        res.write_text("xterm*eightBitInput:  false\n")
+        self.assertEqual(self.probe(**env).state, ON)
+        res.write_text("XTerm.vt100.metaSendsEscape: true\n*metaSendsEscape: false\n")
+        self.assertEqual(self.probe(**env).state, OFF)                        # the last line wins
+        res.unlink()
+        self.write(".Xdefaults", text="XTerm*metaSendsEscape:\ttrue\n")
+        self.assertEqual(self.probe(**env).state, ON)
+        # xrdb on PATH answers for the server and the files are not read
+        bindir = self.home / "bin"; bindir.mkdir()
+        xrdb = bindir / "xrdb"
+        xrdb.write_text("#!/bin/sh\n[ \"$1\" = -query ] && printf 'XTerm*metaSendsEscape:\\tfalse\\n'\n")
+        xrdb.chmod(0o755)
+        self.assertEqual(self.probe(**env, PATH=str(bindir)).state, OFF)
+        xrdb.write_text("#!/bin/sh\nprintf 'XTerm*eightBitInput:\\tfalse\\n'\n"); xrdb.chmod(0o755)
+        self.assertEqual(self.probe(**env, PATH=str(bindir)).state, ON)
+        xrdb.write_text("#!/bin/sh\nexit 1\n"); xrdb.chmod(0o755)                 # no DISPLAY: back to the files
+        self.assertEqual(self.probe(**env, PATH=str(bindir)).state, ON)
+        self.assertEqual(self.probe(**env, TERM_PROGRAM="tmux").terminal, "")   # something else names itself
+        os.environ["CLAUDE_PINS_OS"] = "darwin"
+        self.assertEqual(self.probe(**env).terminal, "xterm")                  # XQuartz: still xterm
 
     def test_doctor_lines(self):
         self.assertEqual(Probe("VS Code", OFF, "terminal.integrated.macOptionIsMeta").doctor_line(),
-                         "· alt keys: Option as Meta off in VS Code · set terminal.integrated.macOptionIsMeta")
+                         "· alt keys: VS Code does not send them · set terminal.integrated.macOptionIsMeta")
         self.assertEqual(Probe("Terminal.app", UNKNOWN, '"Use Option as Meta key"').doctor_line(),
-                         '· alt keys: Option as Meta unknown in Terminal.app · check "Use Option as Meta key"')
+                         '· alt keys: not sure Terminal.app sends them · check "Use Option as Meta key"')
         self.assertEqual(Probe("", UNKNOWN, "").doctor_line(),
-                         "· alt keys: Option as Meta unknown (terminal not recognised) · set the terminal's Option as Meta switch")
+                         "· alt keys: not sure this terminal sends them · set its Option as Meta switch")
 
 
 if __name__ == "__main__":

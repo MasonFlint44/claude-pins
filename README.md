@@ -142,12 +142,13 @@ something changed. Every other question on the way (a new pin's alias, a key to 
 a missing directory, a branch mismatch, a session already open) is a screen too: nothing
 drops to a text prompt.
 
-### Alt keys on macOS
+### Alt keys on macOS and in xterm
 
-Every macOS terminal starts with the Option key typing symbols and accents, so alt-i, alt-t and
-the other alt keys do nothing until the terminal is told to send Option as Meta (Esc+). The
-picker names the switch on its status line the first time it runs on a Mac, keeps the line on
-the f1 screen until the switch is on, and `pin doctor` reports it. The switches:
+Every macOS terminal starts with the Option key typing symbols and accents, and stock xterm on
+any system sends Meta as the character's high bit, so alt-i, alt-t and the other alt keys do
+nothing until the terminal is told to send them as Esc+key. The picker names the switch on its
+status line the first time it runs in such a terminal, keeps the line on the f1 screen until the
+switch is on, and `pin doctor` reports it. The switches:
 
 | terminal | setting |
 |---|---|
@@ -158,6 +159,7 @@ the f1 screen until the switch is on, and `pin doctor` reports it. The switches:
 | Kitty | `macos_option_as_alt yes` in `kitty.conf` |
 | Alacritty | `[window]` `option_as_alt = "Both"` in `alacritty.toml` |
 | WezTerm | on by default |
+| xterm | `XTerm*metaSendsEscape: true` in `~/.Xresources`, then `xrdb -merge ~/.Xresources` |
 
 The keys that need no switch (enter, tab, f1, f2, ctrl-x, ctrl-r, ctrl-t) cover the palette,
 and the palette lists every action.

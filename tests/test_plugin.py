@@ -100,10 +100,10 @@ class PluginFileTests(Sandbox):
 
     def test_doctor_skill_table_matches_doctor_output(self):
         """Every doctor line the skill explains is a line pin doctor can actually print."""
-        from claude_pins import cli, cost, fzf, mac, store
-        src = "".join(Path(m.__file__).read_text() for m in (cli, cost, fzf, mac, store))
+        from claude_pins import altkeys, cli, cost, fzf, store
+        src = "".join(Path(m.__file__).read_text() for m in (altkeys, cli, cost, fzf, store))
         skill = (REPO / "skills" / "doctor" / "SKILL.md").read_text()
-        for phrase in ("fzf: not found", "need ≥ 0.44", "alt keys: Option as Meta", "ccusage: not installed",
+        for phrase in ("fzf: not found", "need ≥ 0.44", "alt keys:", "ccusage: not installed",
                        "offline table has no price for", "even online", "online fallback unreachable", "corrupt",
                        "not found (set CLAUDE_CONFIG_DIR?)", "cleanupPeriodDays"):
             self.assertIn(phrase, skill, f"skill does not explain {phrase!r}")
